@@ -1,0 +1,100 @@
+name: Publish to Chrome Web Store
+
+# Same trigger shape as publish-firefox.yml and publish-edge.yml, so one
+# version tag now ships all three stores. workflow_dispatch is there to
+# re-run a publish (e.g. after review rejects a submission) without cutting
+# a new tag.
+#
+# Publishes the Chromium build — the same artifact Edge takes.
+#
+# Only the package is automated. The Chrome Web Store has no API for listing
+# metadata, so the per-language Overview in store-listing/ stays a manual
+# Developer Dashboard step.
+#
+# Required repository secrets (Settings > Secrets and variables > Actions):
+#
+#   CHROME_EXTENSION_ID    The item id from the store URL:
+#                          chromewebstore.google.com/detail/<slug>/<THIS>
+#                          32 letters, a-p. For OpenCapture:
+#                          ikhhoggnlncjhpdbnneekifbnmojpjph
+#   CHROME_CLIENT_ID       OAuth2 client id (Google Cloud console).
+#   CHROME_CLIENT_SECRET   OAuth2 client secret.
+#   CHROME_REFRESH_TOKEN   Long-lived refresh token for that client, with
+#                          scope https://www.googleapis.com/auth/chromewebstore
+#
+# To mint the refresh token: in Google Cloud console enable the Chrome Web
+# Store API, create an OAuth client of type "Web application", add
+# https://developers.google.com/oauthplayground as a redirect URI, then use
+# the OAuth Playground with your own client id/secret to authorize that scope
+# and exchange the resulting code for a refresh token. Refresh tokens for
+# apps left in "Testing" on the consent screen expire after 7 days — publish
+# the consent screen so releases don't start failing a week later.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  WASM_BINDGEN_VERSION: "0.2.100"
+
+jobs:
+  publish-chrome:
+    name: build, package, submit to Chrome Web Store
+    runs-on: ubuntu-latest
+    steps:
+      # apps/extension/vendor-private/watermark-premium is a private
+      # submodule (the Supporter watermark feature) — actions/checkout
+      # can't fetch it with the default GITHUB_TOKEN, which is scoped to
+      # this repo only. Same deploy-key setup as ci.yml's wasm-build job.
+      - name: Set up deploy key for the private watermark submodule
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.WATERMARK_PREMIUM_DEPLOY_KEY }}" > ~/.ssh/watermark_premium_deploy
+          chmod 600 ~/.ssh/watermark_premium_deploy
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          {
+            echo "Host github.com"
+            echo "  IdentityFile ~/.ssh/watermark_premium_deploy"
+            echo "  IdentitiesOnly yes"
+          } >> ~/.ssh/config
+      - uses: actions/checkout@v4
+      - name: Fetch the private watermark submodule
+        run: git submodule update --init --recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen-cli (pinned)
+        run: cargo install wasm-bindgen-cli --version ${{ env.WASM_BINDGEN_VERSION }} --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/extension/package-lock.json
+      - run: npm ci
+        working-directory: apps/extension
+      - name: Build the Chromium extension
+        run: npm run build
+        working-directory: apps/extension
+      # Zip the *contents* of dist/, not the directory itself — the store
+      # rejects a package whose manifest.json is nested one level down.
+      - name: Package dist/ as a zip
+        run: |
+          cd apps/extension/dist
+          zip -r -q ../chrome-package.zip .
+          unzip -l ../chrome-package.zip | head -5
+      - name: Upload and publish to the Chrome Web Store
+        run: node scripts/publish-chrome.mjs chrome-package.zip
+        working-directory: apps/extension
+        env:
+          CHROME_EXTENSION_ID: ${{ secrets.CHROME_EXTENSION_ID }}
+          CHROME_CLIENT_ID: ${{ secrets.CHROME_CLIENT_ID }}
+          CHROME_CLIENT_SECRET: ${{ secrets.CHROME_CLIENT_SECRET }}
+          CHROME_REFRESH_TOKEN: ${{ secrets.CHROME_REFRESH_TOKEN }}
+      - name: Upload the package as a workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: chrome-package
+          path: apps/extension/chrome-package.zip
+          if-no-files-found: warn
