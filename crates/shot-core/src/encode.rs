@@ -53,7 +53,7 @@ mod tests {
 
     fn solid_segment(width: u32, height: u32, rgba: [u8; 4]) -> Segment {
         let mut data = vec![0u8; (width * height * 4) as usize];
-        for px in data.chunks_exact_mut(4) {
+        for px in data.as_chunks_mut::<4>().0 {
             px.copy_from_slice(&rgba);
         }
         Segment {

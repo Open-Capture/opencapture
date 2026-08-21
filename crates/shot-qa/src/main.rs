@@ -219,7 +219,13 @@ fn diff(
     let total_pixels = (img_a.width as u64) * (img_a.height as u64);
     let channel_limit = (channel_threshold.clamp(0.0, 1.0) * 255.0) as i32;
     let mut diff_pixels: u64 = 0;
-    for (pa, pb) in img_a.rgba.chunks_exact(4).zip(img_b.rgba.chunks_exact(4)) {
+    for (pa, pb) in img_a
+        .rgba
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .zip(img_b.rgba.as_chunks::<4>().0)
+    {
         let differs = (0..4).any(|i| (pa[i] as i32 - pb[i] as i32).abs() > channel_limit);
         if differs {
             diff_pixels += 1;

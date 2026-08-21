@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "OpenCapture \u2014 Private Full-Page Screenshot",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "100% local full-page screenshots. No cloud upload. All core features free; the watermark tool is a paid Supporter feature.",
   "action": {
     "default_popup": "popup.html",

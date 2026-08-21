@@ -7,7 +7,20 @@
     <style>
       body {
         width: var(--popup-w);
-        max-width: 100vw;
+      }
+      /* Firefox Android shows the popup full-screen, where 380px would
+         overflow a narrow phone, so the width still needs a clamp there.
+         It cannot be an unguarded `max-width: 100vw`: Firefox desktop
+         sizes an extension popup by first laying the document out in a
+         ~0-width viewport and measuring it, so 100vw resolves to a few
+         pixels, pins the body to that, and the panel opens as an
+         invisible 5px sliver that never grows back. The min-width guard
+         keeps that measurement pass from matching; a real phone viewport
+         still does. */
+      @media (min-width: 200px) and (max-width: 379px) {
+        body {
+          max-width: 100vw;
+        }
       }
       #popupHeader {
         display: flex;
