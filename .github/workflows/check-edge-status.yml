@@ -1,0 +1,28 @@
+name: Check Edge submission status
+
+# Read-only. Answers "did the publish actually land, or is it still in
+# certification?" — a question the store page cannot answer, because it
+# renders its version client-side and keeps showing the previous release
+# until certification clears.
+on:
+  workflow_dispatch:
+    inputs:
+      operationId:
+        description: "Publish operation id from a publish-edge run (optional)"
+        required: false
+        default: ""
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node scripts/check-edge-status.mjs "${{ inputs.operationId }}"
+        working-directory: apps/extension
+        env:
+          EDGE_PRODUCT_ID: ${{ secrets.EDGE_PRODUCT_ID }}
+          EDGE_CLIENT_ID: ${{ secrets.EDGE_CLIENT_ID }}
+          EDGE_API_KEY: ${{ secrets.EDGE_API_KEY }}
