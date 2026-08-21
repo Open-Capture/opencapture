@@ -9,9 +9,10 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 
-// Must be codes that survive the PROD_LANGUAGES filter, otherwise they never
-// reach the request and the retry loop under test is never entered. The loop
-// is a backstop for that list drifting, so it still has to work.
+// Must be codes that actually reach the request, or the retry loop under test
+// is never entered. They have to survive the PROD_LANGUAGES filter, and the
+// mock keys off `summary` rather than `name` because the 50-char name cap
+// leaves only the CJK locales in that field.
 const REJECT = ["hr", "ro", "fi"];
 
 function startMock() {
@@ -23,14 +24,14 @@ function startMock() {
       state.attempts++;
       state.auth = req.headers.authorization;
       const payload = JSON.parse(Buffer.concat(chunks).toString());
-      const offender = REJECT.find((l) => payload.name && l in payload.name);
+      const offender = REJECT.find((l) => payload.summary && l in payload.summary);
       if (offender) {
         res.writeHead(400, { "Content-Type": "application/json" });
-        return res.end(JSON.stringify({ name: [`The language code "${offender}" is invalid.`] }));
+        return res.end(JSON.stringify({ summary: [`The language code "${offender}" is invalid.`] }));
       }
       state.finalPayload = payload;
       res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ name: payload.name ?? {}, description: payload.description ?? {} }));
+      res.end(JSON.stringify({ name: payload.name ?? {}, summary: payload.summary ?? {}, description: payload.description ?? {} }));
     });
   });
   return new Promise((r) => server.listen(0, "127.0.0.1", () => r({ server, port: server.address().port, state })));
@@ -61,15 +62,16 @@ check("retried once per rejected locale", state.attempts === REJECT.length + 1, 
 check("sends JWT auth", /^JWT /.test(state.auth ?? ""), state.auth);
 check(
   "rejected locales absent from final payload",
-  REJECT.every((l) => state.finalPayload && !(l in (state.finalPayload.name ?? {}))),
-  JSON.stringify(Object.keys(state.finalPayload?.name ?? {})),
+  REJECT.every((l) => state.finalPayload && !(l in (state.finalPayload.summary ?? {}))),
+  JSON.stringify(Object.keys(state.finalPayload?.summary ?? {})),
 );
 check(
   "rejected locales also dropped from description",
   REJECT.every((l) => state.finalPayload && !(l in (state.finalPayload.description ?? {}))),
   "description still carried a rejected locale",
 );
-check("kept the locales AMO accepts", Object.keys(state.finalPayload?.name ?? {}).includes("zh-CN"), out);
+check("kept the locales AMO accepts", Object.keys(state.finalPayload?.summary ?? {}).includes("zh-CN"), out);
+check("name limited to what fits AMO's cap", Object.keys(state.finalPayload?.name ?? {}).every((l) => ["ja", "ko", "zh-CN"].includes(l)), JSON.stringify(Object.keys(state.finalPayload?.name ?? {})));
 check("reports what AMO refused", REJECT.every((l) => out.includes(l)), out);
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall sync-amo-listing checks passed");

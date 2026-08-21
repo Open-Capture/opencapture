@@ -62,13 +62,17 @@ const AMO_TRANSLATABLE = new Set([
   "sk", "sl", "sq", "sr", "sv-SE", "tr", "uk", "vi", "zh-CN", "zh-TW",
 ]);
 
-// Deliberately no hardcoded name-length cap. Mozilla's API reference states
-// no limit for `name`, so any constant here would be a guess — and guessing
-// 50 silently drops 29 of the 34 localized names, which is precisely the SEO
-// value this script exists to deliver. Instead send everything and let AMO
-// arbitrate: a rejected PATCH is atomic, so attempting costs nothing, and the
-// 400 names the offending locales exactly. Those get dropped and the rest
-// retried, so the real limit is discovered rather than assumed.
+// AMO caps `name` at 50 characters. This is not in Mozilla's API reference,
+// which documents no limit at all — it came from the service itself:
+//   {"name":["Ensure this field has no more than 50 characters."]}
+// so it is measured, not guessed. The SEO names run 46-74 characters, so only
+// the CJK ones fit; the rest keep whatever the listing already shows.
+//
+// The keyword copy is not lost by that. `summary` is the blurb AMO renders in
+// search results and takes 250 characters, comfortably fitting the localized
+// description, and `description` takes the full Overview. Those carry the SEO
+// weight; the name is the one field the platform will not budge on.
+const NAME_MAX = 50;
 
 function jwt() {
   const now = Math.floor(Date.now() / 1000);
@@ -98,7 +102,9 @@ if (missing.length) {
 }
 
 const name = {};
+const summary = {};
 const description = {};
+const nameTooLong = [];
 const skippedLocale = [];
 
 for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
@@ -107,7 +113,10 @@ for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
     skippedLocale.push(dir);
     continue;
   }
-  name[amo] = JSON.parse(readFileSync(join(localesDir, dir, "messages.json"), "utf8")).name.message;
+  const messages = JSON.parse(readFileSync(join(localesDir, dir, "messages.json"), "utf8"));
+  if (messages.name.message.length <= NAME_MAX) name[amo] = messages.name.message;
+  else nameTooLong.push(`${dir}(${messages.name.message.length})`);
+  summary[amo] = messages.description.message;
 
   const listingFile = join(listingDir, `${dir}.txt`);
   if (existsSync(listingFile)) {
@@ -117,8 +126,10 @@ for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
 }
 
 console.log(`sync-amo-listing: ${SLUG}`);
-console.log(`  name         : ${Object.keys(name).length} locales`);
+console.log(`  name         : ${Object.keys(name).length} locales (AMO caps name at ${NAME_MAX} chars)`);
+console.log(`  summary      : ${Object.keys(summary).length} locales`);
 console.log(`  description  : ${Object.keys(description).length} locales from store-listing/`);
+if (nameTooLong.length) console.log(`  name over ${NAME_MAX}: ${nameTooLong.join(", ")}`);
 if (skippedLocale.length)
   console.log(`  AMO offers no translations for: ${skippedLocale.join(", ")}`);
 
@@ -129,6 +140,7 @@ if (!apply) {
 
 const payload = {};
 if (Object.keys(name).length) payload.name = name;
+if (Object.keys(summary).length) payload.summary = summary;
 if (Object.keys(description).length) payload.description = description;
 
 async function patch(body) {
@@ -174,13 +186,17 @@ for (let attempt = 0; !result.ok && result.status === 400 && attempt < 12; attem
   const codes = [...new Set(messages.flatMap((m) => [...m.matchAll(/"([\w-]+)" is invalid/g)].map((x) => x[1])))];
   if (!codes.length) break;
 
+  // Drop the code from every field in the payload, not a named few: listing
+  // `name`/`description` explicitly here once let `summary` slip through when
+  // it was added, so the loop kept resending a locale AMO had already refused
+  // and spun until the attempt limit.
   for (const code of codes) {
     rejectedLocales.push(code);
-    delete payload.name?.[code];
-    delete payload.description?.[code];
+    for (const field of Object.keys(payload)) delete payload[field][code];
   }
-  if (payload.name && !Object.keys(payload.name).length) delete payload.name;
-  if (payload.description && !Object.keys(payload.description).length) delete payload.description;
+  for (const field of Object.keys(payload)) {
+    if (!Object.keys(payload[field]).length) delete payload[field];
+  }
   if (!Object.keys(payload).length) {
     console.error("sync-amo-listing: AMO rejected every locale; nothing left to send");
     process.exit(1);
@@ -199,5 +215,6 @@ if (!result.ok) {
 const updated = JSON.parse(result.text);
 console.log(
   `sync-amo-listing: updated — name in ${Object.keys(updated.name ?? {}).length} locales, ` +
+    `summary in ${Object.keys(updated.summary ?? {}).length}, ` +
     `description in ${Object.keys(updated.description ?? {}).length}`,
 );
