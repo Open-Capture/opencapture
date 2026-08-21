@@ -122,25 +122,44 @@ async function patch(body) {
 
 let result = await patch(payload);
 
-if (!result.ok && result.status === 400) {
-  // AMO reports field errors as { name: { de: ["Ensure this field has no
-  // more than N characters."] } }. Drop exactly those locales and retry, so
-  // one over-long name does not cost every other translation.
+// AMO validates the locale set and answers, per field, with an array of
+// message strings — e.g. { "name": ["The language code \"ar\" is invalid."] },
+// NOT an object keyed by locale. It also reports only the codes it reached
+// before giving up, so one pass is not enough to learn the whole rejected
+// set. Loop: pull the quoted codes out of the messages, drop them from every
+// field, retry. A rejected PATCH is atomic, so no partial state accumulates
+// across attempts and the accepted locale set gets discovered rather than
+// hardcoded from a list that would rot.
+const rejectedLocales = [];
+for (let attempt = 0; !result.ok && result.status === 400 && attempt < 12; attempt++) {
   let errors;
   try {
     errors = JSON.parse(result.text);
   } catch {
-    errors = null;
+    break;
   }
-  const rejected = errors && typeof errors.name === "object" ? Object.keys(errors.name) : [];
-  if (rejected.length) {
-    console.log(`sync-amo-listing: AMO rejected name for ${rejected.length} locale(s): ${rejected.join(", ")}`);
-    console.log(`  reason: ${JSON.stringify(errors.name[rejected[0]])}`);
-    for (const locale of rejected) delete payload.name[locale];
-    if (!Object.keys(payload.name).length) delete payload.name;
-    console.log("sync-amo-listing: retrying without them…");
-    result = await patch(payload);
+  const messages = Object.values(errors)
+    .flat()
+    .filter((m) => typeof m === "string");
+  const codes = [...new Set(messages.flatMap((m) => [...m.matchAll(/"([\w-]+)" is invalid/g)].map((x) => x[1])))];
+  if (!codes.length) break;
+
+  for (const code of codes) {
+    rejectedLocales.push(code);
+    delete payload.name?.[code];
+    delete payload.description?.[code];
   }
+  if (payload.name && !Object.keys(payload.name).length) delete payload.name;
+  if (payload.description && !Object.keys(payload.description).length) delete payload.description;
+  if (!Object.keys(payload).length) {
+    console.error("sync-amo-listing: AMO rejected every locale; nothing left to send");
+    process.exit(1);
+  }
+  console.log(`sync-amo-listing: AMO rejects ${codes.join(", ")} — retrying without them`);
+  result = await patch(payload);
+}
+if (rejectedLocales.length) {
+  console.log(`sync-amo-listing: locales AMO does not accept: ${rejectedLocales.join(", ")}`);
 }
 
 if (!result.ok) {
