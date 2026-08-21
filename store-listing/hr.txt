@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+web stranica u pdf
+duga snimka zaslona
+alat za snimke
+uređivanje snimke
+zamućivanje snimke
+cijela stranica
+klizna snimka
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Snimke cijele stranice, sve lokalno. U oblak ne odlazi ništa. Sve osnovne značajke su besplatne, plaća se jedino vodeni žig – Supporter značajka.
+
+Snimite cijelu stranicu kao jednu sliku, izrežite je, crtajte po njoj, dodajte tekst, zamutite ono što je privatno i izvezite u PNG ili PDF. Sve se događa na vašem uređaju, bez slanja i bez računa. Kredite troši samo vodeni žig, ostalo je besplatno.
+
+Koliko god stranica bila duga, OpenCapture je spaja u jednu sliku i između snimljenih dijelova ne vidi se nikakav spoj. U ugrađenom uređivaču zatim izrežete ono bitno, crtate, dodajete tekst i oblike te zamutite ili prekrijete sve osjetljivo. Poništiti možete koliko god puta želite prije izvoza u PNG ili PDF.
+
+Svako snimanje i svaka izmjena odvijaju se lokalno, u vašem pregledniku. Ništa ne odlazi van i ni za što od toga ne treba račun.
+
+Jedina plaćena značajka je ponavljajući vodeni žig s logotipom ili tekstom preko izvezenih slika. Prozirnost, položaj i kut sami podešavate. Košta 1000 kredita, plaća se jednom preko računa i nikad ne istječe. Bez pretplate.
+
+OpenCapture je otvorenog koda (AGPL-3.0-or-later) i radi u Firefoxu, Chromeu i Edgeu.
+
+Pratite nas na X-u: https://x.com/OpenCaptureApp

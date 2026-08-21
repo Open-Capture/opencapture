@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+página web em pdf
+captura longa
+ferramenta de captura
+anotar captura
+desfocar captura
+página inteira
+captura com rolagem
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Capturas de página inteira, 100% locais. Nada vai para a nuvem. Todos os recursos principais são gratuitos; só a marca d'água é um recurso Supporter pago.
+
+Capture a página inteira em uma única imagem, recorte, desenhe, adicione texto, desfoque o que é privado e exporte em PNG ou PDF. Tudo acontece no seu dispositivo, sem envio e sem conta. Só um recurso opcional, a marca d'água, consome créditos. O resto é grátis.
+
+O OpenCapture junta a página inteira em uma imagem só, por mais longa que ela seja, e não dá para ver emenda entre as partes capturadas. Depois, o editor embutido deixa você recortar o que interessa, desenhar, adicionar texto e formas, desfocar ou cobrir qualquer informação privada. Dá para desfazer quantas vezes quiser antes de exportar em PNG ou PDF.
+
+Cada captura e cada edição acontecem localmente, no seu navegador. Nada é enviado e você não precisa de conta para nada disso.
+
+O único recurso pago é uma marca d'água repetida, com seu logo ou um texto, sobre as imagens exportadas. Dá para ajustar opacidade, posição e ângulo. Custa 1000 créditos, você paga uma vez pela sua conta e nunca expira. Sem assinatura.
+
+O OpenCapture é de código aberto (AGPL-3.0-or-later) e funciona no Firefox, no Chrome e no Edge.
+
+Siga a gente no X: https://x.com/OpenCaptureApp

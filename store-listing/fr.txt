@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+page web en pdf
+capture longue
+outil de capture
+annoter capture
+flouter capture
+page entière
+capture défilement
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Des captures de page entière, 100 % en local. Rien n'est envoyé dans le cloud. Toutes les fonctions essentielles sont gratuites ; seul le filigrane est une fonction Supporter payante.
+
+Capturez une page entière en une seule image, recadrez-la, dessinez, ajoutez du texte, floutez ce qui est privé, puis exportez en PNG ou en PDF. Tout se passe sur votre appareil, sans envoi et sans compte. Une seule fonction optionnelle, le filigrane, consomme des crédits. Le reste est gratuit.
+
+OpenCapture assemble la page entière en une image unique, quelle que soit sa longueur, sans aucun raccord visible. Ensuite, l'éditeur intégré vous laisse recadrer sur l'essentiel, dessiner, ajouter du texte et des formes, flouter ou masquer ce qui doit l'être. Vous pouvez annuler autant de fois que nécessaire avant d'exporter en PNG ou en PDF.
+
+Chaque capture et chaque retouche se font localement, dans votre navigateur. Rien n'est envoyé, et aucun compte n'est nécessaire pour tout cela.
+
+La seule fonction payante est un filigrane en mosaïque, logo ou texte, appliqué sur vos exports, avec opacité, position et angle réglables. Elle coûte 1000 crédits, payés une seule fois depuis votre compte, et n'expire jamais. Pas d'abonnement.
+
+OpenCapture est open source (AGPL-3.0-or-later) et fonctionne sur Firefox, Chrome et Edge.
+
+Suivez-nous sur X : https://x.com/OpenCaptureApp

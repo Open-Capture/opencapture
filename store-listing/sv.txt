@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+webbsida till pdf
+lång skärmdump
+skärmdumpsverktyg
+redigera skärmdump
+sudda skärmdump
+hela sidan
+rullande skärmdump
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Helsidesskärmdumpar, helt lokalt. Ingenting laddas upp till molnet. Alla huvudfunktioner är gratis – bara vattenstämpeln är en betald Supporter-funktion.
+
+Fånga en hel sida som en enda bild, beskär den, rita, lägg till text, sudda ut det privata och exportera till PNG eller PDF. Allt sker på din egen enhet, utan uppladdning och utan konto. Bara en valfri funktion, vattenstämpeln, drar krediter. Resten är gratis.
+
+OpenCapture fogar ihop hela sidan till en enda bild, hur lång den än är, utan synliga skarvar mellan de tagna partierna. Sedan kan du i den inbyggda redigeraren beskära till det väsentliga, rita, lägga till text och former och sudda ut eller täcka över allt känsligt. Du kan ångra hur många gånger du vill innan du exporterar till PNG eller PDF.
+
+Varje skärmdump och varje redigering sker lokalt, i din webbläsare. Ingenting laddas upp och du behöver inget konto för något av det.
+
+Den enda betalda funktionen är en upprepad vattenstämpel med din logotyp eller en text över dina exporter, med justerbar genomskinlighet, position och vinkel. Den kostar 1000 krediter, betalas en gång via ditt konto och slutar aldrig gälla. Ingen prenumeration.
+
+OpenCapture är öppen källkod (AGPL-3.0-or-later) och fungerar i Firefox, Chrome och Edge.
+
+Följ oss på X: https://x.com/OpenCaptureApp

@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+pagină web în pdf
+captură lungă
+instrument captură ecran
+adnotare captură
+estompare captură
+pagină întreagă
+captură cu derulare
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Capturi ale întregii pagini, totul local. Nimic nu ajunge în cloud. Toate funcțiile de bază sunt gratuite; se plătește doar filigranul, o funcție Supporter.
+
+Prinde toată pagina într-o singură imagine, decupeaz-o, desenează pe ea, adaugă text, estompează ce e privat și exportă în PNG sau PDF. Totul se întâmplă pe dispozitivul tău, fără încărcare și fără cont. Credite consumă doar filigranul, restul e gratuit.
+
+Oricât de lungă ar fi pagina, OpenCapture o îmbină într-o singură imagine, iar între bucățile capturate nu se vede nicio îmbinare. Apoi, în editorul integrat, decupezi ce contează, desenezi, adaugi text și forme și estompezi sau acoperi orice informație sensibilă. Poți reveni oricâte pași vrei înainte să exporți în PNG sau PDF.
+
+Fiecare captură și fiecare modificare se fac local, în browserul tău. Nimic nu pleacă mai departe și nu ai nevoie de cont pentru nimic din toate astea.
+
+Singura funcție cu plată e filigranul repetat, cu logo sau text, aplicat peste imaginile exportate. Îi reglezi opacitatea, poziția și unghiul. Costă 1000 de credite, se plătește o singură dată din contul tău și nu expiră niciodată. Fără abonament.
+
+OpenCapture este open source (AGPL-3.0-or-later) și funcționează în Firefox, Chrome și Edge.
+
+Urmărește-ne pe X: https://x.com/OpenCaptureApp

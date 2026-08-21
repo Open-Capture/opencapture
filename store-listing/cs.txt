@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+webová stránka do pdf
+dlouhý snímek obrazovky
+nástroj pro snímky
+úprava snímku
+rozmazání snímku
+celá stránka
+rolovací snímek
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Snímky celé stránky, všechno jen u vás v prohlížeči. Do cloudu nejde nic. Všechny hlavní funkce jsou zdarma, platí se jedině za vodoznak – funkci Supporter.
+
+Zachyťte celou stránku jako jeden obrázek, ořízněte ji, kreslete, přidejte text, rozmažte, co je soukromé, a exportujte do PNG nebo PDF. Všechno se odehrává u vás v zařízení, bez nahrávání a bez účtu. Kredity spotřebuje jedině vodoznak, zbytek je zdarma.
+
+Ať je stránka jakkoli dlouhá, OpenCapture ji složí do jediného obrázku a mezi zachycenými pruhy nepoznáte žádný přechod. Ve vestavěném editoru pak oříznete to podstatné, nakreslíte, co potřebujete, přidáte text a tvary a rozmažete nebo začerníte cokoli citlivého. Zpět se můžete vrátit, kolikrát chcete, než exportujete do PNG nebo PDF.
+
+Každé zachycení i každá úprava probíhá lokálně, ve vašem prohlížeči. Nic neodchází ven a na nic z toho nepotřebujete účet.
+
+Jediná placená funkce je opakovaný vodoznak s logem nebo textem přes exportované obrázky. Průhlednost, pozici i úhel si nastavíte sami. Stojí 1000 kreditů, zaplatíte jednou přes svůj účet a nikdy nevyprší. Žádné předplatné.
+
+OpenCapture je open source (AGPL-3.0-or-later) a funguje ve Firefoxu, Chromu i Edgi.
+
+Sledujte nás na X: https://x.com/OpenCaptureApp

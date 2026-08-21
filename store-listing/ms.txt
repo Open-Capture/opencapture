@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+halaman web ke pdf
+tangkapan skrin panjang
+alat tangkapan skrin
+edit tangkapan skrin
+kaburkan skrin
+halaman penuh
+menatal tangkapan
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Tangkapan skrin halaman penuh, semuanya pada peranti anda. Tiada apa-apa dihantar ke awan. Semua ciri utama percuma; yang berbayar cuma tera air, iaitu ciri Supporter.
+
+Tangkap seluruh halaman sebagai satu imej, pangkas, lukis di atasnya, tambah teks, kaburkan bahagian peribadi, kemudian eksport ke PNG atau PDF. Semuanya berlaku pada peranti anda, tanpa muat naik dan tanpa akaun. Kredit hanya digunakan untuk tera air; selebihnya percuma.
+
+Sepanjang mana pun halaman itu, OpenCapture mencantumkannya menjadi satu imej dan sambungan antara bahagian yang ditangkap langsung tidak kelihatan. Selepas itu, editor terbina dalam membolehkan anda memangkas bahagian penting, melukis, menambah teks dan bentuk, serta mengaburkan atau menutup apa-apa maklumat sensitif. Anda boleh buat asal seberapa banyak kali sebelum mengeksport ke PNG atau PDF.
+
+Setiap tangkapan dan setiap suntingan berlaku secara setempat, dalam pelayar anda. Tiada data keluar, dan semua ini tidak memerlukan akaun.
+
+Satu-satunya ciri berbayar ialah tera air berulang, logo atau teks, di atas imej yang anda eksport. Kelegapan, kedudukan dan sudutnya boleh dilaraskan. Harganya 1000 kredit, dibayar sekali melalui akaun anda, dan tidak pernah luput. Bukan langganan.
+
+OpenCapture ialah sumber terbuka (AGPL-3.0-or-later) dan berfungsi pada Firefox, Chrome dan Edge.
+
+Ikuti kami di X: https://x.com/OpenCaptureApp

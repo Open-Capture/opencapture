@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+tinklalapis į pdf
+ilga ekrano kopija
+ekrano kopijos įrankis
+kopijos redagavimas
+suliejimas
+visas puslapis
+slenkanti kopija
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Viso puslapio ekrano kopijos, viskas jūsų įrenginyje. Į debesį nekeliaujа niekas. Visos pagrindinės funkcijos nemokamos, mokamas tik vandenženklis – Supporter funkcija.
+
+Nufotografuokite visą puslapį kaip vieną vaizdą, apkarpykite, piešite ant jo, pridėkite teksto, suliekite tai, kas privatu, ir eksportuokite į PNG arba PDF. Viskas vyksta jūsų įrenginyje, be įkėlimo ir be paskyros. Kreditų reikia tik vandenženkliui, visa kita nemokama.
+
+Kad ir koks ilgas būtų puslapis, OpenCapture sujungia jį į vieną vaizdą, o tarp užfiksuotų dalių jokios siūlės nesimato. Įtaisytame redaktoriuje paskui apkarpote tai, kas svarbu, piešiate, pridedate teksto ir figūrų, suliejate arba uždengiate viską, kas jautru. Atšaukti galite tiek kartų, kiek norite, kol eksportuosite į PNG ar PDF.
+
+Kiekvienas fiksavimas ir kiekvienas redagavimas vyksta vietoje, jūsų naršyklėje. Niekas neiškeliauja, ir niekam iš to nereikia paskyros.
+
+Vienintelė mokama funkcija – pasikartojantis vandenženklis su logotipu arba tekstu ant eksportuotų vaizdų. Skaidrumą, padėtį ir kampą nusistatote patys. Kainuoja 1000 kreditų, sumokate vieną kartą per savo paskyrą, ir jis niekada nenustoja galioti. Jokios prenumeratos.
+
+OpenCapture yra atvirojo kodo (AGPL-3.0-or-later) ir veikia su Firefox, Chrome bei Edge.
+
+Sekite mus X: https://x.com/OpenCaptureApp

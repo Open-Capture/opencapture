@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+verkkosivu pdf-muotoon
+pitkä kuvakaappaus
+kuvakaappaustyökalu
+kuvakaappauksen muokkaus
+sumenna kuvakaappaus
+koko sivun
+vierittävä kuvakaappaus
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Koko sivun kuvakaappaukset, täysin paikallisesti. Mitään ei lähetetä pilveen. Kaikki perustoiminnot ovat ilmaisia – vain vesileima on maksullinen Supporter-ominaisuus.
+
+Kaappaa koko sivu yhtenä kuvana, rajaa, piirrä, lisää tekstiä, sumenna yksityiset kohdat ja vie PNG- tai PDF-tiedostoksi. Kaikki tapahtuu omalla laitteellasi, ilman lähetystä ja ilman tiliä. Vain yksi valinnainen toiminto, vesileima, kuluttaa krediittejä. Loput ovat ilmaisia.
+
+OpenCapture yhdistää koko sivun yhdeksi kuvaksi, oli se kuinka pitkä tahansa, eikä kaapattujen osien väliin jää näkyviä saumoja. Sen jälkeen sisäänrakennetussa editorissa rajaat olennaiseen, piirrät, lisäät tekstiä ja muotoja sekä sumennat tai peität kaiken arkaluontoisen. Voit kumota niin monta kertaa kuin haluat ennen kuin viet PNG- tai PDF-muotoon.
+
+Jokainen kaappaus ja muokkaus tapahtuu paikallisesti, selaimessasi. Mitään ei lähetetä eteenpäin, eikä mihinkään näistä tarvita tiliä.
+
+Ainoa maksullinen ominaisuus on toistuva vesileima – logo tai teksti – vietyjen kuvien päällä. Läpinäkyvyys, sijainti ja kulma ovat säädettävissä. Se maksaa 1000 krediittiä, maksetaan kerran tilisi kautta eikä vanhene koskaan. Ei tilausmaksua.
+
+OpenCapture on avointa lähdekoodia (AGPL-3.0-or-later) ja toimii Firefoxissa, Chromessa ja Edgessä.
+
+Seuraa meitä X:ssä: https://x.com/OpenCaptureApp

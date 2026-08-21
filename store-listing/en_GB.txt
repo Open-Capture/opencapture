@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+webpage to pdf
+long screenshot
+screenshot tool
+annotate screenshot
+blur screenshot
+capture entire page
+save webpage as image
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+100% local full-page screenshots. No cloud upload. All core features free; the watermark tool is a paid Supporter feature.
+
+Capture a full page as one image, crop it, draw or add text, blur private areas, then export to PNG or PDF — entirely on your device, no upload, no account required. One optional feature (a watermark) costs credits; everything else stays free.
+
+OpenCapture stitches an entire page into a single image, however long it is, with no visible seams between the captured bands. From there, the built-in editor lets you crop to what matters, draw, add text and shapes, and blur or redact anything private, with unlimited undo before you export to PNG or PDF.
+
+Every capture and edit happens locally in your browser. Nothing is uploaded, and no account is required for any of that.
+
+The one paid feature is a tiled logo or text watermark across your exports, with adjustable opacity, position, and angle. It costs 1000 credits, paid once through your account, and never expires — no subscription.
+
+OpenCapture is open source (AGPL-3.0-or-later) and works on Firefox, Chrome and Edge.
+
+Follow us on X: https://x.com/OpenCaptureApp

@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+veebileht pdf-failiks
+pikk kuvatõmmis
+ekraanipildi tööriist
+kuvatõmmise muutmine
+hägustamine
+terve leht
+keriv kuvatõmmis
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Kogu lehe kuvatõmmised, kõik sinu enda seadmes. Pilve ei lähe midagi. Kõik põhifunktsioonid on tasuta, tasuline on ainult vesimärk ehk Supporteri funktsioon.
+
+Jäädvusta terve leht ühe pildina, kärbi seda, joonista peale, lisa teksti, hägusta see, mis on privaatne, ja ekspordi PNG- või PDF-failiks. Kõik toimub sinu seadmes, ilma üleslaadimiseta ja ilma kontota. Krediite kulutab ainult vesimärk, ülejäänu on tasuta.
+
+Ükskõik kui pikk leht ka poleks, OpenCapture liidab selle üheks pildiks ja jäädvustatud osade vahel ei ole ühtki nähtavat liitekohta. Sisseehitatud redaktoris kärbid seejärel selle, mis oluline, joonistad, lisad teksti ja kujundeid ning hägustad või katad kõik tundliku. Tagasi saad võtta nii mitu korda kui tahad, enne kui PNG- või PDF-failiks ekspordid.
+
+Iga jäädvustus ja iga muudatus toimub lokaalselt, sinu brauseris. Midagi välja ei lähe ja mitte millekski neist ei ole kontot vaja.
+
+Ainus tasuline funktsioon on korduv vesimärk – logo või tekst – eksporditud piltide peal. Läbipaistvuse, asukoha ja nurga saad ise paika sättida. See maksab 1000 krediiti, tasud korra oma konto kaudu ja see ei aegu kunagi. Tellimust ei ole.
+
+OpenCapture on avatud lähtekoodiga (AGPL-3.0-or-later) ja töötab Firefoxis, Chrome'is ja Edge'is.
+
+Jälgi meid X-is: https://x.com/OpenCaptureApp

@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+pagina web in pdf
+screenshot lungo
+strumento screenshot
+annotare screenshot
+sfocare screenshot
+pagina intera
+cattura a scorrimento
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Screenshot dell'intera pagina, tutto in locale. Niente viene caricato sul cloud. Tutte le funzioni principali sono gratuite; a pagamento c'è solo la filigrana, una funzione Supporter.
+
+Cattura una pagina intera in una sola immagine, ritagliala, disegna, aggiungi testo, sfoca ciò che è privato ed esporta in PNG o PDF. Tutto avviene sul tuo dispositivo, senza caricamenti e senza account. Solo una funzione opzionale, la filigrana, consuma crediti. Il resto è gratis.
+
+OpenCapture unisce l'intera pagina in un'unica immagine, per quanto lunga sia, senza giunzioni visibili tra le porzioni catturate. Poi l'editor integrato ti permette di ritagliare l'essenziale, disegnare, aggiungere testo e forme, sfocare o coprire qualsiasi dato riservato. Puoi annullare quante volte vuoi prima di esportare in PNG o PDF.
+
+Ogni cattura e ogni modifica avvengono localmente, nel tuo browser. Non viene caricato nulla e per tutto questo non serve alcun account.
+
+L'unica funzione a pagamento è una filigrana affiancata, con il tuo logo o un testo, applicata alle immagini esportate. Opacità, posizione e angolo sono regolabili. Costa 1000 crediti, si paga una volta sola dal tuo account e non scade mai. Nessun abbonamento.
+
+OpenCapture è open source (AGPL-3.0-or-later) e funziona su Firefox, Chrome ed Edge.
+
+Seguici su X: https://x.com/OpenCaptureApp

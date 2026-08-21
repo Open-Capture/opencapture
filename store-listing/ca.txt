@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+pàgina web a pdf
+captura llarga
+eina de captura
+anotar captura
+difuminar captura
+pàgina completa
+captura amb desplaçament
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Captures de pàgina sencera, tot en local. Al núvol no hi va res. Totes les funcions principals són gratuïtes; només es paga la marca d'aigua, una funció Supporter.
+
+Captura la pàgina sencera en una sola imatge, retalla-la, dibuixa-hi, afegeix-hi text, difumina el que és privat i exporta-la a PNG o PDF. Tot passa al teu dispositiu, sense pujades i sense compte. Només la marca d'aigua consumeix crèdits; la resta és gratis.
+
+Per llarga que sigui la pàgina, l'OpenCapture la uneix en una única imatge i entre les franges capturades no s'hi nota cap junta. Després, a l'editor integrat, retalles el que importa, dibuixes, hi afegeixes text i formes i difumines o tapes qualsevol dada sensible. Pots desfer tantes vegades com vulguis abans d'exportar a PNG o PDF.
+
+Cada captura i cada retoc es fan localment, al teu navegador. No en surt res i no et cal cap compte per a res de tot això.
+
+L'única funció de pagament és una marca d'aigua repetida, amb el teu logotip o un text, sobre les imatges exportades. En pots ajustar l'opacitat, la posició i l'angle. Costa 1000 crèdits, es paga un sol cop des del teu compte i no caduca mai. Sense subscripció.
+
+L'OpenCapture és de codi obert (AGPL-3.0-or-later) i funciona al Firefox, al Chrome i a l'Edge.
+
+Segueix-nos a X: https://x.com/OpenCaptureApp

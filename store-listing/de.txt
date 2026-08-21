@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+webseite als pdf
+langer screenshot
+screenshot tool
+screenshot bearbeiten
+screenshot unkenntlich machen
+ganze webseite aufnehmen
+bildschirmaufnahme
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Ganzseiten-Screenshots, komplett lokal. Nichts wird in die Cloud geladen. Alle Kernfunktionen sind kostenlos – nur das Wasserzeichen ist eine kostenpflichtige Supporter-Funktion.
+
+Eine ganze Seite als ein Bild aufnehmen, zuschneiden, zeichnen oder Text einfügen, Privates unkenntlich machen und als PNG oder PDF exportieren. Alles auf Ihrem Gerät, ohne Upload, ohne Konto. Nur eine optionale Funktion – das Wasserzeichen – kostet Credits. Alles andere bleibt kostenlos.
+
+OpenCapture setzt die komplette Seite zu einem einzigen Bild zusammen, egal wie lang sie ist. Zwischen den aufgenommenen Abschnitten sind keine Übergänge zu sehen. Im integrierten Editor schneiden Sie danach auf das Wesentliche zu, zeichnen, fügen Text und Formen ein und machen Vertrauliches unkenntlich. Rückgängig machen können Sie beliebig oft, bis Sie als PNG oder PDF exportieren.
+
+Aufnahme und Bearbeitung laufen vollständig lokal in Ihrem Browser ab. Nichts wird hochgeladen, und für all das brauchen Sie kein Konto.
+
+Die einzige kostenpflichtige Funktion ist ein gekacheltes Wasserzeichen aus Logo oder Text über Ihren Exporten – Deckkraft, Position und Winkel sind frei einstellbar. Sie kostet 1000 Credits, wird einmalig über Ihr Konto bezahlt und läuft nie ab. Kein Abo.
+
+OpenCapture ist Open Source (AGPL-3.0-or-later) und läuft in Firefox, Chrome und Edge.
+
+Folgen Sie uns auf X: https://x.com/OpenCaptureApp

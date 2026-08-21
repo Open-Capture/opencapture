@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+webpagina naar pdf
+lange schermafbeelding
+screenshot tool
+screenshot bewerken
+screenshot vervagen
+volledige pagina
+scrollende schermafbeelding
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Volledige pagina's vastleggen, volledig lokaal. Er gaat niets naar de cloud. Alle kernfuncties zijn gratis; alleen het watermerk is een betaalde Supporter-functie.
+
+Leg een hele pagina vast als één afbeelding, snijd bij, teken, voeg tekst toe, maak privégegevens onleesbaar en exporteer naar PNG of PDF. Alles gebeurt op je eigen apparaat, zonder upload en zonder account. Alleen één optionele functie, het watermerk, kost credits. De rest blijft gratis.
+
+OpenCapture voegt de hele pagina samen tot één afbeelding, hoe lang die ook is, zonder zichtbare naden tussen de vastgelegde stroken. Daarna kun je in de ingebouwde editor bijsnijden tot wat telt, tekenen, tekst en vormen toevoegen en alles wat privé is vervagen of afdekken. Ongedaan maken kan zo vaak je wilt, tot je exporteert naar PNG of PDF.
+
+Elke opname en bewerking gebeurt lokaal, in je browser. Er wordt niets geüpload en je hebt hiervoor geen account nodig.
+
+De enige betaalde functie is een herhaald watermerk met je logo of een tekst over je exports, met instelbare dekking, positie en hoek. Het kost 1000 credits, je betaalt eenmalig via je account en het verloopt nooit. Geen abonnement.
+
+OpenCapture is opensource (AGPL-3.0-or-later) en werkt in Firefox, Chrome en Edge.
+
+Volg ons op X: https://x.com/OpenCaptureApp

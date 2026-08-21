@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+webside til pdf
+langt skærmbillede
+skærmbillede værktøj
+rediger skærmbillede
+slør skærmbillede
+hele siden
+rullende skærmbillede
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Helsides skærmbilleder, helt lokalt. Intet bliver sendt til skyen. Alle kernefunktioner er gratis – kun vandmærket er en betalt Supporter-funktion.
+
+Tag hele siden som ét billede, beskær det, tegn, tilføj tekst, slør det private og eksportér til PNG eller PDF. Det hele sker på din egen enhed, uden upload og uden konto. Kun én valgfri funktion, vandmærket, koster kreditter. Resten er gratis.
+
+OpenCapture samler hele siden til ét billede, uanset hvor lang den er, uden synlige samlinger mellem de optagne stykker. Bagefter kan du i den indbyggede editor beskære til det væsentlige, tegne, tilføje tekst og figurer og sløre eller dække alt fortroligt. Du kan fortryde så mange gange, du vil, inden du eksporterer til PNG eller PDF.
+
+Hver optagelse og hver redigering sker lokalt, i din browser. Intet bliver uploadet, og du skal ikke bruge en konto til noget af det.
+
+Den eneste betalte funktion er et gentaget vandmærke med dit logo eller en tekst hen over dine eksporter, med justerbar gennemsigtighed, placering og vinkel. Det koster 1000 kreditter, betales én gang via din konto og udløber aldrig. Intet abonnement.
+
+OpenCapture er open source (AGPL-3.0-or-later) og virker i Firefox, Chrome og Edge.
+
+Følg os på X: https://x.com/OpenCaptureApp

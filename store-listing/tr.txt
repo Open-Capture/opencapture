@@ -1,0 +1,26 @@
+===== EDGE SEARCH TERMS (Search terms · 7 条) =====
+
+web sayfası pdf
+uzun ekran görüntüsü
+ekran görüntüsü aracı
+ekran görüntüsü düzenleme
+bulanıklaştırma
+tam sayfa
+kaydırmalı ekran görüntüsü
+
+
+===== OVERVIEW (详细描述 / Description) =====
+
+Tam sayfa ekran görüntüleri, tamamen cihazınızda. Buluta hiçbir şey gitmiyor. Tüm temel özellikler ücretsiz; ücretli olan tek şey filigran, yani Supporter özelliği.
+
+Sayfanın tamamını tek bir görsel olarak yakalayın; kırpın, üzerine çizin, metin ekleyin, özel kısımları bulanıklaştırın ve PNG ya da PDF olarak dışa aktarın. Her şey cihazınızda olup biter, yükleme de hesap da gerekmez. Kredi harcayan tek özellik filigran; geri kalan her şey ücretsiz.
+
+Sayfa ne kadar uzun olursa olsun OpenCapture hepsini tek bir görselde birleştirir, yakalanan bölümler arasında ek yeri görünmez. Ardından yerleşik düzenleyicide işinize yarayan kısma kırpabilir, çizebilir, metin ve şekil ekleyebilir, görünmesini istemediğiniz her şeyi bulanıklaştırabilir ya da kapatabilirsiniz. Dışa aktarana kadar dilediğiniz kadar geri alabilirsiniz.
+
+Her yakalama ve her düzenleme tarayıcınızın içinde, yerel olarak gerçekleşir. Dışarı hiçbir veri çıkmaz ve bunların hiçbiri için hesap gerekmez.
+
+Ücretli tek özellik, dışa aktardığınız görsellerin üzerine döşenen logo ya da metin filigranı. Saydamlığını, konumunu ve açısını ayarlayabilirsiniz. 1000 krediye hesabınızdan bir kez satın alırsınız, süresi hiç dolmaz. Abonelik değil.
+
+OpenCapture açık kaynaktır (AGPL-3.0-or-later) ve Firefox, Chrome ile Edge üzerinde çalışır.
+
+X'te bizi takip edin: https://x.com/OpenCaptureApp
