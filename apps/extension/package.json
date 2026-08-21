@@ -12,6 +12,7 @@
     "dev": "npm run build:wasm && vite build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "verify:locales": "npm run build && node scripts/verify-locales.mjs",
     "e2e": "playwright test",
     "android:run": "npm run build:firefox && web-ext run --source-dir=dist-firefox -t firefox-android",
     "publish:firefox": "npm run build:firefox && web-ext sign --source-dir=dist-firefox --artifacts-dir=web-ext-artifacts --channel=listed --api-key=\"$WEB_EXT_API_KEY\" --api-secret=\"$WEB_EXT_API_SECRET\""
