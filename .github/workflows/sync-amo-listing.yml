@@ -1,0 +1,37 @@
+name: Sync AMO store listing
+
+# Manual only. This writes to a live, public store page, and unlike a package
+# publish there is no review step in front of it — a bad payload is visible
+# immediately. Defaults to a dry run; set apply=true to actually write.
+#
+# Publishing a localized package does not localize the Firefox store page.
+# The manifest's __MSG_name__ drives what Firefox shows in about:addons, but
+# the AMO listing is separate metadata in Mozilla's database. Chrome and Edge
+# work the same way — the difference is AMO has an API for it.
+#
+# Reuses WEB_EXT_API_KEY / WEB_EXT_API_SECRET, already present for
+# publish-firefox.yml. No new secrets.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: "Write to the live listing (unchecked = dry run)"
+        type: boolean
+        required: false
+        default: false
+
+jobs:
+  sync-amo-listing:
+    name: push localized name and description to AMO
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Sync listing
+        run: node scripts/sync-amo-listing.mjs ${{ inputs.apply && '--apply' || '' }}
+        working-directory: apps/extension
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
