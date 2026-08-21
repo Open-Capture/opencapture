@@ -21,7 +21,13 @@
 // (see publish-edge.test.mjs); CI never sets it.
 const API_ROOT = process.env.EDGE_API_ROOT || "https://api.addons.microsoftedge.microsoft.com";
 
-const { EDGE_PRODUCT_ID, EDGE_CLIENT_ID, EDGE_API_KEY } = process.env;
+// Trimmed because these arrive from repository secrets, and a value pasted
+// into the GitHub UI or piped into `gh secret set` easily carries a trailing
+// newline. Untrimmed, that reaches the API as part of the header value and
+// comes back as an opaque 400.
+const EDGE_PRODUCT_ID = (process.env.EDGE_PRODUCT_ID || "").trim();
+const EDGE_CLIENT_ID = (process.env.EDGE_CLIENT_ID || "").trim();
+const EDGE_API_KEY = (process.env.EDGE_API_KEY || "").trim();
 const zipPath = process.argv[2];
 const notes = process.env.EDGE_PUBLISH_NOTES || "Automated publish from CI.";
 
@@ -30,6 +36,33 @@ const missing = Object.entries({ EDGE_PRODUCT_ID, EDGE_CLIENT_ID, EDGE_API_KEY }
   .map(([k]) => k);
 if (missing.length) {
   console.error(`publish-edge: missing required env: ${missing.join(", ")}`);
+  process.exit(1);
+}
+
+/**
+ * Product ID and Client ID are both GUIDs; the API key is not. Getting them
+ * into the wrong secrets is easy and the service's own answer for it —
+ * "The value of X-ClientID must be a valid GUID" — does not say which value
+ * it read or where that value should have come from. Check the shape here
+ * so the failure names the secret and the fix.
+ *
+ * Never echo the values: one of these three is a live credential and this
+ * output goes to CI logs.
+ */
+const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const guidChecks = [
+  ["EDGE_PRODUCT_ID", EDGE_PRODUCT_ID, "Partner Center > Microsoft Edge > Overview > (your extension) > Extension identity. Not the id in the public store URL."],
+  ["EDGE_CLIENT_ID", EDGE_CLIENT_ID, "Partner Center > Microsoft Edge > Publish API > Client ID. Not the API key, which is not a GUID."],
+];
+const malformed = guidChecks.filter(([, value]) => !GUID.test(value));
+if (malformed.length) {
+  for (const [name, value, where] of malformed) {
+    console.error(
+      `publish-edge: ${name} is not a GUID (got ${value.length} chars, expected 36 as 8-4-4-4-12 hex).\n` +
+        `  Expected source: ${where}`,
+    );
+  }
+  console.error("publish-edge: fix the secret at Settings > Secrets and variables > Actions, then re-run.");
   process.exit(1);
 }
 if (!zipPath) {

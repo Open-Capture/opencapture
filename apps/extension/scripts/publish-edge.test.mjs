@@ -10,6 +10,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 const PRODUCT = "d34f98f5-f9b7-42b1-bebb-98707202b21d";
+// Client ID is a GUID too — publish-edge.mjs validates its shape before
+// making any request, so a placeholder like "client-abc" would be rejected.
+const CLIENT = "6f1b0c22-9a4e-4d13-8f7a-2c5e91ab4477";
 
 function startMock({ uploadStatuses, publishStatuses, locationStyle }) {
   const seen = { auth: null, clientId: null, contentType: null, bodyBytes: 0, notes: null };
@@ -54,7 +57,7 @@ function startMock({ uploadStatuses, publishStatuses, locationStyle }) {
 function run(root, zip, notes) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [new URL("./publish-edge.mjs", import.meta.url).pathname, zip], {
-      env: { ...process.env, EDGE_API_ROOT: root, EDGE_PRODUCT_ID: PRODUCT, EDGE_CLIENT_ID: "client-abc", EDGE_API_KEY: "key-xyz", EDGE_PUBLISH_NOTES: notes },
+      env: { ...process.env, EDGE_API_ROOT: root, EDGE_PRODUCT_ID: PRODUCT, EDGE_CLIENT_ID: CLIENT, EDGE_API_KEY: "key-xyz", EDGE_PUBLISH_NOTES: notes },
     });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
@@ -80,7 +83,7 @@ const check = (name, ok, detail = "") => {
   server.close();
   check("happy path exits 0", code === 0, out);
   check("sends ApiKey auth header", seen.auth === "ApiKey key-xyz", seen.auth);
-  check("sends X-ClientID header", seen.clientId === "client-abc", seen.clientId);
+  check("sends X-ClientID header", seen.clientId === CLIENT, seen.clientId);
   check("sends application/zip", seen.contentType === "application/zip", seen.contentType);
   check("uploads the real bytes", seen.bodyBytes === 2048, String(seen.bodyBytes));
   check("forwards certification notes", seen.notes === "release notes here", seen.notes);
@@ -115,6 +118,36 @@ const check = (name, ok, detail = "") => {
   const code = await new Promise((r) => child.on("exit", r));
   check("missing credentials exits non-zero", code !== 0, String(code));
   check("names the missing vars", /EDGE_PRODUCT_ID.*EDGE_CLIENT_ID.*EDGE_API_KEY/.test(out), out);
+}
+
+// 5. credential shape is validated before any network call — the service's
+//    own 400 ("must be a valid GUID") never says which value it read.
+{
+  const spawnWith = (env) =>
+    new Promise((resolve) => {
+      const child = spawn(process.execPath, [new URL("./publish-edge.mjs", import.meta.url).pathname, zip], {
+        env: { ...process.env, EDGE_API_ROOT: "http://127.0.0.1:1", EDGE_PRODUCT_ID: PRODUCT, EDGE_CLIENT_ID: CLIENT, EDGE_API_KEY: "key-xyz", ...env },
+      });
+      let out = "";
+      child.stdout.on("data", (d) => (out += d));
+      child.stderr.on("data", (d) => (out += d));
+      child.on("exit", (code) => resolve({ code, out }));
+    });
+
+  // The exact failure that hit CI: the API key pasted into EDGE_CLIENT_ID.
+  const swapped = await spawnWith({ EDGE_CLIENT_ID: "rq2xn7O5MpP-not-a-guid" });
+  check("non-GUID client id exits non-zero", swapped.code !== 0, String(swapped.code));
+  check("names EDGE_CLIENT_ID", /EDGE_CLIENT_ID is not a GUID/.test(swapped.out), swapped.out);
+  check("points at Publish API page", /Publish API > Client ID/.test(swapped.out), swapped.out);
+  check("never echoes the bad value", !/rq2xn7O5MpP/.test(swapped.out), "value leaked into output");
+
+  const badProduct = await spawnWith({ EDGE_PRODUCT_ID: "nbblbelngcbfijhifmbjcoehocngplpc" });
+  check("storefront id rejected as product id", badProduct.code !== 0, String(badProduct.code));
+  check("names EDGE_PRODUCT_ID", /EDGE_PRODUCT_ID is not a GUID/.test(badProduct.out), badProduct.out);
+
+  // A trailing newline from the secrets UI must not break an otherwise good GUID.
+  const padded = await spawnWith({ EDGE_CLIENT_ID: `  ${PRODUCT}\n`, EDGE_PRODUCT_ID: `${PRODUCT}\n` });
+  check("trims whitespace around GUIDs", !/is not a GUID/.test(padded.out), padded.out);
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall publish-edge checks passed");
