@@ -74,6 +74,43 @@ const AMO_TRANSLATABLE = new Set([
 // weight; the name is the one field the platform will not budge on.
 const NAME_MAX = 50;
 
+/**
+ * Fit a localized name into AMO's 50-character cap without mangling it.
+ *
+ * The catalogue names are built as
+ *   "<primary keyword phrase> - <secondary phrase> | OpenCapture"
+ * so there is a natural place to cut: drop the secondary phrase and keep the
+ * primary keyword plus the brand. That is what a human would trim, and it
+ * leaves the term people actually search for at the front.
+ *
+ * Truncating at 50 characters instead would cut mid-word — "Screenshot ganze
+ * Seite - Scrollender Screensh" reads as a bug on a store page, and the
+ * trailing fragment adds nothing for search.
+ *
+ * Falls back to the primary phrase alone (Spanish needs this: keyword plus
+ * brand is 52), and only then to a word-boundary trim.
+ */
+function fitName(full, max) {
+  if (full.length <= max) return full;
+
+  const hasBrand = full.includes("|");
+  const brand = hasBrand ? full.slice(full.lastIndexOf("|") + 1).trim() : "";
+  const head = hasBrand ? full.slice(0, full.lastIndexOf("|")) : full;
+  const primary = head.split(" - ")[0].trim();
+
+  const withBrand = brand ? `${primary} | ${brand}` : primary;
+  if (withBrand.length <= max) return withBrand;
+  if (primary.length <= max) return primary;
+
+  const words = primary.split(" ");
+  let out = "";
+  for (const w of words) {
+    if ((out ? `${out} ${w}` : w).length > max) break;
+    out = out ? `${out} ${w}` : w;
+  }
+  return out || primary.slice(0, max);
+}
+
 function jwt() {
   const now = Math.floor(Date.now() / 1000);
   const enc = (o) => Buffer.from(JSON.stringify(o)).toString("base64url");
@@ -104,7 +141,7 @@ if (missing.length) {
 const name = {};
 const summary = {};
 const description = {};
-const nameTooLong = [];
+const shortened = [];
 const skippedLocale = [];
 
 for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
@@ -114,8 +151,10 @@ for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
     continue;
   }
   const messages = JSON.parse(readFileSync(join(localesDir, dir, "messages.json"), "utf8"));
-  if (messages.name.message.length <= NAME_MAX) name[amo] = messages.name.message;
-  else nameTooLong.push(`${dir}(${messages.name.message.length})`);
+  const full = messages.name.message;
+  const fitted = fitName(full, NAME_MAX);
+  name[amo] = fitted;
+  if (fitted !== full) shortened.push(`${amo}: ${fitted}`);
   summary[amo] = messages.description.message;
 
   const listingFile = join(listingDir, `${dir}.txt`);
@@ -129,7 +168,10 @@ console.log(`sync-amo-listing: ${SLUG}`);
 console.log(`  name         : ${Object.keys(name).length} locales (AMO caps name at ${NAME_MAX} chars)`);
 console.log(`  summary      : ${Object.keys(summary).length} locales`);
 console.log(`  description  : ${Object.keys(description).length} locales from store-listing/`);
-if (nameTooLong.length) console.log(`  name over ${NAME_MAX}: ${nameTooLong.join(", ")}`);
+if (shortened.length) {
+  console.log(`  shortened to fit ${NAME_MAX} chars (${shortened.length}):`);
+  for (const line of shortened) console.log(`    ${line}`);
+}
 if (skippedLocale.length)
   console.log(`  AMO offers no translations for: ${skippedLocale.join(", ")}`);
 
