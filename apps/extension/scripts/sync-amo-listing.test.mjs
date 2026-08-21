@@ -71,7 +71,14 @@ check(
   "description still carried a rejected locale",
 );
 check("kept the locales AMO accepts", Object.keys(state.finalPayload?.summary ?? {}).includes("zh-CN"), out);
-check("name limited to what fits AMO's cap", Object.keys(state.finalPayload?.name ?? {}).every((l) => ["ja", "ko", "zh-CN"].includes(l)), JSON.stringify(Object.keys(state.finalPayload?.name ?? {})));
+// Assert the invariant, not a frozen locale list: before fitName only the CJK
+// names fit, and hardcoding that set meant this check failed the moment the
+// shortening started doing its job.
+{
+  const names = Object.values(state.finalPayload?.name ?? {});
+  check("every name within AMO's 50-char cap", names.length > 0 && names.every((n) => n.length <= 50),
+    JSON.stringify(names.filter((n) => n.length > 50)));
+}
 check("reports what AMO refused", REJECT.every((l) => out.includes(l)), out);
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall sync-amo-listing checks passed");

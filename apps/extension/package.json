@@ -12,6 +12,7 @@
     "dev": "npm run build:wasm && vite build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "test:scripts": "node scripts/publish-edge.test.mjs && node scripts/publish-chrome.test.mjs && node scripts/sync-amo-listing.test.mjs && node scripts/fit-name.test.mjs",
     "verify:locales": "npm run build && node scripts/verify-locales.mjs",
     "e2e": "playwright test",
     "android:run": "npm run build:firefox && web-ext run --source-dir=dist-firefox -t firefox-android",

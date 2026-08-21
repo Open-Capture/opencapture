@@ -89,6 +89,10 @@ jobs:
       - run: npm run typecheck
         working-directory: apps/extension
       - run: npm test
+      # The publish/listing scripts are plain .mjs driven by mock servers,
+      # so vitest never sees them. Without this a broken release script —
+      # or a stale assertion in its tests — reaches main with CI green.
+      - run: npm run test:scripts
         working-directory: apps/extension
       - run: npm run build
         working-directory: apps/extension
