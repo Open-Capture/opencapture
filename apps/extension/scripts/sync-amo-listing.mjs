@@ -43,6 +43,25 @@ const TO_AMO = {
   ta: "ta", te: "te", th: "th", tr: "tr", zh_CN: "zh-CN",
 };
 
+// The set AMO actually offers translations for. Not every language it knows
+// about: addons-server keeps ALL_LANGUAGES (155) for display purposes but
+// only PROD_LANGUAGES may carry translated fields, and submitting anything
+// outside it is rejected with `The language code "xx" is invalid`.
+//
+// Discovering this by trial and error is not viable — AMO names one offending
+// code per response and rate-limits writes, so the first live attempt burned
+// three round trips and then hit HTTP 429 without writing anything. Filtering
+// up front means one request.
+//
+// Source: mozilla/addons-server src/olympia/core/languages.py (PROD_LANGUAGES).
+// The adaptive retry below still stands as a backstop if that list drifts.
+const AMO_TRANSLATABLE = new Set([
+  "cs", "de", "dsb", "el", "en-CA", "en-GB", "en-US", "es-AR", "es-CL", "es-ES",
+  "es-MX", "fi", "fr", "fur", "fy-NL", "he", "hr", "hsb", "hu", "ia", "it", "ja",
+  "ka", "kab", "ko", "nb-NO", "nl", "nn-NO", "pl", "pt-BR", "pt-PT", "ro", "ru",
+  "sk", "sl", "sq", "sr", "sv-SE", "tr", "uk", "vi", "zh-CN", "zh-TW",
+]);
+
 // Deliberately no hardcoded name-length cap. Mozilla's API reference states
 // no limit for `name`, so any constant here would be a guess — and guessing
 // 50 silently drops 29 of the 34 localized names, which is precisely the SEO
@@ -84,7 +103,7 @@ const skippedLocale = [];
 
 for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
   const amo = TO_AMO[dir];
-  if (!amo) {
+  if (!amo || !AMO_TRANSLATABLE.has(amo)) {
     skippedLocale.push(dir);
     continue;
   }
@@ -100,7 +119,8 @@ for (const dir of readdirSync(localesDir).filter((d) => !d.startsWith("."))) {
 console.log(`sync-amo-listing: ${SLUG}`);
 console.log(`  name         : ${Object.keys(name).length} locales`);
 console.log(`  description  : ${Object.keys(description).length} locales from store-listing/`);
-if (skippedLocale.length) console.log(`  no AMO locale: ${skippedLocale.join(", ")}`);
+if (skippedLocale.length)
+  console.log(`  AMO offers no translations for: ${skippedLocale.join(", ")}`);
 
 if (!apply) {
   console.log("\ndry run — pass --apply to write these to the live listing");
@@ -112,12 +132,22 @@ if (Object.keys(name).length) payload.name = name;
 if (Object.keys(description).length) payload.description = description;
 
 async function patch(body) {
-  const res = await fetch(`${API_ROOT}/api/v5/addons/addon/${SLUG}/`, {
-    method: "PATCH",
-    headers: { Authorization: `JWT ${jwt()}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  return { ok: res.ok, status: res.status, text: await res.text() };
+  // AMO rate-limits writes and answers 429 with Retry-After. Honour it rather
+  // than failing the run — a sync that gives up on a throttle just has to be
+  // repeated by hand.
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(`${API_ROOT}/api/v5/addons/addon/${SLUG}/`, {
+      method: "PATCH",
+      headers: { Authorization: `JWT ${jwt()}`, "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.status !== 429 || attempt >= 4) {
+      return { ok: res.ok, status: res.status, text: await res.text() };
+    }
+    const wait = Number(res.headers.get("retry-after")) || 30 * (attempt + 1);
+    console.log(`sync-amo-listing: rate limited, waiting ${wait}s`);
+    await new Promise((r) => setTimeout(r, wait * 1000));
+  }
 }
 
 let result = await patch(payload);

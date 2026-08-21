@@ -9,8 +9,10 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 
-// Rejects these one at a time, the way AMO does, to force several rounds.
-const REJECT = ["ar", "bs", "te"];
+// Must be codes that survive the PROD_LANGUAGES filter, otherwise they never
+// reach the request and the retry loop under test is never entered. The loop
+// is a backstop for that list drifting, so it still has to work.
+const REJECT = ["hr", "ro", "fi"];
 
 function startMock() {
   const state = { attempts: 0, finalPayload: null, auth: null };
