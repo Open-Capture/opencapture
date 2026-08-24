@@ -1,9 +1,11 @@
 # OpenCapture
 
-**A privacy-first, 100% local full-page screenshot and annotation extension for Chrome and Firefox.**
+**A privacy-first, 100% local full-page screenshot and annotation extension for Chrome, Edge and Firefox.**
 
 ![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)
-![Browsers: Chrome %7C Firefox](https://img.shields.io/badge/browsers-Chrome%20%7C%20Firefox-orange.svg)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome-install-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/opencapture-%E2%80%94-private-ful/ikhhoggnlncjhpdbnneekifbnmojpjph)
+[![Microsoft Edge](https://img.shields.io/badge/Edge-install-0078D7?logo=microsoftedge&logoColor=white)](https://microsoftedge.microsoft.com/addons/detail/opencapture-%E2%80%94-private-ful/nbblbelngcbfijhifmbjcoehocngplpc)
+[![Firefox Add-ons](https://img.shields.io/badge/Firefox-install-FF7139?logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/opencapture-full-page-capture/)
 [![CI](https://github.com/Open-Capture/OpenCapture/actions/workflows/ci.yml/badge.svg)](https://github.com/Open-Capture/OpenCapture/actions/workflows/ci.yml)
 
 Capture a full page, the visible viewport, or a hand-picked region — then
@@ -47,7 +49,7 @@ copy, or annotate it.
   pixels, so they print at true 1:1 physical size.
 - **Copy to clipboard**, configurable save folder/filename, and a capture
   that survives the background service worker being evicted mid-flow.
-- **Chrome and Firefox**, same source tree, two build targets.
+- **Chrome, Edge and Firefox**, same source tree, two build targets.
 
 ## How it compares
 
@@ -83,16 +85,26 @@ local, open source under a copyleft license, and free for every feature
 except one optional, one-time watermark unlock — with no account needed
 for anything else.
 
+## Install
+
+| Browser | |
+| --- | --- |
+| Chrome | [Chrome Web Store](https://chromewebstore.google.com/detail/opencapture-%E2%80%94-private-ful/ikhhoggnlncjhpdbnneekifbnmojpjph) |
+| Edge | [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/opencapture-%E2%80%94-private-ful/nbblbelngcbfijhifmbjcoehocngplpc) |
+| Firefox | [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/opencapture-full-page-capture/) |
+
+Also on [opencapture.app](https://opencapture.app).
+
 ## Status
 
-Feature-complete: full-page/visible/selected-area capture, crop/annotate/
-watermark, and PNG/PDF export all work today. **Not yet published** to
-the Chrome Web Store or Firefox Add-ons — that requires store credentials
-this project doesn't yet have. Until then, install it as an unpacked/
-temporary extension from a local build; see
-[docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md),
-[docs/FIREFOX_TESTING.md](docs/FIREFOX_TESTING.md), and (for Firefox on
-Android) [docs/FIREFOX_ANDROID_TESTING.md](docs/FIREFOX_ANDROID_TESTING.md).
+Published and feature-complete: full-page, visible-area and selected-region
+capture, crop/annotate/watermark, and PNG/PDF export all work today, on all
+three stores.
+
+To run a local build instead — for development, or for Firefox on Android —
+see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md),
+[docs/FIREFOX_TESTING.md](docs/FIREFOX_TESTING.md) and
+[docs/FIREFOX_ANDROID_TESTING.md](docs/FIREFOX_ANDROID_TESTING.md).
 
 ## Build from source
 
