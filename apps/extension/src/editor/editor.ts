@@ -1283,7 +1283,37 @@ async function unlockSupporter(): Promise<UnlockResult> {
   }
 }
 
+/**
+ * The gateway is an optional host permission, so the browser's install dialog
+ * never names it. That dialog is the highest-friction moment in the whole
+ * funnel — "Read and change your data on <host>" costs installs — and the
+ * gateway is only ever contacted by the one person in a hundred who buys the
+ * watermark unlock. Asking then, rather than at install, is both less
+ * alarming and more honest about when the access is actually used.
+ *
+ * Must run before any other await in the click handler: `permissions.request`
+ * needs the user gesture, and the first await spends it.
+ */
+async function ensureGatewayAccess(): Promise<boolean> {
+  const origins = [`${OPENAPPS_GATEWAY_URL}/*`];
+  try {
+    // Already granted on every run after the first — and in the E2E build,
+    // whose <all_urls> covers it, so the tests never see a prompt.
+    if (await ext.permissions.contains({ origins })) return true;
+    return await ext.permissions.request({ origins });
+  } catch {
+    return false;
+  }
+}
+
 async function handleUnlockClick(): Promise<void> {
+  if (!(await ensureGatewayAccess())) {
+    renderWatermarkGate({
+      kind: "error",
+      message: "Permission is needed to complete the purchase. Try Unlock again and choose Allow.",
+    });
+    return;
+  }
   renderWatermarkGate({ kind: "unlocking" });
   const result = await unlockSupporter();
   if (result.ok) {

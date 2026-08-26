@@ -28,7 +28,9 @@
     "storage"
   ],
   "host_permissions": [
-    "https://auth.opencapture.app/*",
+    "https://auth.opencapture.app/*"
+  ],
+  "optional_host_permissions": [
     "https://gateway.openapps.network/*"
   ],
   "content_scripts": [
