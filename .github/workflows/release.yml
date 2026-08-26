@@ -1,0 +1,91 @@
+name: GitHub Release
+
+# Attaches installable builds to the tag's Release page, so a change can be
+# tried before it clears three store reviews. The publish-* workflows submit
+# to the stores on the same tag; this is the copy you can side-load today.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  WASM_BINDGEN_VERSION: "0.2.100"
+
+jobs:
+  release:
+    name: build both targets and attach them to the Release
+    runs-on: ubuntu-latest
+    steps:
+      # apps/extension/vendor-private/watermark-premium is a private submodule
+      # (the Supporter watermark) — actions/checkout can't fetch it with the
+      # default GITHUB_TOKEN. Same deploy-key setup as ci.yml's wasm-build job.
+      - name: Set up deploy key for the private watermark submodule
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.WATERMARK_PREMIUM_DEPLOY_KEY }}" > ~/.ssh/watermark_premium_deploy
+          chmod 600 ~/.ssh/watermark_premium_deploy
+          ssh-keyscan github.com >> ~/.ssh/known_hosts
+          {
+            echo "Host github.com"
+            echo "  IdentityFile ~/.ssh/watermark_premium_deploy"
+            echo "  IdentitiesOnly yes"
+          } >> ~/.ssh/config
+      - uses: actions/checkout@v4
+      - name: Fetch the private watermark submodule
+        run: git submodule update --init --recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v2
+      - name: Install wasm-bindgen-cli (pinned)
+        run: cargo install wasm-bindgen-cli --version ${{ env.WASM_BINDGEN_VERSION }} --locked
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/extension/package-lock.json
+      - run: npm ci
+        working-directory: apps/extension
+
+      - name: Build Chromium and Firefox
+        run: |
+          npm run build
+          npm run build:firefox
+        working-directory: apps/extension
+
+      # Zip the *contents*, not the directory: both browsers reject a package
+      # whose manifest.json sits one level down.
+      - name: Package both
+        working-directory: apps/extension
+        run: |
+          VERSION="$(node -p "require('./package.json').version")"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          (cd dist && zip -r -q "../opencapture-chromium-${VERSION}.zip" .)
+          (cd dist-firefox && zip -r -q "../opencapture-firefox-${VERSION}.zip" .)
+          ls -la ./*.zip
+
+      - name: Create or update the Release
+        uses: softprops/action-gh-release@v2
+        with:
+          # workflow_dispatch has no tag of its own; fall back to the version
+          # so a manual run still lands somewhere sensible.
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', env.VERSION) }}
+          name: OpenCapture ${{ env.VERSION }}
+          generate_release_notes: true
+          body: |
+            ### Try it before the stores catch up
+
+            The store builds go through review; these are the same bytes, installable now.
+
+            **Chrome / Edge** — unzip `opencapture-chromium-${{ env.VERSION }}.zip`, open `chrome://extensions`
+            (or `edge://extensions`), turn on **Developer mode**, then **Load unpacked** and pick the folder.
+
+            **Firefox** — open `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on**,
+            and pick any file inside the unzipped `opencapture-firefox-${{ env.VERSION }}.zip`.
+            Temporary add-ons are removed when Firefox restarts; the signed build comes from Add-ons.
+          files: |
+            apps/extension/opencapture-chromium-${{ env.VERSION }}.zip
+            apps/extension/opencapture-firefox-${{ env.VERSION }}.zip
