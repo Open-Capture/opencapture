@@ -152,33 +152,83 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     observer.disconnect();
   }
 
+  interface CaptureRect {
+    top: number;
+    left: number;
+    width: number;
+    height: number;
+  }
+
+  /** The band being captured: the window viewport, or the inner scroller's box. */
+  function captureRect(): CaptureRect {
+    if (innerScroller) {
+      const r = innerScroller.getBoundingClientRect();
+      return { top: r.top, left: r.left, width: r.width, height: r.height };
+    }
+    return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
+  }
+
+  /**
+   * Find the fixed/sticky bars that would otherwise be re-photographed into
+   * every slice.
+   *
+   * This sweeps the DOM rather than hit-testing a few points. Hit-testing was
+   * the obvious approach and it silently fails on the pages that need this
+   * most: `elementsFromPoint` is a pointer API, so it skips anything with
+   * `pointer-events: none` — the exact trick a transparent overlay header uses
+   * to let clicks through to the content beneath. On chatgpt.com four sample
+   * points found 1 of 7 pinned bars, and the one they found was in the
+   * sidebar, not the header and composer that were actually repeating.
+   *
+   * A sweep costs ~1-2ms for ~550 elements, which is why it can also run per
+   * slice — see handleScrollTo. That matters for headers that only become
+   * sticky *after* the user scrolls, which no single pass at scroll-position 0
+   * can ever see.
+   */
   function classifyPinnedElements(): void {
     pinnedElements = [];
-    const candidates = new Set<Element>();
+    const view = captureRect();
+    const viewBottom = view.top + view.height;
+    const viewRight = view.left + view.width;
+    const midline = view.top + view.height / 2;
 
-    const samplePoints: Array<[number, number]> = [
-      [window.innerWidth / 2, 5],
-      [window.innerWidth / 2, window.innerHeight - 5],
-      [10, 5],
-      [window.innerWidth - 10, window.innerHeight - 5],
-    ];
-    for (const [x, y] of samplePoints) {
-      for (const el of document.elementsFromPoint(x, y)) {
-        candidates.add(el);
-      }
-    }
-
-    for (const el of candidates) {
+    for (const el of document.body?.querySelectorAll("*") ?? []) {
       if (!(el instanceof HTMLElement)) continue;
       const style = window.getComputedStyle(el);
       if (style.position !== "fixed" && style.position !== "sticky") continue;
-      if (el.offsetWidth === 0 && el.offsetHeight === 0) continue;
+      if (style.display === "none" || style.visibility === "hidden") continue;
+
+      // Hiding the scroll container — or anything wrapping it — would blank
+      // the capture instead of cleaning it up.
+      if (innerScroller && (el === innerScroller || el.contains(innerScroller))) continue;
 
       const rect = el.getBoundingClientRect();
-      const kind: PinnedKind = rect.top < window.innerHeight / 2 ? "top" : "bottom";
+      if (rect.width < 40 || rect.height < 8) continue;
+
+      // Must actually intrude on the band being captured. In inner-scroll mode
+      // this drops the page's own sidebar chrome, which the orchestrator crops
+      // away anyway.
+      if (rect.bottom <= view.top || rect.top >= viewBottom) continue;
+      if (rect.right <= view.left || rect.left >= viewRight) continue;
+
+      // A sticky element taller than half the captured band is page furniture
+      // holding real content, not a bar sitting on top of it.
+      if (rect.height > view.height * 0.5) continue;
+
+      const kind: PinnedKind = rect.top + rect.height / 2 < midline ? "top" : "bottom";
       pinnedElements.push({ el, kind, originalVisibility: el.style.visibility });
       el.setAttribute(PINNED_ATTR, kind);
     }
+  }
+
+  /**
+   * Re-run classification for a slice. Restores first: a hidden element reads
+   * as `visibility: hidden` and would be skipped by the sweep, dropping it
+   * from the list and stranding it hidden after the capture finished.
+   */
+  function reclassifyPinnedElements(): void {
+    restorePinnedElements();
+    classifyPinnedElements();
   }
 
   function injectFreezeStyle(): void {
@@ -223,13 +273,11 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     await waitForImagesAndQuiet();
     injectFreezeStyle();
 
-    // Pinned-element handling (classify/hide fixed+sticky chrome so it
-    // doesn't repeat in every slice) is specific to window-scroll capture:
-    // it reasons about elements fixed relative to the *window* viewport,
-    // which never moves at all in inner-scroll mode. Anything outside the
-    // inner container's own rect is cropped away regardless (see
-    // orchestrator.ts); anything sticky *within* the container isn't
-    // handled in this MVP — see detectDominantScroller's own comment.
+    // Pinned elements are hidden on every slice but the one they belong to,
+    // in both scroll modes. Inner-scroll used to skip this entirely, which is
+    // why sticky headers repeated down the whole capture on app-shell layouts
+    // like chatgpt.com: the window never scrolls there, but the bars pinned
+    // over the scrolling container get re-photographed into every slice.
     let metrics: { viewportWidthCss: number; viewportHeightCss: number; totalHeightCss: number; dpr: number };
     let innerScrollRect: { x: number; y: number; width: number; height: number } | null = null;
     const dpr = window.devicePixelRatio || 1;
@@ -238,11 +286,13 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       const rect = innerScroller.getBoundingClientRect();
       innerScrollRect = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
       metrics = { viewportWidthCss: rect.width, viewportHeightCss: innerScroller.clientHeight, totalHeightCss, dpr };
-    } else {
       classifyPinnedElements();
+      applyPinnedVisibility(true, totalHeightCss <= innerScroller.clientHeight);
+    } else {
       const doc = document.scrollingElement ?? document.documentElement;
       totalHeightCss = doc.scrollHeight;
       metrics = { viewportWidthCss: window.innerWidth, viewportHeightCss: window.innerHeight, totalHeightCss, dpr };
+      classifyPinnedElements();
       applyPinnedVisibility(true, totalHeightCss <= window.innerHeight);
     }
 
@@ -256,20 +306,29 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   }
 
   async function handleScrollTo(targetCss: number) {
+    let actualScrollCss: number;
+    let viewportHeight: number;
+
     if (innerScroller) {
       innerScroller.scrollTo({ top: targetCss, behavior: "instant" });
       await sleep(2 * 16 + 150);
-      return { actualScrollCss: innerScroller.scrollTop };
+      actualScrollCss = innerScroller.scrollTop;
+      viewportHeight = innerScroller.clientHeight;
+    } else {
+      window.scrollTo({ top: targetCss, behavior: "instant" });
+      await sleep(2 * 16 + 150);
+      actualScrollCss = (document.scrollingElement ?? document.documentElement).scrollTop;
+      viewportHeight = window.innerHeight;
     }
 
-    window.scrollTo({ top: targetCss, behavior: "instant" });
-    await sleep(2 * 16 + 150);
-
-    const doc = document.scrollingElement ?? document.documentElement;
-    const actualScrollCss = doc.scrollTop;
+    // Re-classify rather than reuse the prep-time list: plenty of sites only
+    // promote a header to sticky once scrolling starts, so a list built at
+    // scroll-position 0 misses exactly the bars that go on to repeat. The
+    // sweep is ~1-2ms, cheap enough to repeat per slice.
+    reclassifyPinnedElements();
 
     const isFirstSlice = targetCss <= 0;
-    const isLastSlice = actualScrollCss + window.innerHeight >= totalHeightCss - 1;
+    const isLastSlice = actualScrollCss + viewportHeight >= totalHeightCss - 1;
     applyPinnedVisibility(isFirstSlice, isLastSlice);
     // Re-settle after visibility toggles so the capture doesn't race a
     // layout/paint that's still catching up.
@@ -279,11 +338,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   }
 
   function handleRestore() {
+    restorePinnedElements();
     if (innerScroller) {
       innerScroller.scrollTop = 0;
       innerScroller = null;
-    } else {
-      restorePinnedElements();
     }
     removeFreezeStyle();
     return { ok: true as const };

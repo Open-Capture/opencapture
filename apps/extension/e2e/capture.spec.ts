@@ -263,6 +263,49 @@ test("sticky/fixed elements appear once, not duplicated across every slice", asy
   await page.close();
 });
 
+test("sticky elements inside an inner scroller appear once, not in every slice", async ({ context, serviceWorker }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/sticky-inner-scroll.html`);
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab found for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    async ({ tabId, windowId }) => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.captureFullPage(tabId, windowId);
+    },
+    tabInfo,
+  );
+
+  // The window-scroll path already handled this; the inner-scroll path did
+  // not classify pinned elements at all, so this was 0 and both bars were
+  // burned into every slice.
+  expect(result.report.pinned_elements_handled).toBeGreaterThanOrEqual(2);
+
+  const dir = mkdtempSync(join(tmpdir(), "opencapture-e2e-"));
+  const pngPath = writeBase64Png(dir, "sticky-inner.png", result.imagesBase64[0]);
+
+  // The magenta header belongs at the top of the stitched image and nowhere
+  // else. Sampling the middle catches the regression precisely: if the bar is
+  // being re-photographed per slice it lands at a slice boundary mid-image.
+  const top = JSON.parse(shotQa(["band-sample", pngPath, "--bands", "1", "--band-height", "1", "--x", "10", "--y-offset", "10"]).stdout)[0];
+  expect(top).toMatchObject({ r: 255, g: 0, b: 255 });
+
+  const middle = JSON.parse(
+    shotQa(["band-sample", pngPath, "--bands", "1", "--band-height", "1", "--x", "10", "--y-offset", String(Math.floor(result.report.output_height_px / 2))]).stdout,
+  )[0];
+  expect(middle).not.toMatchObject({ r: 255, g: 0, b: 255 });
+  expect(middle).not.toMatchObject({ r: 0, g: 255, b: 255 });
+
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });

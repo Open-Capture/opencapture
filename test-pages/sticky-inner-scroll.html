@@ -1,0 +1,79 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>sticky-inner-scroll</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      #scrollBox {
+        position: relative;
+        height: 500px;
+        width: 100%;
+        overflow-y: auto;
+      }
+      /* Pinned over the *inner* scroller, not the window. The window never
+         scrolls here, so these stay put for every slice and get
+         re-photographed into all of them unless they're hidden. */
+      #innerHeader {
+        position: sticky;
+        top: 0;
+        height: 50px;
+        background: magenta;
+        z-index: 10;
+        /* Deliberate: a transparent overlay bar that lets clicks through is
+           the common shape for this chrome, and it is invisible to
+           document.elementsFromPoint — which is why point-sampling missed
+           chatgpt.com's header and this fixture guards against going back
+           to it. */
+        pointer-events: none;
+      }
+      #innerFooter {
+        position: sticky;
+        bottom: 0;
+        height: 40px;
+        background: cyan;
+        z-index: 10;
+      }
+      .band {
+        height: 100px;
+        width: 100%;
+        box-sizing: border-box;
+        color: white;
+        font: 14px monospace;
+        padding-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- inner-scroll.html plus sticky chrome inside the scroller. The window
+         itself never scrolls (500px box in a taller viewport), so this is the
+         combination that used to be unhandled: the pinned-element pass only
+         ran for window-scroll captures, and both bars repeated down the whole
+         stitched image. -->
+    <div id="scrollBox">
+      <div id="innerHeader">sticky inner header</div>
+      <div id="bands"></div>
+      <div id="innerFooter">sticky inner footer</div>
+    </div>
+    <script>
+      // Same deterministic colour formula as ruler-3000.html and
+      // inner-scroll.html so shot-qa band-sample can assert exact RGB.
+      const BANDS = 20;
+      const container = document.getElementById("bands");
+      for (let i = 0; i < BANDS; i++) {
+        const r = (i * 53) % 256;
+        const g = (i * 97) % 256;
+        const b = (i * 151) % 256;
+        const div = document.createElement("div");
+        div.className = "band";
+        div.style.backgroundColor = `rgb(${r},${g},${b})`;
+        div.textContent = `band ${i} rgb(${r},${g},${b})`;
+        container.appendChild(div);
+      }
+    </script>
+  </body>
+</html>
