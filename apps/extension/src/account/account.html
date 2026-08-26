@@ -83,6 +83,9 @@
           <p class="oa-caption">Optional — only needed for the watermark tool. Every other feature works without an account.</p>
           <button id="signIn" class="btn btn-primary btn-full">Sign in</button>
           <p class="oa-caption">Opens a new tab to sign in with Google, a wallet, or Nostr.</p>
+          <p id="authDenied" class="oa-caption is-error" hidden>
+            Sign-in needs permission to reach auth.opencapture.app. Choose Sign in again and select Allow.
+          </p>
         </div>
         <openapps-credits poll-seconds="30"></openapps-credits>
         <!-- Deliberately not scoped to OpenCapture with `app-id`. The

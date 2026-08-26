@@ -27,24 +27,9 @@
     "downloads",
     "storage"
   ],
-  "host_permissions": [
-    "https://auth.opencapture.app/*"
-  ],
   "optional_host_permissions": [
+    "https://auth.opencapture.app/*",
     "https://gateway.openapps.network/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://auth.opencapture.app/v1/auth/oidc/google/callback*",
-        "https://auth.opencapture.app/signin*",
-        "https://auth.opencapture.app/link*"
-      ],
-      "js": [
-        "openapps-callback.js"
-      ],
-      "run_at": "document_idle"
-    }
   ],
   "minimum_chrome_version": "116",
   "content_security_policy": {

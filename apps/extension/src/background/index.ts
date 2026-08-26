@@ -4,6 +4,7 @@ import { setLastCaptureUi } from "../chrome/last-capture-ui";
 import { client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
 import { bumpUsageCount } from "../chrome/rating-prompt";
 import { saveOutput } from "../chrome/save";
+import { registerCallbackScript } from "../chrome/auth-permission";
 import { ext } from "../platform/webext";
 import type { PopupRequest, PopupResponse } from "../types";
 import {
@@ -123,6 +124,16 @@ ext.runtime.onConnect.addListener((port) => {
 // entries, and reopening one in the editor (which reuses
 // openEditorWithBytes exactly as a fresh capture does, since by the time
 // the image is out of IndexedDB there's no difference between the two).
+// The callback relay is registered at runtime rather than declared in the
+// manifest — a declarative content_scripts entry shows "Read and change your
+// data on <host>" in the install dialog even when the host is optional. Chrome
+// persists dynamic registrations, but re-asserting on startup covers a profile
+// that lost them, and onAdded covers the grant happening in another context.
+void registerCallbackScript();
+ext.permissions.onAdded.addListener(() => {
+  void registerCallbackScript();
+});
+
 ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   const request = message as { type?: string; id?: number };
   if (request?.type === "history:delete" && typeof request.id === "number") {

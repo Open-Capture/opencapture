@@ -29,32 +29,21 @@
     "downloads",
     "storage"
   ],
-  "host_permissions": [
-    "https://auth.opencapture.app/*"
-  ],
   "optional_host_permissions": [
+    "https://auth.opencapture.app/*",
     "https://gateway.openapps.network/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": [
-        "https://auth.opencapture.app/v1/auth/oidc/google/callback*",
-        "https://auth.opencapture.app/signin*",
-        "https://auth.opencapture.app/link*"
-      ],
-      "js": [
-        "openapps-callback.js"
-      ],
-      "run_at": "document_idle"
-    }
   ],
   "browser_specific_settings": {
     "gecko": {
       "id": "opencapture@openapps.dev",
       "strict_min_version": "142.0",
       "data_collection_permissions": {
-        "required": ["none"],
-        "optional": ["authenticationInfo"]
+        "required": [
+          "none"
+        ],
+        "optional": [
+          "authenticationInfo"
+        ]
       }
     },
     "gecko_android": {

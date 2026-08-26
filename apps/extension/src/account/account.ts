@@ -6,6 +6,7 @@
 import "@openapps/tokens/tokens.css";
 import { configure } from "@openapps/ui";
 import { OPENAPPS_BASE_URL, client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
+import { ensureAuthAccess } from "../chrome/auth-permission";
 import { ext } from "../platform/webext";
 
 // Shares the same chrome.storage.session-backed store as background.ts's
@@ -37,7 +38,16 @@ const historyCard = document.getElementById("historyCard")!;
 const buyEl = document.querySelector("openapps-buy")!;
 const signOutBtn = document.getElementById("signOut") as HTMLButtonElement;
 
-document.getElementById("signIn")!.addEventListener("click", () => {
+document.getElementById("signIn")!.addEventListener("click", async () => {
+  // The origin is an optional permission, so it has to be granted before the
+  // tab is worth opening — without it the relay content script cannot be
+  // registered and the session would never make it back. ensureAuthAccess is
+  // first, before any other await, because permissions.request needs the
+  // click's gesture.
+  if (!(await ensureAuthAccess())) {
+    showAuthDenied();
+    return;
+  }
   // The server's own sign-in page, in its own tab. It is an https origin,
   // so a wallet or Nostr extension actually injects into it — neither will
   // ever appear in this window — and it hands the session back through
@@ -45,6 +55,13 @@ document.getElementById("signIn")!.addEventListener("click", () => {
   // "openapps:session" listener for the rest of the handoff.
   ext.tabs.create({ url: new URL("/signin", openappsClient.baseUrl).toString() });
 });
+
+/** Declining the prompt leaves sign-in impossible, so say so rather than
+ *  opening a tab that can never complete. */
+function showAuthDenied(): void {
+  const el = document.getElementById("authDenied");
+  if (el) el.hidden = false;
+}
 
 // <openapps-buy> would navigate this window to Stripe, which for an
 // extension page means destroying it mid-purchase. Taking the event over
@@ -102,7 +119,13 @@ document.querySelector("openapps-account")!.addEventListener(
     if (!button || !CONNECT_LABELS.includes(button.textContent?.trim() ?? "")) return;
     event.stopImmediatePropagation();
     event.preventDefault();
-    ext.tabs.create({ url: new URL("/link", openappsClient.baseUrl).toString() });
+    void (async () => {
+      if (!(await ensureAuthAccess())) {
+        showAuthDenied();
+        return;
+      }
+      ext.tabs.create({ url: new URL("/link", openappsClient.baseUrl).toString() });
+    })();
   },
   true,
 );
