@@ -71,8 +71,70 @@ type Snapshot =
   | { kind: "region"; x: number; y: number; data: ImageData }
   | { kind: "regions"; regions: { x: number; y: number; data: ImageData }[] };
 
+const undoBtn = document.getElementById("undo") as HTMLButtonElement;
+const redoBtn = document.getElementById("redo") as HTMLButtonElement;
+const undoCountEl = document.getElementById("undoCount") as HTMLSpanElement;
+const redoCountEl = document.getElementById("redoCount") as HTMLSpanElement;
+
 const undoStack: Snapshot[] = [];
+const redoStack: Snapshot[] = [];
 const MAX_HISTORY = 20;
+
+/**
+ * Snapshot whatever the canvas currently holds under `like`'s footprint.
+ *
+ * Undo entries record the pixels as they were *before* an edit, which is all
+ * you need to step backwards. Stepping forward again needs the opposite, and
+ * the cheapest way to get it is to photograph the same footprint just before
+ * restoring — so an undo produces its own redo entry, of the same kind and
+ * cost, rather than the history storing two copies of everything up front.
+ */
+function inverseOf(like: Snapshot): Snapshot {
+  if (like.kind === "full") {
+    return { kind: "full", width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height) };
+  }
+  if (like.kind === "region") {
+    return { kind: "region", x: like.x, y: like.y, data: ctx.getImageData(like.x, like.y, like.data.width, like.data.height) };
+  }
+  return {
+    kind: "regions",
+    regions: like.regions.map((r) => ({ x: r.x, y: r.y, data: ctx.getImageData(r.x, r.y, r.data.width, r.data.height) })),
+  };
+}
+
+function applySnapshot(snap: Snapshot): void {
+  if (snap.kind === "full") {
+    canvas.width = snap.width;
+    canvas.height = snap.height;
+    ctx.putImageData(snap.data, 0, 0);
+    syncPreviewCanvas(); // canvas dimensions may have just changed (undoing a crop)
+  } else if (snap.kind === "region") {
+    ctx.putImageData(snap.data, snap.x, snap.y);
+  } else {
+    for (const region of snap.regions) ctx.putImageData(region.data, region.x, region.y);
+  }
+}
+
+/**
+ * The single place an edit enters history. Every new edit drops the redo
+ * stack: once you branch off, the steps that were ahead of you describe a
+ * future that no longer exists.
+ */
+function pushHistory(snap: Snapshot): void {
+  undoStack.push(snap);
+  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  redoStack.length = 0;
+  refreshHistoryUi();
+}
+
+function refreshHistoryUi(): void {
+  undoBtn.disabled = undoStack.length === 0;
+  redoBtn.disabled = redoStack.length === 0;
+  // Blank rather than "0": a zero next to a greyed-out button is noise, and
+  // the disabled state already says there is nothing to step through.
+  undoCountEl.textContent = undoStack.length > 0 ? String(undoStack.length) : "";
+  redoCountEl.textContent = redoStack.length > 0 ? String(redoStack.length) : "";
+}
 
 /** Keeps previewCanvas's on-screen position/size matching `canvas`'s own
  * (post max-width:100% scaling, post margin:auto centering) rendered box.
@@ -138,16 +200,29 @@ function undo(): void {
   }
   const prev = undoStack.pop();
   if (!prev) return;
-  if (prev.kind === "full") {
-    canvas.width = prev.width;
-    canvas.height = prev.height;
-    ctx.putImageData(prev.data, 0, 0);
-    syncPreviewCanvas(); // canvas dimensions may have just changed (undoing a crop)
-  } else if (prev.kind === "region") {
-    ctx.putImageData(prev.data, prev.x, prev.y);
-  } else {
-    for (const region of prev.regions) ctx.putImageData(region.data, region.x, region.y);
+  // Photograph the current state before overwriting it — that is the redo.
+  redoStack.push(inverseOf(prev));
+  applySnapshot(prev);
+  refreshHistoryUi();
+}
+
+function redo(): void {
+  // Discard a pending crop/shape first, exactly as undo does: it lives on
+  // previewCanvas outside history, and letting it survive a redo would leave
+  // it floating over content it was never drawn against.
+  if (pendingCrop) {
+    cancelPendingCrop();
+    return;
   }
+  if (pendingShape) {
+    cancelPendingShape();
+    return;
+  }
+  const next = redoStack.pop();
+  if (!next) return;
+  undoStack.push(inverseOf(next));
+  applySnapshot(next);
+  refreshHistoryUi();
 }
 
 function selectTool(tool: Tool): void {
@@ -390,8 +465,7 @@ function commitPendingCrop(): void {
   // Taken now, at the actual commit — not per-frame during adjustment,
   // since the real canvas was never touched until this exact point.
   const preCropSnapshot = ctx.getImageData(0, 0, canvas.width, canvas.height);
-  undoStack.push({ kind: "full", width: canvas.width, height: canvas.height, data: preCropSnapshot });
-  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  pushHistory({ kind: "full", width: canvas.width, height: canvas.height, data: preCropSnapshot });
   applyCrop(pendingCrop);
   pendingCrop = null;
   updateCropActionButtons();
@@ -697,8 +771,7 @@ function commitPendingShape(): void {
   clearPreview();
   const box = shapeBoundingBox(pendingShape);
   const preSnapshot = ctx.getImageData(box.x, box.y, box.width, box.height);
-  undoStack.push({ kind: "region", x: box.x, y: box.y, data: preSnapshot });
-  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  pushHistory({ kind: "region", x: box.x, y: box.y, data: preSnapshot });
 
   if (pendingShape.kind === "arrow") {
     drawArrow(ctx, pendingShape.x0, pendingShape.y0, pendingShape.x1, pendingShape.y1);
@@ -1155,8 +1228,7 @@ watermarkAddBtn.addEventListener("click", async () => {
   // stack shape, so it hands back the pre-draw snapshot of each band and
   // this is what pushes it as a single "regions" undo entry.
   const regions = applyWatermarkPattern(ctx, canvas.width, canvas.height, location, orientationDeg, text, watermarkLogoBitmap, opacity, textScale);
-  undoStack.push({ kind: "regions", regions });
-  if (undoStack.length > MAX_HISTORY) undoStack.shift();
+  pushHistory({ kind: "regions", regions });
   closeWatermarkPanel();
   selectTool("select");
 });
@@ -1404,7 +1476,9 @@ toolButtons.forEach((btn) => {
   });
 });
 
-document.getElementById("undo")!.addEventListener("click", undo);
+undoBtn.addEventListener("click", undo);
+redoBtn.addEventListener("click", redo);
+refreshHistoryUi();
 
 document.getElementById("closeEditor")!.addEventListener("click", async () => {
   // window.close() alone can silently no-op for a tab this document didn't
@@ -1429,6 +1503,21 @@ cropApplyBtn.addEventListener("click", commitPendingCrop);
 cropCancelBtn.addEventListener("click", cancelPendingCrop);
 
 window.addEventListener("keydown", (e) => {
+  // The shortcuts people already have in their fingers. Checked before the
+  // pending-crop/shape branches below return early, since those swallow keys.
+  if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+    const key = e.key.toLowerCase();
+    if (key === "z" && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+      return;
+    }
+    if ((key === "z" && e.shiftKey) || key === "y") {
+      e.preventDefault();
+      redo();
+      return;
+    }
+  }
   if (pendingCrop) {
     if (e.key === "Enter") commitPendingCrop();
     else if (e.key === "Escape") cancelPendingCrop();

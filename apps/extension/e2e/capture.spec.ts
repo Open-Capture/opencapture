@@ -352,6 +352,105 @@ test("cookie consent banner and its scrim are absent from the whole capture", as
   await page.close();
 });
 
+test("redo restores an undone edit, and the counters track both stacks", async ({ context, serviceWorker }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+
+  const windowId = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab) throw new Error(`no tab found for ${url}`);
+    return tab.windowId;
+  }, page.url());
+  await serviceWorker.evaluate(async (winId) => {
+    // @ts-expect-error test-only global, see background/index.ts
+    await globalThis.__test.captureVisibleOnly(winId);
+  }, windowId);
+
+  const [editorPage] = await Promise.all([
+    context.waitForEvent("page"),
+    serviceWorker.evaluate(async () => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.openEditor();
+    }),
+  ]);
+  await editorPage.waitForLoadState();
+  await editorPage.waitForFunction(() => {
+    const c = document.getElementById("canvas") as HTMLCanvasElement;
+    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+  });
+
+  const readPixel = (x: number, y: number) =>
+    editorPage.evaluate(
+      ({ px, py }) => {
+        const canvas = document.getElementById("canvas") as HTMLCanvasElement;
+        return Array.from(canvas.getContext("2d")!.getImageData(px, py, 1, 1).data);
+      },
+      { px: x, py: y },
+    );
+  const history = () =>
+    editorPage.evaluate(() => ({
+      undo: document.getElementById("undoCount")!.textContent,
+      redo: document.getElementById("redoCount")!.textContent,
+      undoDisabled: (document.getElementById("undo") as HTMLButtonElement).disabled,
+      redoDisabled: (document.getElementById("redo") as HTMLButtonElement).disabled,
+      toolbarH: Math.round(document.getElementById("toolbar")!.getBoundingClientRect().height),
+    }));
+
+  const canvasBox = await editorPage.locator("#canvas").boundingBox();
+  if (!canvasBox) throw new Error("canvas has no bounding box");
+  const toPage = (x: number, y: number) => ({ x: canvasBox.x + x, y: canvasBox.y + y });
+
+  const atRest = await history();
+  expect(atRest).toMatchObject({ undo: "", redo: "", undoDisabled: true, redoDisabled: true });
+
+  const clean = await readPixel(100, 60);
+
+  await editorPage.click("#toolRect");
+  const start = toPage(60, 60);
+  const end = toPage(160, 160);
+  await editorPage.mouse.move(start.x, start.y);
+  await editorPage.mouse.down();
+  await editorPage.mouse.move(end.x, end.y, { steps: 5 });
+  await editorPage.mouse.up();
+  await editorPage.keyboard.press("Enter");
+
+  const drawn = await readPixel(100, 60);
+  expect(drawn).not.toEqual(clean);
+  const afterDraw = await history();
+  expect(afterDraw).toMatchObject({ undo: "1", redo: "", undoDisabled: false, redoDisabled: true });
+  // The counters must not resize the strip: a toolbar that grows when a count
+  // appears moves the canvas under the pointer mid-session, which is exactly
+  // how this shifted a crop by a pixel before the badge was taken out of flow.
+  expect(afterDraw.toolbarH).toBe(atRest.toolbarH);
+
+  await editorPage.click("#undo");
+  expect(await readPixel(100, 60)).toEqual(clean);
+  // The step moved across rather than vanishing — that is the whole point.
+  expect(await history()).toMatchObject({ undo: "", redo: "1", undoDisabled: true, redoDisabled: false });
+
+  await editorPage.click("#redo");
+  expect(await readPixel(100, 60)).toEqual(drawn);
+  expect(await history()).toMatchObject({ undo: "1", redo: "", undoDisabled: false, redoDisabled: true });
+
+  // A new edit after an undo discards the redo stack: that future is gone.
+  await editorPage.click("#undo");
+  expect(await history()).toMatchObject({ redo: "1" });
+  await editorPage.click("#toolRect");
+  const s2 = toPage(200, 200);
+  const e2 = toPage(260, 260);
+  await editorPage.mouse.move(s2.x, s2.y);
+  await editorPage.mouse.down();
+  await editorPage.mouse.move(e2.x, e2.y, { steps: 5 });
+  await editorPage.mouse.up();
+  await editorPage.keyboard.press("Enter");
+  expect(await history()).toMatchObject({ undo: "1", redo: "", redoDisabled: true });
+
+  await editorPage.close();
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });

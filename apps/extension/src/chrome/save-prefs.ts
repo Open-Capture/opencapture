@@ -13,7 +13,7 @@
 // a well-known MV3 popup gotcha. A picker-based flow would need its own
 // persistent tab, not the popup.
 
-import { ext } from "../platform/webext";
+import { ext, isFirefox } from "../platform/webext";
 
 export interface SavePrefs {
   folder: string;
@@ -32,7 +32,14 @@ export interface SavePrefs {
   askWhereToSave: boolean;
 }
 
-const DEFAULT_PREFS: SavePrefs = { folder: "", filename: "opencapture", askWhereToSave: false };
+// Default on for Firefox. There, the Save dialog is not one way of choosing a
+// location among several — it is the only one, because the folder picker is
+// the File System Access API and Firefox does not implement it. Defaulting it
+// off would ship Firefox users an extension that always writes to Downloads
+// with no visible way to change that. Chromium keeps it off, since Browse…
+// already gives a folder that sticks, and being asked every time is worse than
+// being asked once.
+const DEFAULT_PREFS: SavePrefs = { folder: "", filename: "opencapture", askWhereToSave: isFirefox };
 const STORAGE_KEY = "savePrefs";
 
 export async function getSavePrefs(): Promise<SavePrefs> {

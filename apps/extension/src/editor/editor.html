@@ -21,7 +21,7 @@
       }
       #toolbar {
         display: flex;
-        gap: var(--space-2);
+        gap: 6px;
         padding: var(--space-2) var(--space-3);
         background: var(--surface-card);
         border-bottom: var(--border-width) solid var(--border-hairline);
@@ -57,8 +57,8 @@
         align-items: center;
         justify-content: center;
         gap: 3px;
-        min-width: 46px;
-        padding: 4px 6px 3px;
+        min-width: 42px;
+        padding: 4px 5px 3px;
         border: var(--border-width) solid transparent;
         border-radius: var(--radius-sm);
         background: transparent;
@@ -81,14 +81,36 @@
       .tool-label {
         font: var(--type-caption);
         font-size: 10px;
-        line-height: 1;
+        /* Fixed, not 1: the count badge is added and removed as you edit, and
+           anything that lets it change this line box changes the button
+           height, then the toolbar height, then where the canvas starts —
+           which moved the canvas by half a pixel mid-session and shifted
+           every subsequent drag. The strip must not reflow while in use. */
+        line-height: 12px;
+        height: 12px;
         white-space: nowrap;
       }
       /* Undo sits outside the tool groups — it acts on history, not on a
          selection — but matches their shape so the row reads as one control
          strip rather than two kinds of button. */
-      #undo {
-        min-width: 44px;
+      /* The count rides on the label rather than taking a line of its own, so
+         adding it costs width instead of toolbar height. Superscripted so a
+         two-digit count still reads as a count and not as part of the word. */
+      .tool-count {
+        margin-left: 2px;
+        font-size: 9px;
+        /* Raised by position, not vertical-align: super, which grows the line
+           box it sits in. inline-block + fixed line-height keeps it out of
+           layout entirely. */
+        display: inline-block;
+        position: relative;
+        top: -2px;
+        line-height: 12px;
+        font-variant-numeric: tabular-nums;
+        opacity: 0.75;
+      }
+      .tool-btn:disabled .tool-count {
+        display: none;
       }
       .toolbar-divider {
         width: var(--border-width);
@@ -341,10 +363,19 @@
         Cancel
       </button>
       <div class="toolbar-divider"></div>
-      <button id="undo" class="tool-btn" title="Undo the last change">
-        <span class="oa-icon icon-undo-2"></span>
-        <span class="tool-label">Undo</span>
-      </button>
+      <!-- Undo and Redo are one group: they are the same control in two
+           directions, and pairing them makes the counts readable as "3 back,
+           1 forward" rather than two unrelated numbers. -->
+      <div class="tool-group" role="group" aria-label="History">
+        <button id="undo" class="tool-btn" title="Undo the last change">
+          <span class="oa-icon icon-undo-2"></span>
+          <span class="tool-label">Undo<span id="undoCount" class="tool-count"></span></span>
+        </button>
+        <button id="redo" class="tool-btn" title="Redo the last undone change">
+          <span class="oa-icon icon-redo-2"></span>
+          <span class="tool-label">Redo<span id="redoCount" class="tool-count"></span></span>
+        </button>
+      </div>
       <button id="saveSettingsBtn" class="btn btn-secondary btn-sm" title="Change where this saves">
         <span class="oa-icon oa-icon-14 icon-folder-open"></span>
         <span id="saveSettingsLabel">Downloads</span>

@@ -14,6 +14,24 @@
 export const ext: typeof chrome = (globalThis as unknown as { browser?: typeof chrome }).browser ?? chrome;
 
 /**
+ * True on Firefox.
+ *
+ * Not `"browser" in globalThis`, which is the obvious test and is wrong:
+ * Chromium ships a `browser` alias of its own, so that check reports Firefox
+ * everywhere. Verified in the E2E Chromium, which answers `true` to it — and
+ * getting this backwards would have defaulted a Firefox-only save behaviour
+ * on for Chrome users too.
+ *
+ * `runtime.getBrowserInfo` is genuinely Firefox-only and exists both in the
+ * background context and in extension pages, which matters because callers
+ * include save-prefs running in the worker, where there is no `window`.
+ */
+export const isFirefox: boolean =
+  // Optional-chained because this is evaluated at module load, and webext's
+  // own unit tests substitute an `ext` with no `runtime` at all.
+  typeof (ext.runtime as { getBrowserInfo?: unknown } | undefined)?.getBrowserInfo === "function";
+
+/**
  * Safe pacing interval for `tabs.captureVisibleTab`, in calls per second.
  * `chrome.tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` has been
  * hard-capped at 2 since Chrome 92 with no override, and @types/chrome
