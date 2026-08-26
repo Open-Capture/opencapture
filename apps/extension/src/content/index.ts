@@ -32,7 +32,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   const STYLE_ID = "__opencapture_freeze_style__";
   const PINNED_ATTR = "data-opencapture-pinned";
 
-  type PinnedKind = "top" | "bottom";
+  // "always" is for overlays nobody wants in a screenshot at all — a consent
+  // banner is not page furniture the way a header or a footer bar is, so
+  // showing it even once is showing it once too often.
+  type PinnedKind = "top" | "bottom" | "always";
 
   let pinnedElements: Array<{ el: HTMLElement; kind: PinnedKind; originalVisibility: string }> = [];
   let totalHeightCss = 0;
@@ -159,6 +162,28 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     height: number;
   }
 
+  /**
+   * Cookie/consent overlays, by the naming every consent platform uses.
+   *
+   * Matching on id/class is crude in general, but safe here because only
+   * position:fixed/sticky elements are ever tested — an article *about*
+   * cookies is static content and never reaches this check.
+   *
+   * These are hidden on every slice rather than shown once, and they are also
+   * allowed past the half-viewport size guard: a consent modal is frequently
+   * paired with a full-screen scrim, and a scrim left visible would tint the
+   * entire stitched capture.
+   */
+  const CONSENT_PATTERN =
+    /cookie|consent|gdpr|ccpa|cmplz|onetrust|cookiebot|didomi|osano|truste|usercentrics|klaro|termly|quantcast|privacy-?(banner|notice|bar)/i;
+
+  function looksLikeConsentOverlay(el: HTMLElement): boolean {
+    const className = typeof el.className === "string" ? el.className : "";
+    return CONSENT_PATTERN.test(
+      `${el.id} ${className} ${el.getAttribute("aria-label") ?? ""} ${el.getAttribute("data-testid") ?? ""}`,
+    );
+  }
+
   /** The band being captured: the window viewport, or the inner scroller's box. */
   function captureRect(): CaptureRect {
     if (innerScroller) {
@@ -211,11 +236,19 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       if (rect.bottom <= view.top || rect.top >= viewBottom) continue;
       if (rect.right <= view.left || rect.left >= viewRight) continue;
 
-      // A sticky element taller than half the captured band is page furniture
-      // holding real content, not a bar sitting on top of it.
-      if (rect.height > view.height * 0.5) continue;
+      const consent = looksLikeConsentOverlay(el);
 
-      const kind: PinnedKind = rect.top + rect.height / 2 < midline ? "top" : "bottom";
+      // A sticky element taller than half the captured band is page furniture
+      // holding real content, not a bar sitting on top of it — unless it is a
+      // consent overlay, which is exactly the case where a viewport-sized
+      // element is a scrim to remove rather than content to keep.
+      if (!consent && rect.height > view.height * 0.5) continue;
+
+      const kind: PinnedKind = consent
+        ? "always"
+        : rect.top + rect.height / 2 < midline
+          ? "top"
+          : "bottom";
       pinnedElements.push({ el, kind, originalVisibility: el.style.visibility });
       el.setAttribute(PINNED_ATTR, kind);
     }
@@ -250,7 +283,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
   function applyPinnedVisibility(isFirstSlice: boolean, isLastSlice: boolean): void {
     for (const p of pinnedElements) {
-      const shouldShow = (p.kind === "top" && isFirstSlice) || (p.kind === "bottom" && isLastSlice);
+      const shouldShow =
+        p.kind === "always" ? false : (p.kind === "top" && isFirstSlice) || (p.kind === "bottom" && isLastSlice);
       p.el.style.visibility = shouldShow ? p.originalVisibility : "hidden";
     }
   }

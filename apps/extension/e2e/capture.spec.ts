@@ -306,6 +306,52 @@ test("sticky elements inside an inner scroller appear once, not in every slice",
   await page.close();
 });
 
+test("cookie consent banner and its scrim are absent from the whole capture", async ({ context, serviceWorker }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/cookie-banner.html`);
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab found for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    async ({ tabId, windowId }) => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.captureFullPage(tabId, windowId);
+    },
+    tabInfo,
+  );
+
+  // Both the banner and the scrim. The scrim only gets this far because a
+  // consent match is allowed past the half-viewport size guard.
+  expect(result.report.pinned_elements_handled).toBeGreaterThanOrEqual(2);
+
+  const dir = mkdtempSync(join(tmpdir(), "opencapture-e2e-"));
+  const pngPath = writeBase64Png(dir, "cookie.png", result.imagesBase64[0]);
+
+  // Unlike a header or a footer bar, a consent overlay should appear on *no*
+  // slice — not even the last — so sample the whole height rather than a
+  // point. The banner is full width, so any x would catch it.
+  const samples = JSON.parse(
+    shotQa(["band-sample", pngPath, "--bands", "20", "--band-height", "1", "--x", "400"]).stdout,
+  ) as Array<{ r: number; g: number; b: number }>;
+  const magenta = samples.filter((s) => s.r === 255 && s.g === 0 && s.b === 255);
+  expect(magenta).toHaveLength(0);
+
+  // An opaque scrim left visible would black out every band. Asserting an
+  // exact expected colour catches that, where "not magenta" would not.
+  const band5 = JSON.parse(
+    shotQa(["band-sample", pngPath, "--bands", "1", "--band-height", "1", "--x", "400", "--y-offset", "550"]).stdout,
+  )[0];
+  expect(band5).toMatchObject({ r: (5 * 53) % 256, g: (5 * 97) % 256, b: (5 * 151) % 256 });
+
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });

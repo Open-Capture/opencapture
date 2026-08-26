@@ -1,0 +1,66 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>cookie-banner</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+      }
+      /* A consent modal and its scrim, in the shape every consent platform
+         ships: the banner pinned to the bottom, and a full-viewport tint
+         behind it. The scrim is the interesting one — it is larger than half
+         the viewport, so the "that is page furniture, leave it alone" size
+         guard would skip it, and a skipped scrim tints every slice of the
+         stitched output. */
+      #cmplz-cookie-scrim {
+        position: fixed;
+        inset: 0;
+        background: rgb(0, 0, 0);
+        opacity: 1;
+        z-index: 9998;
+      }
+      #cmplz-cookiebanner-optin {
+        position: fixed;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        height: 160px;
+        background: magenta;
+        z-index: 9999;
+      }
+      .band {
+        height: 100px;
+        width: 100%;
+        box-sizing: border-box;
+        color: white;
+        font: 14px monospace;
+        padding-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bands"></div>
+    <div id="cmplz-cookie-scrim"></div>
+    <div id="cmplz-cookiebanner-optin">Manage Cookie Consent</div>
+    <script>
+      // Same deterministic colour formula as ruler-3000.html, so shot-qa can
+      // assert the exact RGB of a band — which is what proves the opaque
+      // scrim was removed rather than merely dimmed.
+      const BANDS = 20;
+      const container = document.getElementById("bands");
+      for (let i = 0; i < BANDS; i++) {
+        const r = (i * 53) % 256;
+        const g = (i * 97) % 256;
+        const b = (i * 151) % 256;
+        const div = document.createElement("div");
+        div.className = "band";
+        div.style.backgroundColor = `rgb(${r},${g},${b})`;
+        div.textContent = `band ${i} rgb(${r},${g},${b})`;
+        container.appendChild(div);
+      }
+    </script>
+  </body>
+</html>
