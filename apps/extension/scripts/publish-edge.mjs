@@ -139,16 +139,58 @@ await poll(
 );
 console.log("publish-edge: package accepted into the draft submission");
 
-const publish = await fetch(`${API_ROOT}/v1/products/${EDGE_PRODUCT_ID}/submissions`, {
-  method: "POST",
-  headers: { ...authHeaders, "Content-Type": "application/json" },
-  body: JSON.stringify({ notes }),
-});
-if (publish.status !== 202) {
-  throw new Error(`publish: expected 202, got HTTP ${publish.status}: ${await publish.text()}`);
-}
-const publishOp = operationIdFrom(publish);
-console.log(`publish-edge: publish accepted, operation ${publishOp}`);
+// Edge refuses a publish while any earlier submission of the same product is
+// still in certification, and reports it the same way as a real rejection: a
+// Failed operation. On a release cut soon after the previous one that is the
+// expected state rather than a fault, so it is worth waiting out instead of
+// failing the job on something that resolves itself.
+//
+// The package upload above has already landed in the draft either way, so a
+// later re-run republishes exactly these bytes.
+const IN_PROGRESS = /submission is in progress/i;
+const retryMs = Number(process.env.EDGE_PUBLISH_RETRY_MS || 60_000);
+const maxAttempts = Number(process.env.EDGE_PUBLISH_ATTEMPTS || 5);
 
-await poll(`${API_ROOT}/v1/products/${EDGE_PRODUCT_ID}/submissions/operations/${publishOp}`, "publish");
+let published = false;
+for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  const publish = await fetch(`${API_ROOT}/v1/products/${EDGE_PRODUCT_ID}/submissions`, {
+    method: "POST",
+    headers: { ...authHeaders, "Content-Type": "application/json" },
+    body: JSON.stringify({ notes }),
+  });
+  const publishBody = await publish.text();
+
+  if (publish.status === 202) {
+    const publishOp = operationIdFrom(publish);
+    console.log(`publish-edge: publish accepted, operation ${publishOp}`);
+    try {
+      await poll(`${API_ROOT}/v1/products/${EDGE_PRODUCT_ID}/submissions/operations/${publishOp}`, "publish");
+      published = true;
+      break;
+    } catch (err) {
+      if (!IN_PROGRESS.test(String(err.message))) throw err;
+    }
+  } else if (!IN_PROGRESS.test(publishBody)) {
+    throw new Error(`publish: expected 202, got HTTP ${publish.status}: ${publishBody}`);
+  }
+
+  if (attempt === maxAttempts) break;
+  console.log(
+    `publish-edge: an earlier submission is still in certification — waiting ${Math.round(retryMs / 1000)}s ` +
+      `(attempt ${attempt}/${maxAttempts})`,
+  );
+  await sleep(retryMs);
+}
+
+if (!published) {
+  // Deliberately not a stack trace: nothing is broken here, and the fix is to
+  // wait rather than to debug anything.
+  console.error(
+    `publish-edge: an earlier submission was still in certification after ${maxAttempts} attempts.\n` +
+      "  The package IS uploaded to the draft submission — no work is lost.\n" +
+      "  Re-run this workflow once that submission goes live and it will publish these same bytes.",
+  );
+  process.exit(1);
+}
+
 console.log("publish-edge: submitted to Edge certification — review typically takes up to a few days");

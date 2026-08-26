@@ -14,9 +14,10 @@ const PRODUCT = "d34f98f5-f9b7-42b1-bebb-98707202b21d";
 // making any request, so a placeholder like "client-abc" would be rejected.
 const CLIENT = "6f1b0c22-9a4e-4d13-8f7a-2c5e91ab4477";
 
-function startMock({ uploadStatuses, publishStatuses, locationStyle }) {
+function startMock({ uploadStatuses, publishStatuses, locationStyle, blockPublishTimes = 0 }) {
   const seen = { auth: null, clientId: null, contentType: null, bodyBytes: 0, notes: null };
   const counters = { upload: 0, publish: 0 };
+  const state = { publishAttempts: 0 };
   const server = createServer((req, res) => {
     const chunks = [];
     req.on("data", (c) => chunks.push(c));
@@ -39,25 +40,31 @@ function startMock({ uploadStatuses, publishStatuses, locationStyle }) {
         return json(200, { status: uploadStatuses[Math.min(counters.upload++, uploadStatuses.length - 1)], errors: ["manifest rejected"] });
       }
       if (req.method === "POST" && req.url.endsWith("/submissions")) {
+        state.publishAttempts++;
         seen.notes = JSON.parse(body.toString()).notes;
         res.writeHead(202, { Location: "publish-op-9" });
         return res.end();
       }
       if (req.method === "GET" && req.url.includes("/submissions/operations/")) {
+        // Edge reports "an earlier submission is still in certification" as a
+        // Failed operation, indistinguishable in shape from a real rejection.
+        if (state.publishAttempts <= blockPublishTimes) {
+          return json(200, { status: "Failed", message: "Can't publish extension as your extension submission is in progress. Please try again later." });
+        }
         return json(200, { status: publishStatuses[Math.min(counters.publish++, publishStatuses.length - 1)] });
       }
       json(404, { error: `unexpected ${req.method} ${req.url}` });
     });
   });
   return new Promise((resolve) => {
-    server.listen(0, "127.0.0.1", () => resolve({ server, port: server.address().port, seen }));
+    server.listen(0, "127.0.0.1", () => resolve({ server, port: server.address().port, seen, state }));
   });
 }
 
-function run(root, zip, notes) {
+function run(root, zip, notes, extraEnv = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [new URL("./publish-edge.mjs", import.meta.url).pathname, zip], {
-      env: { ...process.env, EDGE_API_ROOT: root, EDGE_PRODUCT_ID: PRODUCT, EDGE_CLIENT_ID: CLIENT, EDGE_API_KEY: "key-xyz", EDGE_PUBLISH_NOTES: notes },
+      env: { ...process.env, EDGE_API_ROOT: root, EDGE_PRODUCT_ID: PRODUCT, EDGE_CLIENT_ID: CLIENT, EDGE_API_KEY: "key-xyz", EDGE_PUBLISH_NOTES: notes, ...extraEnv },
     });
     let out = "";
     child.stdout.on("data", (d) => (out += d));
@@ -148,6 +155,33 @@ const check = (name, ok, detail = "") => {
   // A trailing newline from the secrets UI must not break an otherwise good GUID.
   const padded = await spawnWith({ EDGE_CLIENT_ID: `  ${PRODUCT}\n`, EDGE_PRODUCT_ID: `${PRODUCT}\n` });
   check("trims whitespace around GUIDs", !/is not a GUID/.test(padded.out), padded.out);
+}
+
+// A release cut soon after the previous one hits Edge while the earlier
+// submission is still certifying. That is expected, not a fault, and the job
+// should wait it out rather than fail on something that clears itself.
+{
+  const { server, port, state } = await startMock({
+    uploadStatuses: ["Succeeded"], publishStatuses: ["Succeeded"], blockPublishTimes: 2,
+  });
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_PUBLISH_RETRY_MS: "10", EDGE_PUBLISH_ATTEMPTS: "5" });
+  server.close();
+  check("waits out an in-progress submission", code === 0, out);
+  check("retried the publish", state.publishAttempts === 3, `attempts=${state.publishAttempts}`);
+  check("says why it is waiting", /still in certification/.test(out), out);
+}
+
+// Still blocked after every attempt: fail, but explain rather than dumping a
+// raw operation error, and say the upload is not lost.
+{
+  const { server, port } = await startMock({
+    uploadStatuses: ["Succeeded"], publishStatuses: ["Succeeded"], blockPublishTimes: 99,
+  });
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_PUBLISH_RETRY_MS: "10", EDGE_PUBLISH_ATTEMPTS: "2" });
+  server.close();
+  check("gives up non-zero when never clears", code !== 0, String(code));
+  check("reassures the upload survived", /package IS uploaded/.test(out), out);
+  check("no raw stack trace", !/at .*publish-edge\.mjs:/.test(out), out);
 }
 
 console.log(failures ? `\n${failures} check(s) FAILED` : "\nall publish-edge checks passed");
