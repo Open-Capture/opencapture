@@ -62,6 +62,18 @@
         align-items: center;
         gap: var(--space-2);
       }
+      .field-inline {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font: var(--type-ui);
+        color: var(--text-body);
+        cursor: pointer;
+      }
+      .field-inline input {
+        accent-color: var(--brand);
+        margin: 0;
+      }
       #customFolderName {
         flex: 1;
         min-width: 0;
@@ -161,6 +173,10 @@
               Browse…
             </button>
           </div>
+        </label>
+        <label id="askWhereRow" class="field-inline">
+          <input id="prefAskWhere" type="checkbox" />
+          <span>Ask where to save each time</span>
         </label>
       </fieldset>
 

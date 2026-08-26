@@ -22,7 +22,10 @@ export async function saveOutput(bytes: Uint8Array, suffix: string, ext: string,
   const prefs = await getSavePrefs();
   const handle = await getSavedDirectoryHandle();
 
-  if (handle) {
+  // Asking beats a remembered folder: someone who turned this on wants to be
+  // asked, so the saved directory handle is deliberately bypassed rather than
+  // silently winning.
+  if (handle && !prefs.askWhereToSave) {
     try {
       if (await hasWritePermission(handle)) {
         await saveToDirectory(handle, resolveFilename(prefs, suffix, ext), bytes);
@@ -38,6 +41,6 @@ export async function saveOutput(bytes: Uint8Array, suffix: string, ext: string,
     }
   }
 
-  await downloadBytes(bytes, resolveDownloadPath(prefs, suffix, ext), mime);
+  await downloadBytes(bytes, resolveDownloadPath(prefs, suffix, ext), mime, prefs.askWhereToSave);
   return { savedToCustomFolder: false };
 }

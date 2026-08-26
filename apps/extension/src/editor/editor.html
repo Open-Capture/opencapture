@@ -31,6 +31,18 @@
       }
       /* Segmented containers do the grouping visually, so the toolbar gains a
          row of labels without also gaining a row of group headings. */
+      .field-inline {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        font: var(--type-ui);
+        color: var(--text-body);
+        cursor: pointer;
+      }
+      .field-inline input {
+        accent-color: var(--brand);
+        margin: 0;
+      }
       .tool-group {
         display: inline-flex;
         gap: 2px;
@@ -377,6 +389,10 @@
             Browse…
           </button>
         </div>
+      </label>
+      <label class="field-inline">
+        <input id="editorPrefAskWhere" type="checkbox" />
+        <span>Ask where to save each time</span>
       </label>
     </div>
     <div id="watermarkGatePanel" class="card" hidden>

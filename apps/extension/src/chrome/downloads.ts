@@ -19,10 +19,15 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(binary);
 }
 
-export async function downloadBytes(bytes: Uint8Array, filename: string, mimeType: string): Promise<void> {
+export async function downloadBytes(
+  bytes: Uint8Array,
+  filename: string,
+  mimeType: string,
+  saveAs = false,
+): Promise<void> {
   const dataUrl = `data:${mimeType};base64,${bytesToBase64(bytes)}`;
   try {
-    await ext.downloads.download({ url: dataUrl, filename, saveAs: false });
+    await ext.downloads.download({ url: dataUrl, filename, saveAs });
     return;
   } catch (err) {
     // Firefox: data: URLs are rejected by the downloads API's URL
@@ -30,7 +35,7 @@ export async function downloadBytes(bytes: Uint8Array, filename: string, mimeTyp
     // download completes (or immediately fails) so it doesn't leak.
     const blobUrl = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mimeType }));
     try {
-      const downloadId = await ext.downloads.download({ url: blobUrl, filename, saveAs: false });
+      const downloadId = await ext.downloads.download({ url: blobUrl, filename, saveAs });
       const listener = (delta: chrome.downloads.DownloadDelta) => {
         if (delta.id !== downloadId) return;
         if (delta.state?.current === "complete" || delta.state?.current === "interrupted") {

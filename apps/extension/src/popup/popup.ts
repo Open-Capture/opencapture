@@ -33,6 +33,7 @@ const allButtons = document.querySelectorAll<HTMLButtonElement>("button");
 const prefFilenameEl = $("prefFilename") as HTMLInputElement;
 const customFolderNameEl = $("customFolderName");
 const browseFolderBtn = $("browseFolder") as HTMLButtonElement;
+const prefAskWhereEl = $("prefAskWhere") as HTMLInputElement;
 
 // showDirectoryPicker() (File System Access API) is Chromium-only — Firefox
 // has no implementation at all, and no equivalent API to fall back to.
@@ -51,19 +52,33 @@ async function loadSavePrefs(): Promise<void> {
   const prefs = await getSavePrefs();
   prefFilenameEl.placeholder = prefs.filename;
   prefFilenameEl.value = prefs.filename === "opencapture" ? "" : prefs.filename;
+  prefAskWhereEl.checked = prefs.askWhereToSave;
 }
 
 async function persistSavePrefs(): Promise<void> {
   await setSavePrefs({
     folder: "",
     filename: prefFilenameEl.value.trim() || "opencapture",
+    askWhereToSave: prefAskWhereEl.checked,
   });
 }
 
 prefFilenameEl.addEventListener("change", persistSavePrefs);
+prefAskWhereEl.addEventListener("change", () => {
+  void persistSavePrefs();
+  void refreshCustomFolder();
+});
 loadSavePrefs();
 
 async function refreshCustomFolder(): Promise<void> {
+  if (prefAskWhereEl.checked) {
+    // Saying "Your Downloads folder" under a ticked "ask every time" would be
+    // a straight contradiction — the folder is chosen in the dialog now.
+    customFolderNameEl.textContent = "Chosen in the Save dialog";
+    browseFolderBtn.disabled = true;
+    return;
+  }
+  browseFolderBtn.disabled = false;
   const handle = await getSavedDirectoryHandle();
   customFolderNameEl.textContent = handle ? handle.name : "Your Downloads folder (default)";
 }

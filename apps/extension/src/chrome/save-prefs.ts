@@ -18,9 +18,21 @@ import { ext } from "../platform/webext";
 export interface SavePrefs {
   folder: string;
   filename: string;
+  /**
+   * Hand the save to the browser's own Save As dialog instead of writing
+   * straight to a folder.
+   *
+   * This is the only way a Firefox user can choose where a capture goes:
+   * the folder picker beside it is the File System Access API, which is
+   * Chromium-only (see popup.ts), so without this Firefox has no location
+   * control at all. It is per-save by nature — the dialog cannot remember a
+   * choice — which is why it is a separate option rather than another way of
+   * setting the folder.
+   */
+  askWhereToSave: boolean;
 }
 
-const DEFAULT_PREFS: SavePrefs = { folder: "", filename: "opencapture" };
+const DEFAULT_PREFS: SavePrefs = { folder: "", filename: "opencapture", askWhereToSave: false };
 const STORAGE_KEY = "savePrefs";
 
 export async function getSavePrefs(): Promise<SavePrefs> {

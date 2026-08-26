@@ -1597,6 +1597,83 @@ test("save-location preferences (filename) apply to downloads", async ({ context
 // actually resolve is a real open question Playwright can't answer here
 // (it can't simulate opening one at all) — needs manual verification in a
 // real Chrome window, see PLAN.md.
+test("\"Ask where to save\" reaches downloads.download as saveAs", async ({ context, serviceWorker, extensionId }) => {
+  // The only location control Firefox users have: the folder picker beside it
+  // is the File System Access API, which Firefox does not implement, so this
+  // option is the whole feature there. Worth asserting it actually arrives at
+  // the download call rather than just persisting in storage.
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.waitForFunction(() => (document.getElementById("prefFilename") as HTMLInputElement).placeholder === "opencapture");
+  await popup.check("#prefAskWhere");
+  await popup.locator("#prefAskWhere").dispatchEvent("change");
+  await popup.close();
+
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+  const windowId = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab) throw new Error(`no tab found for ${url}`);
+    return tab.windowId;
+  }, page.url());
+  await serviceWorker.evaluate(async (winId) => {
+    // @ts-expect-error test-only global, see background/index.ts
+    await globalThis.__test.captureVisibleOnly(winId);
+  }, windowId);
+
+  const [editorPage] = await Promise.all([
+    context.waitForEvent("page"),
+    serviceWorker.evaluate(async () => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.openEditor();
+    }),
+  ]);
+  await editorPage.waitForLoadState();
+  await editorPage.waitForFunction(() => {
+    const c = document.getElementById("canvas") as HTMLCanvasElement;
+    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+  });
+
+  // Same reason as the filename test: Playwright redirects real downloads, so
+  // inspect the arguments rather than the resulting file.
+  await editorPage.evaluate(() => {
+    (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls = [];
+    chrome.downloads.download = ((opts: chrome.downloads.DownloadOptions) => {
+      (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls.push(opts);
+      return Promise.resolve(999);
+    }) as typeof chrome.downloads.download;
+  });
+
+  await editorPage.click("#downloadPng");
+  await editorPage.waitForFunction(
+    () => (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls.length > 0,
+  );
+  const withAsk = await editorPage.evaluate(
+    () => (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls[0] ?? null,
+  );
+  expect(withAsk?.saveAs).toBe(true);
+
+  // And that it is genuinely driven by the pref, not hardcoded the other way.
+  await editorPage.evaluate(() => {
+    (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls = [];
+    (document.getElementById("editorPrefAskWhere") as HTMLInputElement).checked = false;
+    document.getElementById("editorPrefAskWhere")!.dispatchEvent(new Event("change"));
+  });
+  await editorPage.click("#downloadPng");
+  await editorPage.waitForFunction(
+    () => (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls.length > 0,
+  );
+  const withoutAsk = await editorPage.evaluate(
+    () => (window as unknown as { __downloadCalls: chrome.downloads.DownloadOptions[] }).__downloadCalls[0] ?? null,
+  );
+  expect(withoutAsk?.saveAs).toBe(false);
+
+  await editorPage.close();
+  await page.close();
+});
+
 test("popup: clicking Browse doesn't crash or persist a handle when the picker can't be shown", async ({ context, extensionId }) => {
   const popup = await context.newPage();
   const pageErrors: Error[] = [];

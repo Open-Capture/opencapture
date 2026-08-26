@@ -1465,6 +1465,7 @@ const saveSettingsBtn = document.getElementById("saveSettingsBtn") as HTMLButton
 const saveSettingsLabel = document.getElementById("saveSettingsLabel")!;
 const saveSettingsPanel = document.getElementById("saveSettingsPanel")!;
 const editorPrefFilenameEl = document.getElementById("editorPrefFilename") as HTMLInputElement;
+const editorPrefAskWhereEl = document.getElementById("editorPrefAskWhere") as HTMLInputElement;
 const editorCustomFolderNameEl = document.getElementById("editorCustomFolderName")!;
 const editorBrowseFolderBtn = document.getElementById("editorBrowseFolder") as HTMLButtonElement;
 
@@ -1479,6 +1480,7 @@ async function refreshSaveSettingsUi(): Promise<void> {
   const [prefs, handle] = await Promise.all([getSavePrefs(), getSavedDirectoryHandle()]);
   editorPrefFilenameEl.placeholder = prefs.filename;
   editorPrefFilenameEl.value = prefs.filename === "opencapture" ? "" : prefs.filename;
+  editorPrefAskWhereEl.checked = prefs.askWhereToSave;
   const folderLabel = handle ? handle.name : "Your Downloads folder (default)";
   editorCustomFolderNameEl.textContent = folderLabel;
   saveSettingsLabel.textContent = handle ? handle.name : "Downloads";
@@ -1488,11 +1490,13 @@ async function persistEditorSavePrefs(): Promise<void> {
   await setSavePrefs({
     folder: "",
     filename: editorPrefFilenameEl.value.trim() || "opencapture",
+    askWhereToSave: editorPrefAskWhereEl.checked,
   });
   await refreshSaveSettingsUi();
 }
 
 editorPrefFilenameEl.addEventListener("change", () => void persistEditorSavePrefs());
+editorPrefAskWhereEl.addEventListener("change", () => void persistEditorSavePrefs());
 
 editorBrowseFolderBtn.addEventListener("click", async () => {
   const result = await pickDirectory();
