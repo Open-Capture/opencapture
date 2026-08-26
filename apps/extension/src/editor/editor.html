@@ -29,9 +29,54 @@
         flex-wrap: wrap;
         flex: 0 0 auto;
       }
-      #toolGroup {
+      /* Segmented containers do the grouping visually, so the toolbar gains a
+         row of labels without also gaining a row of group headings. */
+      .tool-group {
+        display: inline-flex;
+        gap: 2px;
+        padding: 3px;
+        background: var(--bg-sunken);
+        border: var(--border-width) solid var(--border-hairline);
+        border-radius: var(--radius-md);
+      }
+      .tool-btn {
         display: flex;
-        gap: var(--space-1);
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 3px;
+        min-width: 46px;
+        padding: 4px 6px 3px;
+        border: var(--border-width) solid transparent;
+        border-radius: var(--radius-sm);
+        background: transparent;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: var(--transition-control);
+      }
+      .tool-btn:hover:not(:disabled) {
+        background: var(--surface-hover);
+        color: var(--text-strong);
+      }
+      .tool-btn:disabled {
+        opacity: 0.4;
+        cursor: not-allowed;
+      }
+      .tool-btn:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring);
+      }
+      .tool-label {
+        font: var(--type-caption);
+        font-size: 10px;
+        line-height: 1;
+        white-space: nowrap;
+      }
+      /* Undo sits outside the tool groups — it acts on history, not on a
+         selection — but matches their shape so the row reads as one control
+         strip rather than two kinds of button. */
+      #undo {
+        min-width: 44px;
       }
       .toolbar-divider {
         width: var(--border-width);
@@ -39,9 +84,10 @@
         background: var(--border-hairline);
         margin: 0 var(--space-1);
       }
-      #toolbar .icon-btn.active {
+      #toolbar .tool-btn.active {
         background: var(--surface-selected);
         color: var(--text-brand);
+        border-color: var(--border-hairline);
       }
       #cropApply,
       #cropCancel {
@@ -235,28 +281,43 @@
   </head>
   <body>
     <div id="toolbar">
-      <div id="toolGroup">
-        <button id="toolSelect" class="icon-btn" data-tool="select" title="Select">
+      <!-- Grouped by what the tool does to the image, not by how it is drawn:
+           choosing/framing, adding marks, and covering something up. The
+           watermark sits with blur because both put a layer over the picture
+           rather than annotate it, and it is the one paid tool — being last
+           keeps the free set contiguous. -->
+      <div class="tool-group" role="group" aria-label="Select and frame">
+        <button id="toolSelect" class="tool-btn" data-tool="select" title="Select and move shapes">
           <span class="oa-icon icon-mouse-pointer-2"></span>
+          <span class="tool-label">Select</span>
         </button>
-        <button id="toolCrop" class="icon-btn" data-tool="crop" title="Crop">
+        <button id="toolCrop" class="tool-btn" data-tool="crop" title="Crop the image">
           <span class="oa-icon icon-crop"></span>
+          <span class="tool-label">Crop</span>
         </button>
-        <button id="toolArrow" class="icon-btn" data-tool="arrow" title="Arrow">
+      </div>
+      <div class="tool-group" role="group" aria-label="Annotate">
+        <button id="toolArrow" class="tool-btn" data-tool="arrow" title="Draw an arrow">
           <span class="oa-icon icon-arrow-up-right"></span>
+          <span class="tool-label">Arrow</span>
         </button>
-        <button id="toolRect" class="icon-btn" data-tool="rect" title="Rectangle">
+        <button id="toolRect" class="tool-btn" data-tool="rect" title="Draw a rectangle">
           <span class="oa-icon icon-square"></span>
+          <span class="tool-label">Box</span>
         </button>
-        <button id="toolText" class="icon-btn" data-tool="text" title="Text">
+        <button id="toolText" class="tool-btn" data-tool="text" title="Add text">
           <span class="oa-icon icon-type"></span>
+          <span class="tool-label">Text</span>
         </button>
-        <button id="toolBlur" class="icon-btn" data-tool="blur" title="Blur">
+      </div>
+      <div class="tool-group" role="group" aria-label="Cover up">
+        <button id="toolBlur" class="tool-btn" data-tool="blur" title="Blur or redact an area">
           <span class="oa-icon icon-grid-2x2"></span>
+          <span class="tool-label">Blur</span>
         </button>
-        <div class="toolbar-divider"></div>
-        <button id="toolWatermark" class="icon-btn" data-tool="watermark" title="Watermark">
+        <button id="toolWatermark" class="tool-btn" data-tool="watermark" title="Add a tiled watermark">
           <span class="oa-icon icon-image"></span>
+          <span class="tool-label">Watermark</span>
         </button>
       </div>
       <button id="cropApply" class="btn btn-primary btn-sm">
@@ -268,8 +329,9 @@
         Cancel
       </button>
       <div class="toolbar-divider"></div>
-      <button id="undo" class="icon-btn" title="Undo">
+      <button id="undo" class="tool-btn" title="Undo the last change">
         <span class="oa-icon icon-undo-2"></span>
+        <span class="tool-label">Undo</span>
       </button>
       <button id="saveSettingsBtn" class="btn btn-secondary btn-sm" title="Change where this saves">
         <span class="oa-icon oa-icon-14 icon-folder-open"></span>
