@@ -29,7 +29,7 @@
   ],
   "optional_host_permissions": [
     "https://auth.opencapture.app/*",
-    "https://gateway.openapps.network/*"
+    "https://gateway.opencapture.app/*"
   ],
   "minimum_chrome_version": "116",
   "content_security_policy": {

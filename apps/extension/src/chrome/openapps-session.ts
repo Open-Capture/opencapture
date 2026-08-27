@@ -23,10 +23,17 @@ import { ext } from "../platform/webext";
 // address bar. See PLAN.md's custom-domain entry for what this does and
 // doesn't change server-side.
 export const OPENAPPS_BASE_URL = "https://auth.opencapture.app";
-// openapps-gateway holds the app key for paid features (see
-// editor.ts's Supporter watermark unlock) — never reachable with just
-// the user token this extension holds, only through this service.
-export const OPENAPPS_GATEWAY_URL = "https://gateway.openapps.network";
+// openapps-gateway holds the app key for paid features (see editor.ts's
+// Supporter watermark unlock) — never reachable with just the user token this
+// extension holds, only through this service.
+//
+// A CNAME to gateway.openapps.network, for the same reason auth.opencapture.app
+// exists: the permission prompt names whichever host the extension asks for,
+// and "gateway.openapps.network" means nothing to someone who installed
+// OpenCapture. Same box, same service, same certificate — only the name the
+// user is shown changes. The old host stays in nginx's server_name, so an
+// install that already granted it keeps working.
+export const OPENAPPS_GATEWAY_URL = "https://gateway.opencapture.app";
 const KEY = "openapps.session";
 
 export const store = asyncBackedStore(

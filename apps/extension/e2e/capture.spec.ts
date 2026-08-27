@@ -2262,7 +2262,7 @@ test("watermark tool: signed in but not yet Supporter shows the 1000-credit unlo
   );
   // The unlock click itself: refused for insufficient credits, so this
   // also covers the "buy credits" branch of the gate in one pass.
-  await context.route("https://gateway.openapps.network/opencapture/supporter/unlock", (route) =>
+  await context.route("https://gateway.opencapture.app/opencapture/supporter/unlock", (route) =>
     route.fulfill({ status: 402, contentType: "application/json", body: JSON.stringify({ have: 100, need: 1000 }) }),
   );
 

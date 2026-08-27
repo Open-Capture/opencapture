@@ -31,7 +31,7 @@
   ],
   "optional_host_permissions": [
     "https://auth.opencapture.app/*",
-    "https://gateway.openapps.network/*"
+    "https://gateway.opencapture.app/*"
   ],
   "browser_specific_settings": {
     "gecko": {
