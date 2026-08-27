@@ -451,6 +451,43 @@ test("redo restores an undone edit, and the counters track both stacks", async (
   await page.close();
 });
 
+test("a local file:// page captures when the browser allows file access", async ({ context, serviceWorker }) => {
+  // The reported bug is the other branch: Chromium does not extend activeTab
+  // to file:// until "Allow access to file URLs" is on, which is off for a
+  // store install, and the browser's own message reads like a bug in the
+  // extension. That branch cannot be reproduced here — Playwright grants file
+  // access to a loaded extension, so isAllowedFileSchemeAccess() is true — and
+  // the wording for it is covered by injection-error.test.ts instead.
+  //
+  // What this pins down is that wrapping executeScript to produce that message
+  // did not break capturing a local file when the permission *is* granted.
+  const fileUrl = `file://${join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "test-pages", "ruler-3000.html")}`;
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(fileUrl);
+
+  const probe = await serviceWorker.evaluate(async () => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url?.startsWith("file://"));
+    if (!tab?.id) throw new Error(`no file:// tab; saw ${JSON.stringify(tabs.map((t) => t.url))}`);
+    return { tabId: tab.id, windowId: tab.windowId, allowed: await chrome.extension.isAllowedFileSchemeAccess() };
+  });
+  expect(probe.allowed).toBe(true);
+
+  const result = await serviceWorker.evaluate(
+    async ({ tabId, windowId }) => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.captureFullPage(tabId, windowId);
+    },
+    { tabId: probe.tabId, windowId: probe.windowId },
+  );
+
+  expect(result.report.output_height_px).toBeGreaterThan(600);
+  expect(result.imagesBase64.length).toBeGreaterThan(0);
+
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });

@@ -1,3 +1,4 @@
+import { explainInjectionFailure } from "./injection-error";
 import { captureVisibleTabPaced } from "../chrome/capture";
 import { LAST_CAPTURE_BLOB_KEY, extraLastCaptureBlobKey, getBlob, putBlob } from "../chrome/blob-store";
 import { ext } from "../platform/webext";
@@ -44,12 +45,43 @@ async function getLastCaptureMeta(): Promise<LastCaptureMeta> {
   return meta;
 }
 
+/**
+ * Inject the content script, and if the browser refuses, say something the
+ * user can act on instead of passing its developer-facing message through.
+ */
+async function injectContentScript(tabId: number): Promise<void> {
+  try {
+    await ext.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  } catch (err) {
+    const rawMessage = err instanceof Error ? err.message : String(err);
+
+    let url = "";
+    try {
+      url = (await ext.tabs.get(tabId)).url ?? "";
+    } catch {
+      // Without the URL the explanation falls back to the raw message, which
+      // is no worse than before.
+    }
+
+    let fileAccessAllowed: boolean | undefined;
+    try {
+      // Firefox has no such switch and no such API; undefined then means "not
+      // the file-access case" rather than "denied".
+      fileAccessAllowed = await ext.extension.isAllowedFileSchemeAccess();
+    } catch {
+      fileAccessAllowed = undefined;
+    }
+
+    throw new Error(explainInjectionFailure({ url, fileAccessAllowed, rawMessage }));
+  }
+}
+
 async function sendToContent<T>(tabId: number, request: ContentRequest): Promise<T> {
   return ext.tabs.sendMessage(tabId, request) as Promise<T>;
 }
 
 export async function captureFullPage(tabId: number, windowId: number): Promise<CaptureOutcome> {
-  await ext.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  await injectContentScript(tabId);
 
   const shotCore = await loadShotCore();
 
@@ -122,7 +154,7 @@ export async function captureVisibleOnly(windowId: number): Promise<CaptureOutco
 /// instead of throwing — cancellation is an expected outcome, not a
 /// failure.
 export async function captureSelectedArea(tabId: number, windowId: number): Promise<CaptureOutcome | null> {
-  await ext.scripting.executeScript({ target: { tabId }, files: ["content.js"] });
+  await injectContentScript(tabId);
 
   const shotCore = await loadShotCore();
 
