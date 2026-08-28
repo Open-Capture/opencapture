@@ -34,6 +34,10 @@ const prefFilenameEl = $("prefFilename") as HTMLInputElement;
 const customFolderNameEl = $("customFolderName");
 const browseFolderBtn = $("browseFolder") as HTMLButtonElement;
 const prefAskWhereEl = $("prefAskWhere") as HTMLInputElement;
+const saveSummaryBtn = $("saveSummary") as HTMLButtonElement;
+const saveSummaryTextEl = $("saveSummaryText");
+const saveLocationEl = $("saveLocation") as HTMLFieldSetElement;
+const rateUsBtn = $("rateUs") as HTMLButtonElement;
 
 // showDirectoryPicker() (File System Access API) is Chromium-only — Firefox
 // has no implementation at all, and no equivalent API to fall back to.
@@ -63,24 +67,49 @@ async function persistSavePrefs(): Promise<void> {
   });
 }
 
-prefFilenameEl.addEventListener("change", persistSavePrefs);
+prefFilenameEl.addEventListener("change", () => {
+  void persistSavePrefs();
+  void refreshCustomFolder();
+});
 prefAskWhereEl.addEventListener("change", () => {
   void persistSavePrefs();
   void refreshCustomFolder();
 });
 loadSavePrefs();
 
+/** One line describing where the next capture lands, for the collapsed row. */
+function setSaveSummary(destination: string): void {
+  const filename = prefFilenameEl.value.trim() || "opencapture";
+  saveSummaryTextEl.textContent = `${destination} · ${filename}.png`;
+}
+
+saveSummaryBtn.addEventListener("click", () => {
+  const open = saveLocationEl.hidden;
+  saveLocationEl.hidden = !open;
+  saveSummaryBtn.setAttribute("aria-expanded", String(open));
+});
+
+// Always available, unlike the milestone prompt further down: someone who
+// wants to leave a review on day one should not have to capture three times
+// first.
+rateUsBtn.addEventListener("click", () => {
+  void recordPromptResponded();
+  ext.tabs.create({ url: getStoreReviewUrl() });
+});
+
 async function refreshCustomFolder(): Promise<void> {
   if (prefAskWhereEl.checked) {
     // Saying "Your Downloads folder" under a ticked "ask every time" would be
     // a straight contradiction — the folder is chosen in the dialog now.
     customFolderNameEl.textContent = "Chosen in the Save dialog";
+    setSaveSummary("Ask each time");
     browseFolderBtn.disabled = true;
     return;
   }
   browseFolderBtn.disabled = false;
   const handle = await getSavedDirectoryHandle();
   customFolderNameEl.textContent = handle ? handle.name : "Your Downloads folder (default)";
+  setSaveSummary(handle ? handle.name : "Downloads");
 }
 
 // Single place that writes to #status, so error styling (a red status

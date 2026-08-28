@@ -29,7 +29,7 @@
         padding: 0 var(--space-4);
         border-bottom: var(--border-width) solid var(--border-hairline);
       }
-      #openAccount {
+      #rateUs {
         margin-left: auto;
       }
       #popupBody {
@@ -73,6 +73,29 @@
       .field-inline input {
         accent-color: var(--brand);
         margin: 0;
+      }
+      #saveSummaryRow {
+        display: flex;
+      }
+      #saveSummary {
+        justify-content: flex-start;
+        gap: var(--space-2);
+        color: var(--text-body);
+      }
+      #saveSummaryText {
+        flex: 1;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: left;
+      }
+      #saveSummary .icon-chevron {
+        margin-left: auto;
+        transition: transform var(--duration-fast) var(--ease-standard);
+      }
+      #saveSummary[aria-expanded="true"] .icon-chevron {
+        transform: rotate(180deg);
       }
       #customFolderName {
         flex: 1;
@@ -146,6 +169,12 @@
            this is ever clicked. Opens a full tab rather than doing
            anything in-popup, since a popup closes the moment it loses
            focus and can't host a real sign-in or checkout flow. -->
+      <!-- Permanent, not only after the nth capture. The timed prompt still
+           runs, but it appears once and at the bottom of a scrolling panel;
+           someone who liked the extension on day one had nowhere to say so. -->
+      <button id="rateUs" type="button" class="icon-btn" title="Rate OpenCapture" aria-label="Rate OpenCapture">
+        <span class="oa-icon icon-star"></span>
+      </button>
       <button id="openHistory" type="button" class="icon-btn" title="Capture history">
         <span class="oa-icon icon-history"></span>
       </button>
@@ -156,7 +185,34 @@
     <div id="popupBody">
       <p id="tagline" class="oa-caption">100% local. No cloud upload. Core features free.</p>
 
-      <fieldset id="saveLocation">
+      <div id="captureActions">
+        <button id="captureFullPage" class="btn btn-primary btn-full btn-lg">
+          <span class="oa-icon icon-camera"></span>
+          Capture full page
+        </button>
+        <button id="captureVisible" class="btn btn-secondary btn-full">
+          <span class="oa-icon icon-image"></span>
+          Capture visible area
+        </button>
+        <button id="captureSelectedArea" class="btn btn-secondary btn-full">
+          <span class="oa-icon icon-crop"></span>
+          Capture selected area
+        </button>
+      </div>
+
+
+      <!-- Was a permanently-open fieldset above the capture buttons: three
+           rows of settings between opening the popup and the thing it exists
+           to do. Collapsed to one line, and moved below the actions, since a
+           destination is something you set once and then forget. -->
+      <div id="saveSummaryRow">
+        <button id="saveSummary" type="button" class="btn btn-secondary btn-sm btn-full" aria-expanded="false" aria-controls="saveLocation">
+          <span class="oa-icon oa-icon-14 icon-folder-open"></span>
+          <span id="saveSummaryText">Downloads</span>
+          <span class="oa-icon oa-icon-14 icon-chevron" aria-hidden="true"></span>
+        </button>
+      </div>
+      <fieldset id="saveLocation" hidden>
         <legend>Save to</legend>
         <label class="field">
           <span class="field-label">Filename</span>
@@ -179,21 +235,6 @@
           <span>Ask where to save each time</span>
         </label>
       </fieldset>
-
-      <div id="captureActions">
-        <button id="captureFullPage" class="btn btn-primary btn-full btn-lg">
-          <span class="oa-icon icon-camera"></span>
-          Capture full page
-        </button>
-        <button id="captureVisible" class="btn btn-secondary btn-full">
-          <span class="oa-icon icon-image"></span>
-          Capture visible area
-        </button>
-        <button id="captureSelectedArea" class="btn btn-secondary btn-full">
-          <span class="oa-icon icon-crop"></span>
-          Capture selected area
-        </button>
-      </div>
 
       <div id="resultCard" class="card">
         <div id="status" class="status">No capture yet — choose an action above.</div>

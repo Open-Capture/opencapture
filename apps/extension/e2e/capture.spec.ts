@@ -580,6 +580,46 @@ test("zoom changes the rendered size without breaking draw coordinates", async (
   await page.close();
 });
 
+test("popup: Rate us is always available and Save to is collapsed by default", async ({ context, extensionId }) => {
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.waitForFunction(() => (document.getElementById("prefFilename") as HTMLInputElement).placeholder === "opencapture");
+
+  // Rate us is permanent — the milestone prompt only appears after the 3rd
+  // capture and sits at the bottom of a scrolling panel, so a happy user on
+  // day one previously had nowhere to say so.
+  await expect(popup.locator("#rateUs")).toBeVisible();
+  await expect(popup.locator("#ratingPrompt")).toBeHidden();
+
+  // Save to starts collapsed, with the destination still legible.
+  await expect(popup.locator("#saveLocation")).toBeHidden();
+  await expect(popup.locator("#saveSummary")).toBeVisible();
+  await expect(popup.locator("#saveSummaryText")).toHaveText(/Downloads · .*\.png/);
+
+  // The capture buttons are what the popup is for: they must sit above the
+  // settings, which is the whole point of moving the fieldset down.
+  const actionsY = (await popup.locator("#captureActions").boundingBox())!.y;
+  const saveY = (await popup.locator("#saveSummaryRow").boundingBox())!.y;
+  expect(actionsY).toBeLessThan(saveY);
+
+  const collapsedHeight = await popup.evaluate(() => document.body.scrollHeight);
+
+  await popup.click("#saveSummary");
+  await expect(popup.locator("#saveLocation")).toBeVisible();
+  await expect(popup.locator("#saveSummary")).toHaveAttribute("aria-expanded", "true");
+  const expandedHeight = await popup.evaluate(() => document.body.scrollHeight);
+  expect(expandedHeight).toBeGreaterThan(collapsedHeight);
+
+  await popup.click("#saveSummary");
+  await expect(popup.locator("#saveLocation")).toBeHidden();
+
+  // Rate us opens the store listing rather than doing anything in-popup.
+  const [tab] = await Promise.all([context.waitForEvent("page"), popup.click("#rateUs")]);
+  expect(tab.url()).toMatch(/chromewebstore\.google\.com|microsoftedge\.microsoft\.com|addons\.mozilla\.org/);
+  await tab.close();
+  await popup.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });
@@ -1741,6 +1781,9 @@ test("save-location preferences (filename) apply to downloads", async ({ context
   // placeholder) once chrome.storage.local resolves — wait for it,
   // otherwise it can race a fill() below and clobber it back to empty.
   await popup.waitForFunction(() => (document.getElementById("prefFilename") as HTMLInputElement).placeholder === "opencapture");
+  // The save fields live behind a disclosure now — the popup opens with just
+  // a one-line summary so the capture buttons are not pushed down the panel.
+  await popup.click("#saveSummary");
   await popup.fill("#prefFilename", "e2e-custom");
   // The popup only persists on "change", not every keystroke (see
   // popup.ts) — dispatch it explicitly rather than relying on a real blur.
@@ -1833,6 +1876,9 @@ test("\"Ask where to save\" reaches downloads.download as saveAs", async ({ cont
   const popup = await context.newPage();
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await popup.waitForFunction(() => (document.getElementById("prefFilename") as HTMLInputElement).placeholder === "opencapture");
+  // The save fields live behind a disclosure now — the popup opens with just
+  // a one-line summary so the capture buttons are not pushed down the panel.
+  await popup.click("#saveSummary");
   await popup.check("#prefAskWhere");
   await popup.locator("#prefAskWhere").dispatchEvent("change");
   await popup.close();
@@ -1908,6 +1954,8 @@ test("popup: clicking Browse doesn't crash or persist a handle when the picker c
   popup.on("pageerror", (err) => pageErrors.push(err));
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
 
+  // Browse lives behind the save disclosure now.
+  await popup.click("#saveSummary");
   await expect(popup.locator("#customFolderName")).toHaveText("Your Downloads folder (default)");
   await popup.click("#browseFolder");
   await popup.waitForTimeout(1000);
