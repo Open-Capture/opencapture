@@ -680,6 +680,72 @@ test("a chat dock is kept out of the capture, without hiding a wide sticky area"
   await page.close();
 });
 
+test("browser frame wraps the capture, carries the URL, and undoes as one step", async ({
+  context,
+  serviceWorker,
+}) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+  // Through handleRequest rather than the orchestrator hook: the page URL is
+  // recorded by the capture path, so driving the orchestrator directly would
+  // test the frame against a URL the product never actually loses.
+  const [editorPage] = await Promise.all([
+    context.waitForEvent("page"),
+    serviceWorker.evaluate(async () => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.captureVisibleViaHandleRequest();
+    }),
+  ]);
+  await editorPage.waitForLoadState();
+  await editorPage.waitForFunction(() => {
+    const c = document.getElementById("canvas") as HTMLCanvasElement;
+    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+  });
+
+  const size = () =>
+    editorPage.evaluate(() => {
+      const c = document.getElementById("canvas") as HTMLCanvasElement;
+      return { w: c.width, h: c.height };
+    });
+  const before = await size();
+
+  await editorPage.click("#toolFrame");
+  await expect(editorPage.locator("#framePanel")).toBeVisible();
+  // The URL travels from the background worker: the editor is its own tab and
+  // cannot ask which page the pixels came from.
+  await expect(editorPage.locator("#frameUrlPreview")).toContainText("ruler-3000.html");
+
+  await editorPage.selectOption("#framePreset", "macos");
+  await editorPage.click("#frameApply");
+
+  const framed = await size();
+  // Chrome above, hairline either side: the image is inset, not resized.
+  expect(framed.h).toBeGreaterThan(before.h);
+  expect(framed.w).toBeGreaterThan(before.w);
+  await expect(editorPage.locator("#framePanel")).toBeHidden();
+
+  // One undo step, not one per drawing operation.
+  await expect(editorPage.locator("#undoCount")).toHaveText("1");
+  await editorPage.click("#undo");
+  expect(await size()).toEqual(before);
+
+  // Redo brings it back, which is what proves it went through history rather
+  // than mutating the canvas behind undo's back.
+  await editorPage.click("#redo");
+  expect(await size()).toEqual(framed);
+
+  // "None" is a no-op rather than a copy that changes nothing.
+  const beforeNone = await size();
+  await editorPage.click("#toolFrame");
+  await editorPage.selectOption("#framePreset", "none");
+  await editorPage.click("#frameApply");
+  expect(await size()).toEqual(beforeNone);
+
+  await editorPage.close();
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });

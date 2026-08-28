@@ -16,6 +16,7 @@ import { saveOutput } from "../chrome/save";
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
 import { clearWatermarkLogoDataUrl, getWatermarkLogoDataUrl, setWatermarkLogoDataUrl } from "../chrome/watermark-logo-store";
 import { isDoubleTap, type TapState } from "./double-tap";
+import { drawFrame, type FramePreset } from "./frame";
 import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from "../../vendor-private/watermark-premium/src/watermark";
 import init, * as ShotCore from "../wasm-gen/shot_core.js";
 import { ext } from "../platform/webext";
@@ -1575,6 +1576,78 @@ canvasWrap.addEventListener(
 
 applyZoom();
 
+// --- browser frame --------------------------------------------------------
+
+const framePanel = document.getElementById("framePanel") as HTMLDivElement;
+const framePresetEl = document.getElementById("framePreset") as HTMLSelectElement;
+const frameShowUrlEl = document.getElementById("frameShowUrl") as HTMLInputElement;
+const frameShowDateEl = document.getElementById("frameShowDate") as HTMLInputElement;
+const frameShowTimeEl = document.getElementById("frameShowTime") as HTMLInputElement;
+const frameUrlPreviewEl = document.getElementById("frameUrlPreview") as HTMLParagraphElement;
+const frameApplyBtn = document.getElementById("frameApply") as HTMLButtonElement;
+const frameCancelBtn = document.getElementById("frameCancel") as HTMLButtonElement;
+const toolFrameBtn = document.getElementById("toolFrame") as HTMLButtonElement;
+
+// Handed over by the background worker at capture time — the editor is its own
+// tab and cannot ask which page the pixels came from.
+let capturePageUrl = "";
+let captureTakenAt = Date.now();
+
+function refreshFramePreview(): void {
+  // The URL shows whatever the preset, because it is information about the
+  // capture rather than about the frame — and seeing it is how you tell
+  // whether stamping it is safe to share before you commit to the frame.
+  const source = capturePageUrl
+    ? `URL: ${capturePageUrl}`
+    : "No URL recorded for this capture — the address bar will be left empty.";
+  const preset = framePresetEl.value as FramePreset;
+  frameUrlPreviewEl.textContent = preset === "none" ? `${source} · no frame selected` : source;
+}
+
+function openFramePanel(): void {
+  framePanel.hidden = false;
+  refreshFramePreview();
+}
+
+function closeFramePanel(): void {
+  framePanel.hidden = true;
+  selectTool("select");
+}
+
+/**
+ * Compose the frame into the canvas as one undoable step. It changes the
+ * canvas size, so the snapshot has to be a full one — the same shape a crop
+ * pushes.
+ */
+function applyFrame(): void {
+  const preset = framePresetEl.value as FramePreset;
+  const framed = drawFrame(canvas, {
+    preset,
+    url: capturePageUrl,
+    capturedAt: captureTakenAt,
+    showUrl: frameShowUrlEl.checked,
+    showDate: frameShowDateEl.checked,
+    showTime: frameShowTimeEl.checked,
+  }, currentDpr);
+  if (!framed) {
+    closeFramePanel();
+    return;
+  }
+
+  pushHistory({ kind: "full", width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height) });
+  canvas.width = framed.width;
+  canvas.height = framed.height;
+  ctx.drawImage(framed, 0, 0);
+  syncPreviewCanvas();
+  closeFramePanel();
+  setStatus("Frame added.");
+}
+
+toolFrameBtn.addEventListener("click", openFramePanel);
+frameCancelBtn.addEventListener("click", closeFramePanel);
+frameApplyBtn.addEventListener("click", applyFrame);
+framePresetEl.addEventListener("change", refreshFramePreview);
+
 window.addEventListener("keydown", (e) => {
   // The shortcuts people already have in their fingers. Checked before the
   // pending-crop/shape branches below return early, since those swallow keys.
@@ -1798,9 +1871,11 @@ function requestEditorImageBytes(): Promise<Uint8Array | null> {
 // than this file makes today.
 async function loadImage(): Promise<void> {
   const bytes = await requestEditorImageBytes();
-  const stored = await ext.storage.session.get(["editorDpr", "editorImageCount"]);
+  const stored = await ext.storage.session.get(["editorDpr", "editorImageCount", "editorPageUrl", "editorCapturedAt"]);
   const dpr: number | undefined = stored["editorDpr"];
   const imageCount: number | undefined = stored["editorImageCount"];
+  capturePageUrl = (stored["editorPageUrl"] as string | undefined) ?? "";
+  captureTakenAt = (stored["editorCapturedAt"] as number | undefined) ?? Date.now();
   if (!bytes) {
     setStatus("No captured image found — capture a page first, then click Annotate.");
     return;

@@ -57,9 +57,27 @@ async function getActiveTab(): Promise<chrome.tabs.Tab> {
 // (see getLastCaptureFirstImage's own comment) — that's the one case that
 // needs the real count, so the editor can say so instead of silently
 // showing a partial page.
-async function openEditorWithBytes(bytes: Uint8Array, dpr: number, imageCount = 1): Promise<number | undefined> {
+/**
+ * `source` is what the browser-frame tool stamps into the address bar. It is
+ * carried here rather than read in the editor because the editor runs in its
+ * own tab and has no idea which page the pixels came from — and by the time it
+ * opens, the original tab may already have navigated somewhere else.
+ */
+async function openEditorWithBytes(
+  bytes: Uint8Array,
+  dpr: number,
+  imageCount = 1,
+  source?: { url: string; capturedAt: number },
+): Promise<number | undefined> {
   await putBlob(EDITOR_IMAGE_BLOB_KEY, bytes);
   await ext.storage.session.set({ editorDpr: dpr, editorImageCount: imageCount });
+  // Only a fresh capture knows where the pixels came from. Re-opening the last
+  // capture (the popup's Annotate button) deliberately leaves these alone, so
+  // the frame tool still stamps the page that was actually captured rather
+  // than blanking it on the second visit.
+  if (source) {
+    await ext.storage.session.set({ editorPageUrl: source.url, editorCapturedAt: source.capturedAt });
+  }
   const tab = await ext.tabs.create({ url: ext.runtime.getURL("editor.html") });
   return tab.id;
 }
@@ -155,7 +173,7 @@ ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
         sendResponse({ ok: false, error: "That capture is no longer in history." });
         return;
       }
-      await openEditorWithBytes(entry.bytes, entry.dpr, 1);
+      await openEditorWithBytes(entry.bytes, entry.dpr, 1, { url: entry.url, capturedAt: entry.timestamp });
       sendResponse({ ok: true });
     })();
     return true;
@@ -192,7 +210,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
         // stitched height before it splits): route through the editor so
         // the user can crop and pick PNG/PDF before anything is written to
         // disk, instead of downloading sight-unseen.
-        await openEditorWithBytes(images[0]!, report.dpr);
+        await openEditorWithBytes(images[0]!, report.dpr, 1, { url: tab.url ?? "", capturedAt: Date.now() });
         openedEditor = true;
       } else {
         // Very long pages that split across multiple output PNGs: cropping
@@ -209,7 +227,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
     case "captureVisible": {
       const tab = await getActiveTab();
       const { report, images } = await captureVisibleOnly(tab.windowId);
-      await openEditorWithBytes(images[0]!, report.dpr);
+      await openEditorWithBytes(images[0]!, report.dpr, 1, { url: tab.url ?? "", capturedAt: Date.now() });
       await setLastCaptureUi({ report, openedEditor: true });
       await rememberInHistory(tab, report, images[0]!);
       await bumpUsageCount();
@@ -229,7 +247,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       if (!outcome) {
         return { ok: true, cancelled: true };
       }
-      await openEditorWithBytes(outcome.images[0]!, outcome.report.dpr);
+      await openEditorWithBytes(outcome.images[0]!, outcome.report.dpr, 1, { url: tab.url ?? "", capturedAt: Date.now() });
       await setLastCaptureUi({ report: outcome.report, openedEditor: true });
       await rememberInHistory(tab, outcome.report, outcome.images[0]!);
       await bumpUsageCount();

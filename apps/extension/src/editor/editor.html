@@ -159,6 +159,30 @@
         height: auto;
         margin: 0 auto;
       }
+      #framePanel {
+        position: absolute;
+        top: 0;
+        right: var(--space-3);
+        z-index: 40;
+        width: 300px;
+        display: grid;
+        gap: var(--space-3);
+        padding: var(--space-4);
+      }
+      #framePanel[hidden] {
+        display: none;
+      }
+      #frameActions {
+        display: flex;
+        gap: var(--space-2);
+        justify-content: flex-end;
+      }
+      #frameUrlPreview {
+        margin: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
       #zoomBar {
         position: fixed;
         right: var(--space-5);
@@ -426,6 +450,12 @@
       <!-- Undo and Redo are one group: they are the same control in two
            directions, and pairing them makes the counts readable as "3 back,
            1 forward" rather than two unrelated numbers. -->
+      <div class="tool-group" role="group" aria-label="Presentation">
+        <button id="toolFrame" class="tool-btn" data-tool="frame" title="Put the screenshot in a browser window">
+          <span class="oa-icon icon-square"></span>
+          <span class="tool-label">Frame</span>
+        </button>
+      </div>
       <div class="tool-group" role="group" aria-label="History">
         <button id="undo" class="tool-btn" title="Undo the last change">
           <span class="oa-icon icon-undo-2"></span>
@@ -466,6 +496,28 @@
       <button id="zoomLevel" type="button" class="zoom-level" title="Reset to 100% (Ctrl/Cmd 0)">Fit</button>
       <button id="zoomIn" type="button" class="zoom-btn" title="Zoom in (Ctrl/Cmd +)" aria-label="Zoom in">&#43;</button>
       <button id="zoomFit" type="button" class="zoom-fit" title="Fit the image to the window">Fit</button>
+    </div>
+    <div id="framePanel" class="card" hidden>
+      <p class="oa-caption">Wrap the screenshot in a browser window. The chrome is drawn, never captured — your tabs and profile stay out of it.</p>
+      <label class="field">
+        <span class="field-label">Style</span>
+        <span class="field-control">
+          <select id="framePreset">
+            <option value="none">None</option>
+            <option value="macos">macOS &mdash; Safari</option>
+            <option value="windows">Windows &mdash; Chrome</option>
+            <option value="caption">Caption below</option>
+          </select>
+        </span>
+      </label>
+      <label class="field-inline"><input id="frameShowUrl" type="checkbox" checked /><span>Show URL</span></label>
+      <label class="field-inline"><input id="frameShowDate" type="checkbox" /><span>Show date</span></label>
+      <label class="field-inline"><input id="frameShowTime" type="checkbox" /><span>Show time</span></label>
+      <p id="frameUrlPreview" class="field-hint"></p>
+      <div id="frameActions">
+        <button id="frameCancel" class="btn btn-secondary btn-sm" type="button">Cancel</button>
+        <button id="frameApply" class="btn btn-primary btn-sm" type="button">Add frame</button>
+      </div>
     </div>
     <div id="splitNotice">
       <span id="splitNoticeText"></span>
