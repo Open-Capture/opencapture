@@ -159,6 +159,66 @@
         height: auto;
         margin: 0 auto;
       }
+      #zoomBar {
+        position: fixed;
+        right: var(--space-5);
+        bottom: var(--space-5);
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 3px;
+        background: var(--surface-card);
+        border: var(--border-width) solid var(--border-hairline);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+      }
+      .zoom-btn,
+      .zoom-fit,
+      .zoom-level {
+        height: 26px;
+        min-width: 26px;
+        padding: 0 7px;
+        border: var(--border-width) solid transparent;
+        border-radius: var(--radius-sm);
+        background: transparent;
+        color: var(--text-body);
+        font: var(--type-ui);
+        cursor: pointer;
+        transition: var(--transition-control);
+      }
+      .zoom-level {
+        min-width: 52px;
+        font-variant-numeric: tabular-nums;
+        color: var(--text-muted);
+      }
+      .zoom-fit {
+        border-left: var(--border-width) solid var(--border-hairline);
+        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+        margin-left: 2px;
+      }
+      .zoom-btn:hover:not(:disabled),
+      .zoom-fit:hover,
+      .zoom-level:hover {
+        background: var(--surface-hover);
+        color: var(--text-strong);
+      }
+      .zoom-btn:disabled {
+        opacity: 0.35;
+        cursor: not-allowed;
+      }
+      .zoom-btn:focus-visible,
+      .zoom-fit:focus-visible,
+      .zoom-level:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring);
+      }
+      /* Zoomed past the window, the image is panned by scrolling the wrap, so
+         it must not stay centred or the left edge becomes unreachable. */
+      #canvas.is-zoomed {
+        max-width: none;
+        margin: 0;
+      }
       /* Live drag previews (arrow/rect/blur outline, crop marquee+handles)
          render here instead of on #canvas — editor.ts positions/sizes this
          in JS to exactly overlay #canvas's own (possibly scaled, possibly
@@ -397,6 +457,15 @@
       <button id="closeEditor" type="button" class="icon-btn" title="Close">
         <span class="oa-icon icon-x"></span>
       </button>
+    </div>
+    <!-- Floating rather than in the toolbar: the strip is already one row at
+         1280px with nothing to spare, and a zoom control belongs next to the
+         thing it zooms anyway. -->
+    <div id="zoomBar" role="group" aria-label="Zoom">
+      <button id="zoomOut" type="button" class="zoom-btn" title="Zoom out (Ctrl/Cmd -)" aria-label="Zoom out">&#8722;</button>
+      <button id="zoomLevel" type="button" class="zoom-level" title="Reset to 100% (Ctrl/Cmd 0)">Fit</button>
+      <button id="zoomIn" type="button" class="zoom-btn" title="Zoom in (Ctrl/Cmd +)" aria-label="Zoom in">&#43;</button>
+      <button id="zoomFit" type="button" class="zoom-fit" title="Fit the image to the window">Fit</button>
     </div>
     <div id="splitNotice">
       <span id="splitNoticeText"></span>

@@ -1502,6 +1502,79 @@ document.getElementById("splitNoticeClose")!.addEventListener("click", () => {
 cropApplyBtn.addEventListener("click", commitPendingCrop);
 cropCancelBtn.addEventListener("click", cancelPendingCrop);
 
+// --- zoom -----------------------------------------------------------------
+
+// "fit" is the default and means what the CSS already did: scale down to the
+// window's width. A retina capture is 2-3x its CSS size, so fit is the only
+// sensible starting point — but it also means you cannot inspect anything at
+// native resolution, which is what zoom is for.
+type Zoom = "fit" | number;
+const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4];
+let zoom: Zoom = "fit";
+
+const zoomOutBtn = document.getElementById("zoomOut") as HTMLButtonElement;
+const zoomInBtn = document.getElementById("zoomIn") as HTMLButtonElement;
+const zoomLevelBtn = document.getElementById("zoomLevel") as HTMLButtonElement;
+const zoomFitBtn = document.getElementById("zoomFit") as HTMLButtonElement;
+
+/** What "fit" currently works out to, so stepping from it continues sensibly. */
+function fittedFactor(): number {
+  const rect = canvas.getBoundingClientRect();
+  return canvas.width > 0 && rect.width > 0 ? rect.width / canvas.width : 1;
+}
+
+function applyZoom(): void {
+  if (zoom === "fit") {
+    canvas.classList.remove("is-zoomed");
+    canvas.style.width = "";
+    zoomLevelBtn.textContent = "Fit";
+  } else {
+    canvas.classList.add("is-zoomed");
+    canvas.style.width = `${Math.round(canvas.width * zoom)}px`;
+    zoomLevelBtn.textContent = `${Math.round(zoom * 100)}%`;
+  }
+  zoomOutBtn.disabled = zoom !== "fit" && zoom <= ZOOM_STEPS[0]!;
+  zoomInBtn.disabled = zoom !== "fit" && zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]!;
+  // The preview overlay is positioned in JS against the canvas's rendered box,
+  // so it has to be re-laid-out or the crop marquee drifts off the image.
+  syncPreviewCanvas();
+}
+
+function stepZoom(direction: 1 | -1): void {
+  const current = zoom === "fit" ? fittedFactor() : zoom;
+  const next =
+    direction > 0
+      ? ZOOM_STEPS.find((z) => z > current + 0.001)
+      : [...ZOOM_STEPS].reverse().find((z) => z < current - 0.001);
+  if (next === undefined) return;
+  zoom = next;
+  applyZoom();
+}
+
+function setZoom(next: Zoom): void {
+  zoom = next;
+  applyZoom();
+}
+
+zoomInBtn.addEventListener("click", () => stepZoom(1));
+zoomOutBtn.addEventListener("click", () => stepZoom(-1));
+zoomFitBtn.addEventListener("click", () => setZoom("fit"));
+zoomLevelBtn.addEventListener("click", () => setZoom(zoom === 1 ? "fit" : 1));
+
+// Ctrl/Cmd+wheel is what people expect on an image; without preventDefault the
+// browser zooms the whole page instead, which moves the toolbar too.
+canvasWrap.addEventListener(
+  "wheel",
+  (e) => {
+    if (!e.ctrlKey && !e.metaKey) return;
+    e.preventDefault();
+    stepZoom(e.deltaY < 0 ? 1 : -1);
+  },
+  { passive: false },
+);
+
+applyZoom();
+
 window.addEventListener("keydown", (e) => {
   // The shortcuts people already have in their fingers. Checked before the
   // pending-crop/shape branches below return early, since those swallow keys.
@@ -1515,6 +1588,22 @@ window.addEventListener("keydown", (e) => {
     if ((key === "z" && e.shiftKey) || key === "y") {
       e.preventDefault();
       redo();
+      return;
+    }
+    // "=" is the unshifted key most keyboards put "+" on.
+    if (key === "=" || key === "+") {
+      e.preventDefault();
+      stepZoom(1);
+      return;
+    }
+    if (key === "-" || key === "_") {
+      e.preventDefault();
+      stepZoom(-1);
+      return;
+    }
+    if (key === "0") {
+      e.preventDefault();
+      setZoom("fit");
       return;
     }
   }

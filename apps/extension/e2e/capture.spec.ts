@@ -488,6 +488,98 @@ test("a local file:// page captures when the browser allows file access", async 
   await page.close();
 });
 
+test("zoom changes the rendered size without breaking draw coordinates", async ({ context, serviceWorker }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+  const windowId = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab) throw new Error(`no tab found for ${url}`);
+    return tab.windowId;
+  }, page.url());
+  await serviceWorker.evaluate(async (winId) => {
+    // @ts-expect-error test-only global, see background/index.ts
+    await globalThis.__test.captureVisibleOnly(winId);
+  }, windowId);
+  const [editorPage] = await Promise.all([
+    context.waitForEvent("page"),
+    serviceWorker.evaluate(async () => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.openEditor();
+    }),
+  ]);
+  await editorPage.waitForLoadState();
+  await editorPage.waitForFunction(() => {
+    const c = document.getElementById("canvas") as HTMLCanvasElement;
+    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+  });
+
+  const rendered = () =>
+    editorPage.evaluate(() => {
+      const c = document.getElementById("canvas") as HTMLCanvasElement;
+      const p = document.getElementById("previewCanvas") as HTMLCanvasElement;
+      return {
+        label: document.getElementById("zoomLevel")!.textContent,
+        cssWidth: Math.round(c.getBoundingClientRect().width),
+        pixelWidth: c.width,
+        // The overlay is positioned in JS; if it stops matching, the crop
+        // marquee draws somewhere the image is not.
+        previewWidth: Math.round(p.getBoundingClientRect().width),
+      };
+    });
+
+  const fit = await rendered();
+  expect(fit.label).toBe("Fit");
+  expect(fit.previewWidth).toBe(fit.cssWidth);
+
+  await editorPage.click("#zoomIn");
+  const zoomed = await rendered();
+  expect(zoomed.cssWidth).toBeGreaterThan(fit.cssWidth);
+  expect(zoomed.label).toMatch(/%$/);
+  expect(zoomed.previewWidth).toBe(zoomed.cssWidth);
+
+  await editorPage.click("#zoomFit");
+  expect(await rendered()).toMatchObject({ label: "Fit", cssWidth: fit.cssWidth });
+
+  // 100% must mean one image pixel per CSS pixel, whatever "fit" worked out to.
+  await editorPage.click("#zoomLevel");
+  const native = await rendered();
+  expect(native.label).toBe("100%");
+  expect(native.cssWidth).toBe(native.pixelWidth);
+
+  // Drawing still lands where the pointer is: canvasPoint() divides by the
+  // rendered box, so a wrong scale would offset every shape.
+  const box = (await editorPage.locator("#canvas").boundingBox())!;
+  // Sample the stroke, not the interior: the rectangle tool outlines, so a
+  // point inside the shape is untouched even when the draw worked.
+  const SAMPLE = { x: 70, y: 20 };
+  const before = await editorPage.evaluate(
+    (p) => {
+      const c = document.getElementById("canvas") as HTMLCanvasElement;
+      return Array.from(c.getContext("2d")!.getImageData(p.x, p.y, 1, 1).data);
+    },
+    SAMPLE,
+  );
+  await editorPage.click("#toolRect");
+  await editorPage.mouse.move(box.x + 20, box.y + 20);
+  await editorPage.mouse.down();
+  await editorPage.mouse.move(box.x + 120, box.y + 120, { steps: 5 });
+  await editorPage.mouse.up();
+  await editorPage.keyboard.press("Enter");
+  const after = await editorPage.evaluate(
+    (p) => {
+      const c = document.getElementById("canvas") as HTMLCanvasElement;
+      return Array.from(c.getContext("2d")!.getImageData(p.x, p.y, 1, 1).data);
+    },
+    SAMPLE,
+  );
+  expect(after).not.toEqual(before);
+
+  await editorPage.close();
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });
