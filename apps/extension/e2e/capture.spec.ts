@@ -589,6 +589,15 @@ test("popup: Rate us is always available and Save to is collapsed by default", a
   // capture and sits at the bottom of a scrolling panel, so a happy user on
   // day one previously had nowhere to say so.
   await expect(popup.locator("#rateUs")).toBeVisible();
+  // Labelled, not just a star: an icon alone beside the wordmark reads as
+  // decoration rather than an invitation.
+  await expect(popup.locator("#rateUs")).toContainText("Rate us!");
+  // And the header must still fit the popup's fixed width without wrapping.
+  const header = (await popup.locator("#popupHeader").boundingBox())!;
+  const rate = (await popup.locator("#rateUs").boundingBox())!;
+  const account = (await popup.locator("#openAccount").boundingBox())!;
+  expect(rate.y).toBeCloseTo(account.y, 0);
+  expect(header.height).toBeLessThan(60);
   await expect(popup.locator("#ratingPrompt")).toBeHidden();
 
   // Save to starts collapsed, with the destination still legible.

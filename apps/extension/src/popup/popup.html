@@ -31,6 +31,9 @@
       }
       #rateUs {
         margin-left: auto;
+        /* An icon alone read as decoration next to the wordmark. The words are
+           the ask; the star just makes it findable. */
+        white-space: nowrap;
       }
       #popupBody {
         padding: var(--space-4);
@@ -172,8 +175,9 @@
       <!-- Permanent, not only after the nth capture. The timed prompt still
            runs, but it appears once and at the bottom of a scrolling panel;
            someone who liked the extension on day one had nowhere to say so. -->
-      <button id="rateUs" type="button" class="icon-btn" title="Rate OpenCapture" aria-label="Rate OpenCapture">
-        <span class="oa-icon icon-star"></span>
+      <button id="rateUs" type="button" class="btn btn-secondary btn-sm" title="Rate OpenCapture">
+        <span class="oa-icon oa-icon-14 icon-star"></span>
+        Rate us!
       </button>
       <button id="openHistory" type="button" class="icon-btn" title="Capture history">
         <span class="oa-icon icon-history"></span>
