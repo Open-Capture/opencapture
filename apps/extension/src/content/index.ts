@@ -177,11 +177,29 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   const CONSENT_PATTERN =
     /cookie|consent|gdpr|ccpa|cmplz|onetrust|cookiebot|didomi|osano|truste|usercentrics|klaro|termly|quantcast|privacy-?(banner|notice|bar)/i;
 
+  /**
+   * Chat and messaging docks. Like a consent banner, nobody wants their own
+   * inbox in a screenshot of a page — and unlike a header, it is not part of
+   * the page being captured at all.
+   *
+   * `msg-overlay` is LinkedIn's, which is what prompted this; the rest are the
+   * widgets that show up on other people's sites.
+   */
+  const CHAT_PATTERN =
+    /msg-overlay|intercom|drift-|drift_|crisp-client|zendesk|zopim|tawk|livechat|live-chat|hubspot-messages|freshchat|helpscout|olark|smartsupp|chat-?(widget|bubble|launcher|window)/i;
+
   function looksLikeConsentOverlay(el: HTMLElement): boolean {
+    return CONSENT_PATTERN.test(signature(el));
+  }
+
+  function looksLikeChatOverlay(el: HTMLElement): boolean {
+    return CHAT_PATTERN.test(signature(el));
+  }
+
+  /** id + class + a couple of labels — what these widgets are recognisable by. */
+  function signature(el: HTMLElement): string {
     const className = typeof el.className === "string" ? el.className : "";
-    return CONSENT_PATTERN.test(
-      `${el.id} ${className} ${el.getAttribute("aria-label") ?? ""} ${el.getAttribute("data-testid") ?? ""}`,
-    );
+    return `${el.id} ${className} ${el.getAttribute("aria-label") ?? ""} ${el.getAttribute("data-testid") ?? ""}`;
   }
 
   /** The band being captured: the window viewport, or the inner scroller's box. */
@@ -236,15 +254,20 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       if (rect.bottom <= view.top || rect.top >= viewBottom) continue;
       if (rect.right <= view.left || rect.left >= viewRight) continue;
 
-      const consent = looksLikeConsentOverlay(el);
+      const alwaysHide = looksLikeConsentOverlay(el) || looksLikeChatOverlay(el);
 
-      // A sticky element taller than half the captured band is page furniture
-      // holding real content, not a bar sitting on top of it — unless it is a
-      // consent overlay, which is exactly the case where a viewport-sized
-      // element is a scrim to remove rather than content to keep.
-      if (!consent && rect.height > view.height * 0.5) continue;
+      // A tall sticky element is usually page furniture holding real content —
+      // a sticky column, a nav rail — and hiding it would remove content
+      // rather than clean it up. But height alone was the wrong test: a chat
+      // dock or side drawer is tall *and narrow*, and LinkedIn's messaging
+      // overlay sailed through this guard and was re-photographed into every
+      // slice. Content columns are wide; widgets cling to an edge. Require
+      // both before deciding something is content worth keeping.
+      const tall = rect.height > view.height * 0.5;
+      const wide = rect.width > view.width * 0.4;
+      if (!alwaysHide && tall && wide) continue;
 
-      const kind: PinnedKind = consent
+      const kind: PinnedKind = alwaysHide
         ? "always"
         : rect.top + rect.height / 2 < midline
           ? "top"

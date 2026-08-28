@@ -620,6 +620,66 @@ test("popup: Rate us is always available and Save to is collapsed by default", a
   await popup.close();
 });
 
+test("a chat dock is kept out of the capture, without hiding a wide sticky area", async ({
+  context,
+  serviceWorker,
+}) => {
+  // Reported on LinkedIn: the messaging overlay appeared throughout a
+  // scrolling capture. It is tall, so the "taller than half the band means it
+  // is content" guard skipped it — but it is also narrow, which is what tells
+  // a corner widget apart from a content column. Measured before the fix, the
+  // dock covered 348,828 pixels from y=180 to the bottom of the image.
+  //
+  // The fixture carries a wide *and* tall sticky area too, so the fix cannot
+  // be "hide anything tall".
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/chat-overlay.html`);
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab found for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    async ({ tabId, windowId }) => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.captureFullPage(tabId, windowId);
+    },
+    tabInfo,
+  );
+
+  // Counting pixels rather than sampling rows: "appears nowhere" is the claim,
+  // and a row sample can miss a band while the element is still smeared over
+  // most of the image.
+  const scan = await page.evaluate(async (b64) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const cx = c.getContext("2d")!;
+    cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, c.width, c.height).data;
+    let magenta = 0;
+    let cyan = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] === 255 && d[i + 1] === 0 && d[i + 2] === 255) magenta++;
+      else if (d[i] === 0 && d[i + 1] === 255 && d[i + 2] === 255) cyan++;
+    }
+    return { magenta, cyan };
+  }, result.imagesBase64[0]!);
+
+  expect(scan.magenta).toBe(0);
+  // And the wide sticky area is still there — the guard it relies on survived.
+  expect(scan.cyan).toBeGreaterThan(0);
+
+  await page.close();
+});
+
 test("native lazy-loaded image is forced to load before capture", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 400, height: 600 });

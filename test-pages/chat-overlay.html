@@ -1,0 +1,65 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>chat-overlay</title>
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: #202020;
+      }
+      /* LinkedIn's messaging dock, in shape: pinned to a corner, narrow, and
+         tall enough to clear half the viewport. Height alone used to decide
+         whether a sticky element was content worth keeping, so this sailed
+         through the guard and was re-photographed into every slice. */
+      #msg-overlay-container {
+        position: fixed;
+        right: 0;
+        bottom: 0;
+        width: 240px;
+        height: 420px;
+        background: magenta;
+        z-index: 100;
+      }
+      /* Wide *and* tall: the case the size guard exists for. A sticky element
+         this big is holding real content, so hiding it would remove content
+         rather than clean up chrome. It must survive the fix. */
+      #wide-sticky {
+        position: sticky;
+        top: 0;
+        width: 100%;
+        height: 320px;
+        background: cyan;
+      }
+      .band {
+        height: 100px;
+        width: 100%;
+        box-sizing: border-box;
+        color: white;
+        font: 14px monospace;
+        padding-top: 4px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="wide-sticky">wide sticky content</div>
+    <div id="bands"></div>
+    <div id="msg-overlay-container">Messaging</div>
+    <script>
+      const BANDS = 20;
+      const container = document.getElementById("bands");
+      for (let i = 0; i < BANDS; i++) {
+        const r = (i * 53) % 256;
+        const g = (i * 97) % 256;
+        const b = (i * 151) % 256;
+        const div = document.createElement("div");
+        div.className = "band";
+        div.style.backgroundColor = `rgb(${r},${g},${b})`;
+        div.textContent = `band ${i} rgb(${r},${g},${b})`;
+        container.appendChild(div);
+      }
+    </script>
+  </body>
+</html>
