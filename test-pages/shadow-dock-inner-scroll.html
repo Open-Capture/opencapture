@@ -1,0 +1,43 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>shadow-dock-inner-scroll</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #202020; }
+      /* An app shell: the window never scrolls, a container does. This is the
+         layout LinkedIn uses, and it is what makes the dock below stay on
+         screen without being fixed or sticky. */
+      #shell { height: 100vh; overflow-y: auto; }
+      .band { height: 100px; width: 100%; box-sizing: border-box; color: #fff; font: 14px monospace; padding-top: 4px; }
+      /* The dock's host: empty, absolutely positioned, parked below the fold
+         and zero-height. Everything you can see is inside its shadow root,
+         where querySelectorAll cannot reach. */
+      #dock-host { position: absolute; top: 100vh; left: 0; width: 100%; height: 0; z-index: 500; }
+    </style>
+  </head>
+  <body>
+    <div id="shell"><div id="bands"></div></div>
+    <div id="dock-host"></div>
+    <script>
+      const container = document.getElementById("bands");
+      for (let i = 0; i < 24; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        container.appendChild(d);
+      }
+      // Open shadow root, and the panel inside carries the name that every
+      // widget-name pattern already looks for — the point being that the
+      // sweep never got close enough to read it.
+      const root = document.getElementById("dock-host").attachShadow({ mode: "open" });
+      const panel = document.createElement("div");
+      panel.className = "msg-overlay-list-bubble";
+      panel.style.cssText =
+        "position:fixed;right:24px;bottom:0;width:288px;height:420px;background:rgb(255,0,255);color:#fff;font:14px monospace;";
+      panel.textContent = "Messaging";
+      root.appendChild(panel);
+    </script>
+  </body>
+</html>

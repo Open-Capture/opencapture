@@ -67,3 +67,51 @@ test("chat docks that collapse or force visibility stay out of the capture", asy
 
   await page.close();
 });
+
+test("a dock inside a shadow root, outside the scrolling container, stays out too", async ({
+  context,
+  serviceWorker,
+}) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await page.goto(`${BASE_URL}/shadow-dock-inner-scroll.html`);
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    // @ts-expect-error test-only global
+    async (t) => globalThis.__test.captureFullPage(t.tabId, t.windowId),
+    tabInfo,
+  );
+
+  const counts = await page.evaluate(async (b64: string) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const cx = c.getContext("2d")!;
+    cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, c.width, c.height).data;
+    let magenta = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i] === 255 && d[i + 1] === 0 && d[i + 2] === 255) magenta++;
+    }
+    return { magenta, w: c.width, h: c.height };
+  }, result.imagesBase64[0]);
+
+  console.log("SHADOW DOCK PIXELS:", JSON.stringify(counts));
+  // Measured on a real logged-in LinkedIn feed, this dock tiled down the
+  // whole right-hand side of the capture. `querySelectorAll` does not cross
+  // a shadow boundary, so the sweep never saw it; and its host is `absolute`
+  // rather than fixed, which on an app shell is enough to stay put.
+  expect(counts.magenta).toBe(0);
+
+  await page.close();
+});

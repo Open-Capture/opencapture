@@ -197,6 +197,36 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   const SIGNATURE_DESCENDANTS = 24;
 
   /**
+   * Descendants, including those behind open shadow roots.
+   *
+   * `querySelectorAll` does not cross a shadow boundary, and that single fact
+   * is why a messaging dock survived four attempts at hiding it: LinkedIn
+   * renders it inside an open shadow root whose host is an empty, absolutely
+   * positioned `div` parked below the fold. The panel inside is called
+   * `msg-overlay-list-bubble` — a name matched since the very first fix — and
+   * the sweep simply never reached it.
+   *
+   * The node's own shadow root is walked first: a host with no light-DOM
+   * children has nothing for `querySelectorAll` to iterate, so descending
+   * only from its descendants never reaches inside it at all.
+   */
+  function deepDescendants(node: Element | ShadowRoot, cap: number): Element[] {
+    const found: Element[] = [];
+    const walk = (current: Element | ShadowRoot): void => {
+      if (found.length >= cap) return;
+      const root = (current as Element).shadowRoot;
+      if (root) walk(root);
+      for (const el of current.querySelectorAll("*")) {
+        if (found.length >= cap) return;
+        found.push(el);
+        if (el.shadowRoot) walk(el.shadowRoot);
+      }
+    };
+    walk(node);
+    return found;
+  }
+
+  /**
    * The element's name *and* those of its first few descendants.
    *
    * The pinned element is regularly an anonymous wrapper — the recognisable
@@ -210,9 +240,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
    */
   function signature(el: HTMLElement): string {
     let combined = ownSignature(el);
-    let seen = 0;
-    for (const child of el.querySelectorAll("*")) {
-      if (seen++ >= SIGNATURE_DESCENDANTS) break;
+    for (const child of deepDescendants(el, SIGNATURE_DESCENDANTS)) {
       if (child instanceof HTMLElement) combined += ` ${ownSignature(child)}`;
     }
     return combined;
@@ -239,9 +267,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
     let { top, left, bottom, right } = own;
     let found = false;
-    let seen = 0;
-    for (const child of el.querySelectorAll("*")) {
-      if (seen++ >= PAINTED_DESCENDANTS) break;
+    for (const child of deepDescendants(el, PAINTED_DESCENDANTS)) {
       if (!(child instanceof HTMLElement)) continue;
       const r = child.getBoundingClientRect();
       if (r.width < 1 || r.height < 1) continue;
@@ -293,12 +319,24 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     for (const el of document.body?.querySelectorAll("*") ?? []) {
       if (!(el instanceof HTMLElement)) continue;
       const style = window.getComputedStyle(el);
-      if (style.position !== "fixed" && style.position !== "sticky") continue;
       if (style.display === "none" || style.visibility === "hidden") continue;
 
       // Hiding the scroll container — or anything wrapping it — would blank
       // the capture instead of cleaning it up.
       if (innerScroller && (el === innerScroller || el.contains(innerScroller))) continue;
+
+      // `fixed`/`sticky` is the obvious way to stay put, and on a normally
+      // scrolling page it is the only one. When an inner container is doing
+      // the scrolling it is not: anything positioned *outside* that container
+      // stays exactly where it is while the content moves underneath, with no
+      // need to be fixed at all. LinkedIn's messaging dock is an
+      // `absolute`-positioned host sitting outside the feed's scroller, which
+      // is why it was re-photographed into every slice while the sweep looked
+      // only for fixed and sticky.
+      const pinnedByPosition = style.position === "fixed" || style.position === "sticky";
+      const staysWhileInnerScrolls =
+        innerScroller !== null && style.position !== "static" && !innerScroller.contains(el);
+      if (!pinnedByPosition && !staysWhileInnerScrolls) continue;
 
       // What it paints, not what it measures — see `paintedRect`.
       const rect = paintedRect(el);
