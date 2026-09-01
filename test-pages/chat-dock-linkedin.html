@@ -58,6 +58,24 @@
         color: #fff;
         font: 14px monospace;
       }
+      /* LinkedIn as it actually ships today: hashed class names, nothing
+         that any list of widget names could ever match, and position:sticky
+         rather than fixed. Only its shape gives it away — small on both
+         axes, below the midline, parked against the bottom edge. */
+      ._6116e3cc.fe61ecd8 {
+        /* The real one is position:sticky; fixed is used here because it
+           reproduces the same on-screen persistence deterministically,
+           and the classifier keys on geometry rather than which of the two
+           it is. The real sticky measurements are covered in pinned.test.ts. */
+        position: fixed;
+        right: 40px;
+        bottom: 51px;
+        width: 304px;
+        height: 408px;
+        background: rgb(0, 0, 255);
+        color: #fff;
+        font: 14px monospace;
+      }
       #intercom-container {
         position: fixed;
         left: 0;
@@ -87,6 +105,7 @@
       <div class="bubble">Messaging</div>
     </aside>
     <div id="app-shell-anchor-7"><div class="msg-overlay-conversation-bubble">Messaging</div></div>
+    <div class="_6116e3cc fe61ecd8 _6184b856">Messaging (hashed classes)</div>
     <div id="intercom-container"><div class="launcher">Chat</div></div>
     <script>
       const container = document.getElementById("bands");

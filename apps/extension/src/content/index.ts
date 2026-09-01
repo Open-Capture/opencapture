@@ -1,3 +1,10 @@
+// NOTE ON THE IMPORT BELOW: this file is bundled as a classic script and
+// must not *emit* any import/export syntax. `./pinned` is imported by this
+// entry alone, so Rollup inlines it rather than splitting a shared chunk —
+// and scripts/verify-classic-scripts.mjs fails the build if that ever stops
+// being true, so the invariant is enforced rather than remembered.
+import { classifyPinned, type PinnedKind } from "./pinned";
+
 // Content script: injected on demand per capture (see
 // background/orchestrator.ts — there is no static `content_scripts` entry
 // in manifest.json, deliberately, so the extension never has standing
@@ -36,7 +43,6 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   // "always" is for overlays nobody wants in a screenshot at all — a consent
   // banner is not page furniture the way a header or a footer bar is, so
   // showing it even once is showing it once too often.
-  type PinnedKind = "top" | "bottom" | "always";
 
   interface PinnedStyle {
     value: string;
@@ -181,40 +187,6 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     height: number;
   }
 
-  /**
-   * Cookie/consent overlays, by the naming every consent platform uses.
-   *
-   * Matching on id/class is crude in general, but safe here because only
-   * position:fixed/sticky elements are ever tested — an article *about*
-   * cookies is static content and never reaches this check.
-   *
-   * These are hidden on every slice rather than shown once, and they are also
-   * allowed past the half-viewport size guard: a consent modal is frequently
-   * paired with a full-screen scrim, and a scrim left visible would tint the
-   * entire stitched capture.
-   */
-  const CONSENT_PATTERN =
-    /cookie|consent|gdpr|ccpa|cmplz|onetrust|cookiebot|didomi|osano|truste|usercentrics|klaro|termly|quantcast|privacy-?(banner|notice|bar)/i;
-
-  /**
-   * Chat and messaging docks. Like a consent banner, nobody wants their own
-   * inbox in a screenshot of a page — and unlike a header, it is not part of
-   * the page being captured at all.
-   *
-   * `msg-overlay` is LinkedIn's, which is what prompted this; the rest are the
-   * widgets that show up on other people's sites.
-   */
-  const CHAT_PATTERN =
-    /msg-overlay|intercom|drift-|drift_|crisp-client|zendesk|zopim|tawk|livechat|live-chat|hubspot-messages|freshchat|helpscout|olark|smartsupp|chat-?(widget|bubble|launcher|window)/i;
-
-  function looksLikeConsentOverlay(el: HTMLElement): boolean {
-    return CONSENT_PATTERN.test(signature(el));
-  }
-
-  function looksLikeChatOverlay(el: HTMLElement): boolean {
-    return CHAT_PATTERN.test(signature(el));
-  }
-
   /** id + class + a couple of labels — what these widgets are recognisable by. */
   function ownSignature(el: HTMLElement): string {
     const className = typeof el.className === "string" ? el.className : "";
@@ -317,7 +289,6 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     const view = captureRect();
     const viewBottom = view.top + view.height;
     const viewRight = view.left + view.width;
-    const midline = view.top + view.height / 2;
 
     for (const el of document.body?.querySelectorAll("*") ?? []) {
       if (!(el instanceof HTMLElement)) continue;
@@ -329,47 +300,15 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       // the capture instead of cleaning it up.
       if (innerScroller && (el === innerScroller || el.contains(innerScroller))) continue;
 
-      const alwaysHide = looksLikeConsentOverlay(el) || looksLikeChatOverlay(el);
       // What it paints, not what it measures — see `paintedRect`.
       const rect = paintedRect(el);
+      const kind = classifyPinned({
+        box: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
+        view: { top: view.top, left: view.left, width: view.width, height: view.height },
+        signature: signature(el),
+      });
+      if (!kind) continue;
 
-      // Consent and chat widgets skip the geometry guards entirely.
-      //
-      // Measuring the pinned element assumes it is the thing you can see, and
-      // for these widgets it frequently is not: the pinned node is a container
-      // whose own box collapses to nothing while the bubble people actually
-      // see is an absolutely-positioned child of it. LinkedIn's messaging dock
-      // is exactly that shape — a 0x0 `#msg-overlay` holding a 300x400 bubble
-      // — so the minimum-size check dropped it and the dock was re-photographed
-      // into every slice. Hiding it regardless is safe: to get here an element
-      // must already be fixed/sticky *and* carry a consent/chat name, and
-      // hiding a container hides the descendants that render outside its box.
-      if (!alwaysHide) {
-        if (rect.width < 40 || rect.height < 8) continue;
-
-        // Must actually intrude on the band being captured. In inner-scroll
-        // mode this drops the page's own sidebar chrome, which the
-        // orchestrator crops away anyway.
-        if (rect.bottom <= view.top || rect.top >= viewBottom) continue;
-        if (rect.right <= view.left || rect.left >= viewRight) continue;
-      }
-
-      // A tall sticky element is usually page furniture holding real content —
-      // a sticky column, a nav rail — and hiding it would remove content
-      // rather than clean it up. But height alone was the wrong test: a chat
-      // dock or side drawer is tall *and narrow*, and LinkedIn's messaging
-      // overlay sailed through this guard and was re-photographed into every
-      // slice. Content columns are wide; widgets cling to an edge. Require
-      // both before deciding something is content worth keeping.
-      const tall = rect.height > view.height * 0.5;
-      const wide = rect.width > view.width * 0.4;
-      if (!alwaysHide && tall && wide) continue;
-
-      const kind: PinnedKind = alwaysHide
-        ? "always"
-        : rect.top + rect.height / 2 < midline
-          ? "top"
-          : "bottom";
       pinnedElements.push({
         el,
         kind,

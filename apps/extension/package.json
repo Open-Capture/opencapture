@@ -7,8 +7,8 @@
   "scripts": {
     "build:wasm": "bash scripts/build-wasm.sh",
     "icons": "node scripts/generate-icons.mjs",
-    "build": "npm run build:wasm && vite build && node scripts/copy-static.mjs",
-    "build:firefox": "npm run build:wasm && TARGET_BROWSER=firefox vite build && TARGET_BROWSER=firefox node scripts/copy-static.mjs",
+    "build": "npm run build:wasm && vite build && node scripts/copy-static.mjs && node scripts/seal-content-scripts.mjs",
+    "build:firefox": "npm run build:wasm && TARGET_BROWSER=firefox vite build && TARGET_BROWSER=firefox node scripts/copy-static.mjs && node scripts/seal-content-scripts.mjs dist-firefox",
     "dev": "npm run build:wasm && vite build --watch",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
