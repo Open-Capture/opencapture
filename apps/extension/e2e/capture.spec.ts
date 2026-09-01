@@ -1663,7 +1663,7 @@ test("double-clicking a pending text shape re-opens it for editing, pre-filled w
   await page.close();
 });
 
-test("select tool moves and resizes a pending shape before it's committed", async ({ context, serviceWorker }) => {
+test("a pending shape can be moved and resized before it's committed, from the tool that drew it", async ({ context, serviceWorker }) => {
   const page = await context.newPage();
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto(`${BASE_URL}/ruler-3000.html`);
@@ -1713,8 +1713,9 @@ test("select tool moves and resizes a pending shape before it's committed", asyn
   }
 
   // Draw a rect from (60,60) to (160,160) — its top edge sits at y=60 —
-  // then, with the Select tool, drag its body down by 100px before ever
-  // committing it.
+  // then drag its body down by 100px before ever committing it. No tool
+  // switch: the drawing tool that made the shape is also what adjusts it,
+  // which is why a separate Select tool was redundant.
   await editorPage.click("#toolRect");
   const start = canvasToPage(60, 60);
   const end = canvasToPage(160, 160);
@@ -1723,7 +1724,6 @@ test("select tool moves and resizes a pending shape before it's committed", asyn
   await editorPage.mouse.move(end.x, end.y, { steps: 5 });
   await editorPage.mouse.up();
 
-  await editorPage.click("#toolSelect");
   const bodyPoint = canvasToPage(100, 100); // inside the pending rect, not on a handle
   const moveTo = canvasToPage(100, 200);
   await editorPage.mouse.move(bodyPoint.x, bodyPoint.y);
@@ -1748,7 +1748,6 @@ test("select tool moves and resizes a pending shape before it's committed", asyn
   await editorPage.mouse.move(end2.x, end2.y, { steps: 5 });
   await editorPage.mouse.up();
 
-  await editorPage.click("#toolSelect");
   const seHandle = canvasToPage(340, 340); // the rect's own se corner
   const resizedCorner = canvasToPage(500, 500);
   await editorPage.mouse.move(seHandle.x, seHandle.y);

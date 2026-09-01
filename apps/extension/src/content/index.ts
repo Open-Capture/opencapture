@@ -216,9 +216,74 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   }
 
   /** id + class + a couple of labels — what these widgets are recognisable by. */
-  function signature(el: HTMLElement): string {
+  function ownSignature(el: HTMLElement): string {
     const className = typeof el.className === "string" ? el.className : "";
     return `${el.id} ${className} ${el.getAttribute("aria-label") ?? ""} ${el.getAttribute("data-testid") ?? ""}`;
+  }
+
+  /** How many descendants to read a name from. See `signature`. */
+  const SIGNATURE_DESCENDANTS = 24;
+
+  /**
+   * The element's name *and* those of its first few descendants.
+   *
+   * The pinned element is regularly an anonymous wrapper — the recognisable
+   * name sits on the panel inside it, not on the thing that is actually
+   * `position: fixed`. Reading only the wrapper's own attributes is why a
+   * chat dock could still slip through after being taught to look for one:
+   * the wrapper matched nothing, so it was treated as ordinary page
+   * furniture. Bounded to the first `SIGNATURE_DESCENDANTS` nodes because
+   * this runs per pinned element per slice, and a widget announces itself
+   * near the top of its own subtree or not at all.
+   */
+  function signature(el: HTMLElement): string {
+    let combined = ownSignature(el);
+    let seen = 0;
+    for (const child of el.querySelectorAll("*")) {
+      if (seen++ >= SIGNATURE_DESCENDANTS) break;
+      if (child instanceof HTMLElement) combined += ` ${ownSignature(child)}`;
+    }
+    return combined;
+  }
+
+  /** How many descendants to measure when an element's own box collapses. */
+  const PAINTED_DESCENDANTS = 64;
+
+  /**
+   * The box an element actually paints, including children that escape it.
+   *
+   * A widget's pinned node frequently has no size of its own: it is a 0x0
+   * anchor and the panel you can see is an absolutely-positioned child.
+   * Measuring only the anchor makes the whole widget invisible to every
+   * size and overlap check below, which is how a dock ends up
+   * re-photographed into every slice.
+   *
+   * Only computed when the element's own box is too small to be the thing
+   * being looked at — otherwise this is the element's own rect, at no cost.
+   */
+  function paintedRect(el: HTMLElement): { top: number; left: number; bottom: number; right: number; width: number; height: number } {
+    const own = el.getBoundingClientRect();
+    if (own.width >= 40 && own.height >= 8) return own;
+
+    let { top, left, bottom, right } = own;
+    let found = false;
+    let seen = 0;
+    for (const child of el.querySelectorAll("*")) {
+      if (seen++ >= PAINTED_DESCENDANTS) break;
+      if (!(child instanceof HTMLElement)) continue;
+      const r = child.getBoundingClientRect();
+      if (r.width < 1 || r.height < 1) continue;
+      if (!found) {
+        ({ top, left, bottom, right } = r);
+        found = true;
+        continue;
+      }
+      top = Math.min(top, r.top);
+      left = Math.min(left, r.left);
+      bottom = Math.max(bottom, r.bottom);
+      right = Math.max(right, r.right);
+    }
+    return { top, left, bottom, right, width: right - left, height: bottom - top };
   }
 
   /** The band being captured: the window viewport, or the inner scroller's box. */
@@ -265,7 +330,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       if (innerScroller && (el === innerScroller || el.contains(innerScroller))) continue;
 
       const alwaysHide = looksLikeConsentOverlay(el) || looksLikeChatOverlay(el);
-      const rect = el.getBoundingClientRect();
+      // What it paints, not what it measures — see `paintedRect`.
+      const rect = paintedRect(el);
 
       // Consent and chat widgets skip the geometry guards entirely.
       //

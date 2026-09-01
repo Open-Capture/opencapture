@@ -34,6 +34,30 @@
          inherited property, so a descendant that sets `visibility: visible`
          re-shows itself even inside a hidden ancestor. Hiding the container
          is not enough on its own. */
+      /* The shape that kept slipping through: the pinned node is an
+         ANONYMOUS wrapper — nothing in its own id/class says "chat" — and the
+         panel you can see is an absolutely-positioned child that carries the
+         recognisable name. Reading only the wrapper's own attributes matched
+         nothing, and measuring only its collapsed box hid it from every size
+         check, so it was re-photographed into every slice. */
+      #app-shell-anchor-7 {
+        position: fixed;
+        right: 260px;
+        bottom: 0;
+        width: 0;
+        height: 0;
+        z-index: 100;
+      }
+      #app-shell-anchor-7 .msg-overlay-conversation-bubble {
+        position: absolute;
+        right: 0;
+        bottom: 0;
+        width: 260px;
+        height: 380px;
+        background: rgb(255, 128, 0);
+        color: #fff;
+        font: 14px monospace;
+      }
       #intercom-container {
         position: fixed;
         left: 0;
@@ -62,6 +86,7 @@
     <aside id="msg-overlay" class="msg-overlay-container">
       <div class="bubble">Messaging</div>
     </aside>
+    <div id="app-shell-anchor-7"><div class="msg-overlay-conversation-bubble">Messaging</div></div>
     <div id="intercom-container"><div class="launcher">Chat</div></div>
     <script>
       const container = document.getElementById("bands");

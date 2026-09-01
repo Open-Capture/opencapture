@@ -21,7 +21,7 @@ import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from
 import init, * as ShotCore from "../wasm-gen/shot_core.js";
 import { ext } from "../platform/webext";
 
-type Tool = "select" | "crop" | "arrow" | "rect" | "text" | "blur" | "watermark" | null;
+type Tool = "crop" | "arrow" | "rect" | "text" | "blur" | "watermark" | null;
 
 const canvas = document.getElementById("canvas") as HTMLCanvasElement;
 // willReadFrequently: this canvas only does getImageData() readback at
@@ -241,12 +241,11 @@ function selectTool(tool: Tool): void {
   if (pendingCrop && tool !== "crop") cancelPendingCrop();
   // Unlike the crop marquee (discarded on tool switch), a drawn shape is
   // actual content the user made — switching away bakes it in instead of
-  // losing it. Switching *to* Select is the one exception, since that's
-  // specifically "let me keep adjusting what's already there."
-  if (pendingShape && tool !== "select") commitPendingShape();
+  // losing it.
+  if (pendingShape) commitPendingShape();
   currentTool = tool;
   toolButtons.forEach((b) => b.classList.toggle("active", b.dataset["tool"] === tool));
-  canvas.style.cursor = tool === "text" ? "text" : tool === "select" ? "default" : "crosshair";
+  canvas.style.cursor = tool === "text" ? "text" : tool === null ? "default" : "crosshair";
 }
 
 // --- drag-based tools (arrow, rect, blur) ---------------------------------
@@ -997,18 +996,6 @@ canvas.addEventListener("pointerdown", (e) => {
     return;
   }
 
-  if (currentTool === "select") {
-    if (pendingShape) {
-      const hit = hitTestShape(pendingShape, p);
-      if (hit) {
-        startShapeAdjust(hit, p);
-        return;
-      }
-      commitPendingShape(); // clicked elsewhere — done adjusting
-    }
-    return;
-  }
-
   if (currentTool === "arrow" || currentTool === "rect" || currentTool === "blur") {
     if (pendingShape) {
       const hit = hitTestShape(pendingShape, p);
@@ -1340,7 +1327,7 @@ watermarkAddBtn.addEventListener("click", async () => {
   const regions = applyWatermarkPattern(ctx, canvas.width, canvas.height, location, orientationDeg, text, watermarkLogoBitmap, opacity, textScale);
   pushHistory({ kind: "regions", regions });
   closeWatermarkPanel();
-  selectTool("select");
+  selectTool(null);
 });
 
 // --- watermark: Supporter gate -------------------------------------------
@@ -1755,7 +1742,7 @@ function openFramePanel(): void {
 
 function closeFramePanel(): void {
   framePanel.hidden = true;
-  selectTool("select");
+  selectTool(null);
 }
 
 /**

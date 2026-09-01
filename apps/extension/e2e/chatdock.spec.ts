@@ -33,14 +33,15 @@ test("chat docks that collapse or force visibility stay out of the capture", asy
     const cx = c.getContext("2d")!;
     cx.drawImage(img, 0, 0);
     const d = cx.getImageData(0, 0, c.width, c.height).data;
-    let magenta = 0, cyan = 0, green = 0;
+    let magenta = 0, cyan = 0, green = 0, orange = 0;
     for (let i = 0; i < d.length; i += 4) {
       const r = d[i], g = d[i + 1], bl = d[i + 2];
       if (r === 255 && g === 0 && bl === 255) magenta++;
       else if (r === 0 && g === 255 && bl === 255) cyan++;
       else if (r === 0 && g === 255 && bl === 0) green++;
+      else if (r === 255 && g === 128 && bl === 0) orange++;
     }
-    return { magenta, cyan, green, w: c.width, h: c.height };
+    return { magenta, cyan, green, orange, w: c.width, h: c.height };
   }, result.imagesBase64[0]);
 
   console.log("DOCK PIXELS:", JSON.stringify(counts));
@@ -49,6 +50,9 @@ test("chat docks that collapse or force visibility stay out of the capture", asy
   expect(counts.magenta).toBe(0);
   // The dock whose child forces visibility:visible back on.
   expect(counts.cyan).toBe(0);
+  // The anonymous wrapper whose *child* carries the chat name — LinkedIn's
+  // actual shape, and the one that survived two previous fixes.
+  expect(counts.orange).toBe(0);
   // The wide+tall sticky is real content and must survive.
   expect(counts.green).toBeGreaterThan(0);
 
