@@ -28,7 +28,16 @@ pub fn scroll_targets_js(
 /// it — the whole of selected-area capture (one slice, no stitching plan
 /// needed). Coordinates are clamped to the source image, not rejected, so
 /// a selection drag that ends slightly past the viewport edge still works.
+///
+/// `out_width`/`out_height` are optional. Supplied, the crop is resampled to
+/// exactly that size, which is what lets a user who needs a 640x360 image
+/// drag a roughly-right rectangle at whatever size suits the page and still
+/// get 640x360 out. Omitted, the crop keeps its natural device-pixel size.
+/// Both must be given together — one on its own is ambiguous about whether
+/// the other should follow the aspect ratio or stay put, so it is rejected
+/// rather than guessed at.
 #[wasm_bindgen(js_name = cropAndEncode)]
+#[allow(clippy::too_many_arguments)]
 pub fn crop_and_encode(
     png_bytes: &[u8],
     x_dev: u32,
@@ -36,6 +45,8 @@ pub fn crop_and_encode(
     width_dev: u32,
     height_dev: u32,
     dpr: f64,
+    out_width: Option<u32>,
+    out_height: Option<u32>,
 ) -> Result<js_sys::Uint8Array, JsValue> {
     let decoded = crate::stitch::decode_png_rgba(png_bytes)
         .map_err(|message| to_js_err(format!("decoding capture for crop: {message}")))?;
@@ -47,10 +58,22 @@ pub fn crop_and_encode(
     };
     let cropped = crate::crop::crop_rgba(&decoded.rgba, decoded.width, decoded.height, rect)
         .map_err(to_js_err)?;
+    let sized = match (out_width, out_height) {
+        (Some(w), Some(h)) => {
+            crate::scale::scale_rgba(&cropped.rgba, cropped.width, cropped.height, w, h)
+                .map_err(to_js_err)?
+        }
+        (None, None) => cropped,
+        _ => {
+            return Err(to_js_err(
+                "output width and height must be given together".to_string(),
+            ))
+        }
+    };
     let segment = crate::stitch::Segment {
-        width_dev: cropped.width,
-        height_dev: cropped.height,
-        rgba: cropped.rgba,
+        width_dev: sized.width,
+        height_dev: sized.height,
+        rgba: sized.rgba,
     };
     let encoded = crate::encode::encode_png(&segment, dpr).map_err(to_js_err)?;
     Ok(js_sys::Uint8Array::from(encoded.png_bytes.as_slice()))

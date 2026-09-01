@@ -3,6 +3,7 @@ pub mod encode;
 pub mod error;
 pub mod pdf;
 pub mod plan;
+pub mod scale;
 pub mod stitch;
 pub mod types;
 

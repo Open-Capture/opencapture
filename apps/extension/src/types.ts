@@ -58,9 +58,21 @@ export interface SelectedRect {
   height: number;
 }
 
+/** An exact pixel size the user asked the selection to be delivered at. */
+export interface OutputSize {
+  width: number;
+  height: number;
+}
+
 export interface SelectAreaResponse {
   rect: SelectedRect | null;
   dpr: number;
+  /**
+   * Present when the user typed a target size into the selection overlay.
+   * The crop is resampled to exactly this, so the drag only has to get the
+   * framing right — not the pixel count.
+   */
+  target?: OutputSize | null;
 }
 
 export type ContentResponse = PrepResponse | ScrollToResponse | RestoreResponse | SelectAreaResponse;

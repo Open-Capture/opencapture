@@ -9,7 +9,8 @@
 //   {action:"prep"}                    -> {metrics, innerScrollRect, pinnedElementsHandled, lazyImagesForced, warnings}
 //   {action:"scrollTo", targetCss}     -> {actualScrollCss}
 //   {action:"restore"}                 -> {ok:true}
-//   {action:"selectArea"}              -> {rect: {x,y,width,height} | null, dpr}  (null = user cancelled)
+//   {action:"selectArea"}              -> {rect: {x,y,width,height} | null, dpr, target: {width,height} | null}
+//                                        (rect null = user cancelled; target = exact output size, if asked for)
 //
 // chrome.scripting.executeScript's isolated world persists across repeated
 // injections into the same tab/frame — it's only torn down on navigation —
@@ -481,7 +482,11 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   const HANDLE_CORNERS = ["nw", "ne", "sw", "se"] as const;
   type Corner = (typeof HANDLE_CORNERS)[number];
 
-  function handleSelectArea(): Promise<{ rect: SelectedRect | null; dpr: number }> {
+  function handleSelectArea(): Promise<{
+    rect: SelectedRect | null;
+    dpr: number;
+    target: { width: number; height: number } | null;
+  }> {
     return new Promise((resolve) => {
       const overlay = document.createElement("div");
       overlay.style.cssText =
@@ -489,10 +494,42 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       const selBox = document.createElement("div");
       selBox.style.cssText =
         "position:fixed;border:2px solid #4f7cff;background:rgba(79,124,255,0.15);display:none;z-index:2147483647;pointer-events:none;touch-action:none;";
+      // The hint is a control bar rather than a label: it carries the live
+      // size readout and the target-size box. `pointer-events:auto` because
+      // the input has to be typeable — every child that can be clicked stops
+      // its own pointerdown so the overlay does not read it as "start a new
+      // selection underneath".
       const hint = document.createElement("div");
       hint.style.cssText =
         "position:fixed;top:12px;left:50%;transform:translateX(-50%);background:#222;color:#fff;" +
-        "padding:6px 12px;border-radius:6px;font:13px system-ui, sans-serif;z-index:2147483647;pointer-events:none;white-space:nowrap;";
+        "padding:6px 12px;border-radius:6px;font:13px system-ui, sans-serif;z-index:2147483647;" +
+        "pointer-events:auto;white-space:nowrap;display:flex;align-items:center;gap:10px;";
+      const hintText = document.createElement("span");
+      const sizeReadout = document.createElement("span");
+      // A live region: the size changes continuously during a drag, and a
+      // screen-reader user adjusting a selection has no other way to know
+      // what it currently is. Also the handle the tests read it by.
+      sizeReadout.setAttribute("role", "status");
+      sizeReadout.setAttribute("data-oc-size", "");
+      // Tabular figures so the number does not jitter the bar's width as it
+      // counts up during a drag.
+      sizeReadout.style.cssText =
+        "font-variant-numeric:tabular-nums;font-weight:600;color:#8fd0ff;white-space:nowrap;";
+      const targetLabel = document.createElement("label");
+      targetLabel.style.cssText = "display:flex;align-items:center;gap:6px;color:#bbb;";
+      targetLabel.textContent = "Output";
+      const targetInput = document.createElement("input");
+      targetInput.type = "text";
+      targetInput.placeholder = "640x360";
+      targetInput.setAttribute("aria-label", "Exact output size, width by height in pixels");
+      // `all:unset` first so the page's own input styling cannot leak in and
+      // make this unreadable; everything it needs is then set explicitly.
+      targetInput.style.cssText =
+        "all:unset;box-sizing:border-box;width:86px;padding:2px 6px;border:1px solid #666;border-radius:4px;" +
+        "background:#111;color:#fff;font:12px system-ui, sans-serif;text-align:center;";
+      targetLabel.append(targetInput);
+      hint.append(hintText, sizeReadout, targetLabel);
+      hint.addEventListener("pointerdown", (e) => e.stopPropagation());
 
       // Touch fingertips are far less precise than a mouse cursor — a 10px
       // handle that's comfortable to grab with a pointer is nearly
@@ -543,7 +580,85 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       let settled = false;
 
       function setHint(text: string): void {
-        hint.textContent = text;
+        hintText.textContent = text;
+      }
+
+      /**
+       * The target size the user typed, if it parses.
+       *
+       * Accepts the shapes people actually write: "640x360", "640 x 360",
+       * "640*360", "640,360", "640×360". A bare ratio like "16:9" locks the
+       * shape without pinning the pixel count, which is a different (and
+       * also useful) request — see `lockedRatio`.
+       */
+      function parsedTarget(): { width: number; height: number } | null {
+        const m = targetInput.value.trim().match(/^(\d{1,5})\s*[x×*, ]\s*(\d{1,5})$/i);
+        if (!m) return null;
+        const width = Number(m[1]);
+        const height = Number(m[2]);
+        if (width < 1 || height < 1) return null;
+        return { width, height };
+      }
+
+      /** A bare "16:9" — shape only, no pixel count. */
+      function parsedRatio(): number | null {
+        const m = targetInput.value.trim().match(/^(\d{1,5})\s*:\s*(\d{1,5})$/);
+        if (!m) return null;
+        const w = Number(m[1]);
+        const h = Number(m[2]);
+        if (w < 1 || h < 1) return null;
+        return w / h;
+      }
+
+      /** Width/height the selection is constrained to, if any. */
+      function lockedRatio(): number | null {
+        const target = parsedTarget();
+        if (target) return target.width / target.height;
+        return parsedRatio();
+      }
+
+      /**
+       * Build a rect from a fixed anchor to the moving pointer, honouring the
+       * ratio lock. Both drawing a new box and dragging a corner reduce to
+       * this, which is what keeps the lock behaving identically in each.
+       */
+      function boxFrom(anchorX: number, anchorY: number, pointerX: number, pointerY: number): SelectedRect {
+        let width = Math.abs(pointerX - anchorX);
+        let height = Math.abs(pointerY - anchorY);
+        const ratio = lockedRatio();
+        if (ratio) {
+          // Grow to whichever axis the pointer has taken furthest, so the box
+          // follows the drag rather than fighting it.
+          if (height === 0 || width / height > ratio) height = width / ratio;
+          else width = height * ratio;
+        }
+        return {
+          x: pointerX < anchorX ? anchorX - width : anchorX,
+          y: pointerY < anchorY ? anchorY - height : anchorY,
+          width,
+          height,
+        };
+      }
+
+      /**
+       * Show what the capture will actually be, in output pixels.
+       *
+       * CSS pixels are the wrong number to show: the crop happens in device
+       * pixels, so on a 2x display a 320x180 drag already produces a 640x360
+       * file. Showing the CSS size would have people hunting for a number
+       * that never matches the image they get.
+       */
+      function updateReadout(r: SelectedRect | null): void {
+        if (!r) {
+          sizeReadout.textContent = "";
+          return;
+        }
+        const dpr = window.devicePixelRatio || 1;
+        const actual = `${Math.round(r.width * dpr)} × ${Math.round(r.height * dpr)}`;
+        const target = parsedTarget();
+        sizeReadout.textContent = target
+          ? `${actual} → ${target.width} × ${target.height}`
+          : `${actual}`;
       }
 
       const ACTION_BTN_SIZE = 44;
@@ -590,6 +705,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         selBox.style.pointerEvents = "none";
         showHandles(false);
         setHint("Drag to select an area — Esc to cancel");
+        updateReadout(null);
       }
 
       function enterAdjusting(r: SelectedRect): void {
@@ -601,7 +717,19 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         selBox.style.cursor = "move";
         showHandles(true);
         setHint("Drag to adjust, or use the buttons below");
+        updateReadout(r);
       }
+
+      // Typing a size after the box is already drawn re-shapes what is on
+      // screen instead of only affecting the next drag — otherwise the lock
+      // appears to do nothing until you start over.
+      targetInput.addEventListener("input", () => {
+        if (rect) {
+          rect = boxFrom(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+          positionSelBox(rect);
+        }
+        updateReadout(rect);
+      });
 
       confirmBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
       confirmBtn.addEventListener("click", (e) => {
@@ -629,11 +757,17 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       function finish(finalRect: SelectedRect | null): void {
         if (settled) return;
         settled = true;
+        // Read the target before cleanup(): the input is about to be removed
+        // from the document, and a detached input's value is not worth
+        // gambling on.
+        const target = parsedTarget();
         cleanup();
         // One repaint cycle so the overlay/handles are actually gone from
         // the frame captureVisibleTab reads a moment later.
         requestAnimationFrame(() =>
-          requestAnimationFrame(() => resolve({ rect: finalRect, dpr: window.devicePixelRatio || 1 })),
+          requestAnimationFrame(() =>
+            resolve({ rect: finalRect, dpr: window.devicePixelRatio || 1, target }),
+          ),
         );
       }
 
@@ -654,6 +788,18 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       }
 
       function onKeyDown(e: KeyboardEvent): void {
+        // While the size box has focus the keyboard belongs to it. Enter
+        // means "I have finished typing" (and confirms if a box is ready);
+        // Escape gives the page back its keyboard without cancelling the
+        // capture, which would be a harsh punishment for a typo.
+        if (e.target === targetInput) {
+          if (e.key === "Enter" || e.key === "Escape") {
+            e.stopPropagation();
+            targetInput.blur();
+            if (e.key === "Enter" && phase === "adjusting" && rect) finish(rect);
+          }
+          return;
+        }
         if (e.key === "Escape") {
           if (phase === "adjusting") {
             enterDrawing();
@@ -711,14 +857,15 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
       function onMove(e: PointerEvent): void {
         if (dragMode === "new") {
-          const x = Math.min(dragStartX, e.clientX);
-          const y = Math.min(dragStartY, e.clientY);
-          const width = Math.abs(e.clientX - dragStartX);
-          const height = Math.abs(e.clientY - dragStartY);
-          selBox.style.left = `${x}px`;
-          selBox.style.top = `${y}px`;
-          selBox.style.width = `${width}px`;
-          selBox.style.height = `${height}px`;
+          // Tracked on `rect` while drawing (it used to only move the box's
+          // styles) so the readout and the pointerup both read one value
+          // instead of each recomputing the geometry their own way.
+          rect = boxFrom(dragStartX, dragStartY, e.clientX, e.clientY);
+          selBox.style.left = `${rect.x}px`;
+          selBox.style.top = `${rect.y}px`;
+          selBox.style.width = `${rect.width}px`;
+          selBox.style.height = `${rect.height}px`;
+          updateReadout(rect);
           return;
         }
         if (!dragStartRect) return;
@@ -727,40 +874,39 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
           const dy = e.clientY - dragStartY;
           rect = { ...dragStartRect, x: dragStartRect.x + dx, y: dragStartRect.y + dy };
           positionSelBox(rect);
+          updateReadout(rect);
           return;
         }
         if (dragMode && typeof dragMode === "object") {
           const dx = e.clientX - dragStartX;
           const dy = e.clientY - dragStartY;
-          let { x, y, width, height } = dragStartRect;
-          if (dragMode.corner.includes("n")) {
-            y += dy;
-            height -= dy;
-          }
-          if (dragMode.corner.includes("s")) height += dy;
-          if (dragMode.corner.includes("w")) {
-            x += dx;
-            width -= dx;
-          }
-          if (dragMode.corner.includes("e")) width += dx;
-          rect = normalizeRect({ x, y, width, height });
+          const corner = dragMode.corner;
+          // Resizing is the same gesture as drawing, anchored at the corner
+          // opposite the one being dragged — which is what lets the ratio
+          // lock apply to both without a second implementation of it. The
+          // moving corner is offset by the drag delta rather than snapped to
+          // the pointer, so grabbing a handle slightly off-centre does not
+          // make the box jump.
+          const anchorX = corner.includes("w") ? dragStartRect.x + dragStartRect.width : dragStartRect.x;
+          const anchorY = corner.includes("n") ? dragStartRect.y + dragStartRect.height : dragStartRect.y;
+          const movingX = (corner.includes("w") ? dragStartRect.x : dragStartRect.x + dragStartRect.width) + dx;
+          const movingY = (corner.includes("n") ? dragStartRect.y : dragStartRect.y + dragStartRect.height) + dy;
+          rect = normalizeRect(boxFrom(anchorX, anchorY, movingX, movingY));
           positionSelBox(rect);
+          updateReadout(rect);
         }
       }
       document.addEventListener("pointermove", onMove);
 
       function onUp(e: PointerEvent): void {
         if (dragMode === "new") {
-          const x = Math.min(dragStartX, e.clientX);
-          const y = Math.min(dragStartY, e.clientY);
-          const width = Math.abs(e.clientX - dragStartX);
-          const height = Math.abs(e.clientY - dragStartY);
+          const drawn = rect ?? boxFrom(dragStartX, dragStartY, e.clientX, e.clientY);
           dragMode = null;
-          if (width < 3 || height < 3) {
+          if (drawn.width < 3 || drawn.height < 3) {
             finish(null);
             return;
           }
-          enterAdjusting({ x, y, width, height });
+          enterAdjusting(drawn);
           return;
         }
         dragMode = null;

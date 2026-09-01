@@ -158,7 +158,7 @@ export async function captureSelectedArea(tabId: number, windowId: number): Prom
 
   const shotCore = await loadShotCore();
 
-  const { rect, dpr } = await sendToContent<SelectAreaResponse>(tabId, { action: "selectArea" });
+  const { rect, dpr, target } = await sendToContent<SelectAreaResponse>(tabId, { action: "selectArea" });
   if (!rect) return null;
 
   const pngBytes = await captureVisibleTabPaced(windowId);
@@ -166,12 +166,26 @@ export async function captureSelectedArea(tabId: number, windowId: number): Prom
   const yDev = Math.round(rect.y * dpr);
   const widthDev = Math.round(rect.width * dpr);
   const heightDev = Math.round(rect.height * dpr);
-  const croppedPngBytes = shotCore.cropAndEncode(pngBytes, xDev, yDev, widthDev, heightDev, dpr) as Uint8Array;
+  const croppedPngBytes = shotCore.cropAndEncode(
+    pngBytes,
+    xDev,
+    yDev,
+    widthDev,
+    heightDev,
+    // An explicit output size is a request for that many pixels, full stop,
+    // so the result is recorded at 1:1 rather than carrying the display's
+    // device-pixel ratio. Left at `dpr`, a 640x360 image asked for on a 2x
+    // screen would print and export as though it were 320x180 of physical
+    // page, which is not what "I need 640x360" means.
+    target ? 1 : dpr,
+    target?.width,
+    target?.height,
+  ) as Uint8Array;
 
   // Route the single cropped image through a CaptureSession (rather than
   // handling it as a one-off) purely so exportLastCaptureAsPdf/
   // getLastCaptureFirstImage stay uniform across all three capture modes.
-  const session: ShotCoreSession = new shotCore.CaptureSession(dpr);
+  const session: ShotCoreSession = new shotCore.CaptureSession(target ? 1 : dpr);
   session.pushSlice(0, croppedPngBytes);
   const result = session.finish(JSON.stringify({})) as { report: CaptureReport; images: Uint8Array[] };
 
