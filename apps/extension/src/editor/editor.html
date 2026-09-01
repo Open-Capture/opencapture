@@ -143,6 +143,38 @@
       #cropBar[hidden] {
         display: none;
       }
+      .crop-bar-divider {
+        width: var(--border-width);
+        align-self: stretch;
+        background: var(--border-hairline);
+        margin: 0 var(--space-1);
+      }
+      #cropSize {
+        font: var(--type-ui);
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--text-brand);
+        white-space: nowrap;
+      }
+      .crop-out {
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+      }
+      .crop-out input {
+        width: 56px;
+        padding: 2px 6px;
+        border: var(--border-width) solid var(--border-hairline);
+        border-radius: var(--radius-sm);
+        background: var(--surface-card);
+        color: var(--text-body);
+        font: var(--type-ui);
+        text-align: center;
+      }
+      .crop-out input:focus-visible {
+        outline: none;
+        box-shadow: var(--focus-ring);
+      }
       #status {
         margin-left: auto;
       }
@@ -481,6 +513,17 @@
         <span class="oa-icon oa-icon-14 icon-x"></span>
         Cancel
       </button>
+      <span class="crop-bar-divider"></span>
+      <!-- The same deal the selection overlay offers: see the size you are
+           about to get, and pin it if you need a particular one. Cropping to
+           a shape and cropping to a size are the same job. -->
+      <span id="cropSize" role="status"></span>
+      <span class="crop-out">
+        <span class="oa-caption">Output</span>
+        <input id="cropOutW" type="text" inputmode="numeric" placeholder="640" aria-label="Output width in pixels" />
+        <span class="oa-caption">&times;</span>
+        <input id="cropOutH" type="text" inputmode="numeric" placeholder="360" aria-label="Output height in pixels" />
+      </span>
     </div>
     <div id="framePanel" class="card" hidden>
       <p class="oa-caption">Wrap the screenshot in a browser window. The chrome is drawn, never captured — your tabs and profile stay out of it.</p>

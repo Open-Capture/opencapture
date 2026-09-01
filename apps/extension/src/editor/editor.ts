@@ -44,6 +44,9 @@ const canvasWrap = document.getElementById("canvasWrap") as HTMLDivElement;
 const statusEl = document.getElementById("status")!;
 const toolButtons = document.querySelectorAll<HTMLButtonElement>("#toolbar button[data-tool]");
 const cropBar = document.getElementById("cropBar") as HTMLDivElement;
+const cropSizeEl = document.getElementById("cropSize") as HTMLSpanElement;
+const cropOutW = document.getElementById("cropOutW") as HTMLInputElement;
+const cropOutH = document.getElementById("cropOutH") as HTMLInputElement;
 const cropApplyBtn = document.getElementById("cropApply") as HTMLButtonElement;
 const cropCancelBtn = document.getElementById("cropCancel") as HTMLButtonElement;
 
@@ -319,10 +322,98 @@ function dragRect(x0: number, y0: number, x1: number, y1: number): { x: number; 
   return { x, y, width, height };
 }
 
+/**
+ * The exact output size asked for, once both boxes hold a usable number.
+ *
+ * Both or neither: a width with no height says nothing about what the output
+ * should be, so a half-filled pair reads as still being typed.
+ */
+function cropTargetSize(): { width: number; height: number } | null {
+  const width = Number(cropOutW.value.trim());
+  const height = Number(cropOutH.value.trim());
+  if (!Number.isInteger(width) || !Number.isInteger(height)) return null;
+  if (width < 1 || height < 1) return null;
+  return { width, height };
+}
+
+/** The shape the marquee is held to, if a size was asked for. */
+function cropRatio(): number | null {
+  const target = cropTargetSize();
+  return target ? target.width / target.height : null;
+}
+
+/** The drag's end point, pulled onto the locked aspect ratio. */
+function ratioLockedPoint(
+  ax: number,
+  ay: number,
+  px: number,
+  py: number,
+): { x: number; y: number } {
+  const ratio = cropRatio();
+  if (!ratio) return { x: px, y: py };
+  let width = Math.abs(px - ax);
+  let height = Math.abs(py - ay);
+  // Grow to whichever axis the pointer has taken furthest, so the marquee
+  // follows the drag rather than fighting it.
+  if (height === 0 || width / height > ratio) height = width / ratio;
+  else width = height * ratio;
+  return { x: px < ax ? ax - width : ax + width, y: py < ay ? ay - height : ay + height };
+}
+
+/**
+ * Hold a resized rect to the locked ratio, keeping the edges the handle does
+ * not control where they were — the same anchoring the drag itself uses, so
+ * resizing and drawing agree about what is being held still.
+ */
+function lockRectToRatio(r: Rect, handle: CropHandle): Rect {
+  const ratio = cropRatio();
+  if (!ratio) return r;
+  // A pure top/bottom handle only moves height, so height is what the user
+  // is expressing; every other handle moves width.
+  const verticalOnly = handle === "n" || handle === "s";
+  const width = verticalOnly ? r.height * ratio : r.width;
+  const height = verticalOnly ? r.height : r.width / ratio;
+  return {
+    x: handle.includes("w") ? r.x + r.width - width : r.x,
+    y: handle.includes("n") ? r.y + r.height - height : r.y,
+    width,
+    height,
+  };
+}
+
+/** Live size of the pending marquee, and what it will be delivered at. */
+function updateCropReadout(r: Rect | null): void {
+  if (!r) {
+    cropSizeEl.textContent = "";
+    return;
+  }
+  const actual = `${Math.round(r.width)} × ${Math.round(r.height)}`;
+  const target = cropTargetSize();
+  cropSizeEl.textContent = target ? `${actual} → ${target.width} × ${target.height}` : actual;
+}
+
 /** Commits a crop: shrinks the canvas itself to the given rect, discarding
- * everything outside it. */
+ * everything outside it — resampled to an exact size when one was asked for. */
 function applyCrop(rect: { x: number; y: number; width: number; height: number }): void {
   const cropped = ctx.getImageData(rect.x, rect.y, rect.width, rect.height);
+  const target = cropTargetSize();
+  if (target && (target.width !== rect.width || target.height !== rect.height)) {
+    // Via an intermediate canvas: putImageData ignores scaling entirely, so
+    // the pixels have to become something drawImage can resample.
+    const source = document.createElement("canvas");
+    source.width = rect.width;
+    source.height = rect.height;
+    source.getContext("2d")?.putImageData(cropped, 0, 0);
+    canvas.width = target.width;
+    canvas.height = target.height;
+    // Resizing the canvas resets the context, so these come after it.
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(source, 0, 0, target.width, target.height);
+    syncPreviewCanvas();
+    setStatus(`${target.width}×${target.height}`);
+    return;
+  }
   canvas.width = rect.width;
   canvas.height = rect.height;
   ctx.putImageData(cropped, 0, 0);
@@ -461,6 +552,7 @@ function updateCropActionButtons(): void {
 function cancelPendingCrop(): void {
   clearPreview();
   pendingCrop = null;
+  updateCropReadout(null);
   updateCropActionButtons();
 }
 
@@ -480,14 +572,23 @@ function updateCropDrag(): void {
   if (!lastClientPos || !cropDragMode) return;
   const p = pointFromClient(lastClientPos.x, lastClientPos.y);
   if (cropDragMode === "draw" && dragStart) {
+    const end = ratioLockedPoint(dragStart.x, dragStart.y, p.x, p.y);
     clearPreview();
-    drawCropPreview(previewCtx, dragStart.x, dragStart.y, p.x, p.y);
+    drawCropPreview(previewCtx, dragStart.x, dragStart.y, end.x, end.y);
+    updateCropReadout({
+      x: Math.min(dragStart.x, end.x),
+      y: Math.min(dragStart.y, end.y),
+      width: Math.abs(end.x - dragStart.x),
+      height: Math.abs(end.y - dragStart.y),
+    });
   } else if (cropDragMode === "resize" && cropDragOrigRect && cropResizeHandle) {
-    pendingCrop = resizeRect(cropDragOrigRect, cropResizeHandle, p);
+    pendingCrop = lockRectToRatio(resizeRect(cropDragOrigRect, cropResizeHandle, p), cropResizeHandle);
     renderCropOverlay(pendingCrop);
+    updateCropReadout(pendingCrop);
   } else if (cropDragMode === "move" && cropDragOrigRect && cropDragAnchor) {
     pendingCrop = moveRect(cropDragOrigRect, cropDragAnchor, p);
     renderCropOverlay(pendingCrop);
+    updateCropReadout(pendingCrop);
   }
 }
 
@@ -565,13 +666,17 @@ function handleCropMouseUp(p: { x: number; y: number }): void {
   if (mode === "draw") {
     const start = dragStart;
     dragStart = null;
-    const rect = start ? dragRect(start.x, start.y, p.x, p.y) : null;
+    // Through the locked point, then dragRect as before — rounding and
+    // clamping to the canvas stay in exactly one place.
+    const end = start ? ratioLockedPoint(start.x, start.y, p.x, p.y) : null;
+    const rect = start && end ? dragRect(start.x, start.y, end.x, end.y) : null;
     if (!rect) {
       clearPreview();
       return; // too small to be an intentional selection — no marquee left behind
     }
     pendingCrop = rect;
     renderCropOverlay(pendingCrop);
+    updateCropReadout(pendingCrop);
     updateCropActionButtons();
   } else if (mode === "resize" || mode === "move") {
     // pendingCrop was already kept live by updateCropDrag(); just clear
@@ -1503,6 +1608,24 @@ document.getElementById("closeEditor")!.addEventListener("click", async () => {
 document.getElementById("splitNoticeClose")!.addEventListener("click", () => {
   document.getElementById("splitNotice")!.classList.remove("visible");
 });
+
+for (const input of [cropOutW, cropOutH]) {
+  input.addEventListener("input", () => {
+    // Re-shape what is already on screen, rather than only affecting the
+    // next drag — otherwise the lock looks like it does nothing.
+    if (pendingCrop) {
+      pendingCrop = lockRectToRatio(pendingCrop, "se");
+      renderCropOverlay(pendingCrop);
+    }
+    updateCropReadout(pendingCrop);
+  });
+  // Enter in a size box means "done typing", not "apply the crop from
+  // wherever the keyboard focus happens to be".
+  input.addEventListener("keydown", (e) => {
+    e.stopPropagation();
+    if (e.key === "Enter" || e.key === "Escape") input.blur();
+  });
+}
 
 cropApplyBtn.addEventListener("click", commitPendingCrop);
 cropCancelBtn.addEventListener("click", cancelPendingCrop);

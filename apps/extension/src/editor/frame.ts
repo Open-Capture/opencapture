@@ -193,6 +193,56 @@ function drawCaption(
 }
 
 /** Traffic lights, then the URL centred in a pill — Safari's arrangement. */
+/** Minimum width worth drawing an address field at, in CSS px. */
+const MIN_FIELD = 40;
+
+export interface AddressFieldBox {
+  x: number;
+  width: number;
+}
+
+/**
+ * Where the address field goes, given everything else already on the bar.
+ *
+ * Pure, and exported, because this is the arithmetic that got the timestamp
+ * painted over: the field used to be centred on the whole window while being
+ * sized to the whole band, so on the macOS preset its right edge ran past the
+ * timestamp — and since the field is filled *after* the stamp is drawn, it
+ * covered it completely. Geometry this easy to get wrong deserves to be
+ * checked without a canvas.
+ *
+ * Returns null when there is no room for a field that clears the stamp.
+ */
+export function addressFieldBox(opts: {
+  width: number;
+  s: number;
+  left: number;
+  centred: boolean;
+  rightInset: number;
+  stampWidth: number;
+}): AddressFieldBox | null {
+  const { width, s, left, centred, rightInset, stampWidth } = opts;
+  // The band between the window controls and the timestamp.
+  const bandLeft = left;
+  const bandRight = width - rightInset - 14 * s - stampWidth;
+  const band = bandRight - bandLeft;
+  if (band < MIN_FIELD * s) return null;
+
+  if (centred) {
+    // Safari centres its address field on the window, so the field can only
+    // grow to twice the *smaller* of the two gaps — otherwise centring it
+    // pushes one end into whatever is on that side.
+    const half = Math.min(width / 2 - bandLeft, bandRight - width / 2);
+    const centredWidth = half * 2;
+    if (centredWidth >= MIN_FIELD * s) {
+      return { x: (width - centredWidth) / 2, width: centredWidth };
+    }
+    // Too lopsided to centre — fall back to filling the band, which is
+    // still better than a field too narrow to read a URL in.
+  }
+  return { x: bandLeft, width: band };
+}
+
 function drawMacBar(
   ctx: CanvasRenderingContext2D,
   width: number,
@@ -277,10 +327,19 @@ function drawAddress(
 
   if (!options.showUrl || !options.url) return;
 
+  const box = addressFieldBox({
+    width,
+    s,
+    left: layout.left,
+    centred: layout.centred,
+    rightInset: layout.rightInset ?? 0,
+    stampWidth,
+  });
+  // No room for a field that clears the timestamp — the timestamp wins,
+  // since a URL drawn over it would destroy information rather than crowd it.
+  if (!box) return;
   const fieldHeight = 22 * s;
-  const right = width - (layout.rightInset ?? 0) - 14 * s - stampWidth;
-  const fieldWidth = Math.max(40 * s, right - layout.left);
-  const x = layout.centred ? Math.max(layout.left, (width - fieldWidth) / 2) : layout.left;
+  const { x, width: fieldWidth } = box;
 
   ctx.fillStyle = palette.field;
   ctx.strokeStyle = palette.fieldBorder;

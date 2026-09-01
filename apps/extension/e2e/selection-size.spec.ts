@@ -2,7 +2,8 @@ import { expect, test } from "./fixtures";
 
 const BASE_URL = "http://localhost:8934";
 const SIZE = "[data-oc-size]";
-const TARGET_INPUT = 'input[aria-label="Exact output size, width by height in pixels"]';
+const TARGET_W = 'input[aria-label="Output width in pixels"]';
+const TARGET_H = 'input[aria-label="Output height in pixels"]';
 
 test("selection shows its output size live, locks to a typed ratio, and delivers that exact size", async ({
   context,
@@ -46,7 +47,13 @@ test("selection shows its output size live, locks to a typed ratio, and delivers
   await expect(page.locator(SIZE)).toHaveText("300 × 200");
 
   // --- typing a target re-shapes the box that is already on screen ---
-  await page.fill(TARGET_INPUT, "640x360");
+  // A half-filled pair must not lock anything: it reads as still being typed.
+  await page.fill(TARGET_W, "640");
+  await expect(page.locator(SIZE)).toHaveText("300 × 200");
+
+  // Two boxes, not one "640x360" string: a resolution is two numbers.
+  await page.fill(TARGET_W, "640");
+  await page.fill(TARGET_H, "360");
   const locked = await page.locator(SIZE).textContent();
   expect(locked).toMatch(/^\d+ × \d+ → 640 × 360$/);
 

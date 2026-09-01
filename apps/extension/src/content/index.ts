@@ -515,20 +515,37 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       // counts up during a drag.
       sizeReadout.style.cssText =
         "font-variant-numeric:tabular-nums;font-weight:600;color:#8fd0ff;white-space:nowrap;";
-      const targetLabel = document.createElement("label");
-      targetLabel.style.cssText = "display:flex;align-items:center;gap:6px;color:#bbb;";
-      targetLabel.textContent = "Output";
-      const targetInput = document.createElement("input");
-      targetInput.type = "text";
-      targetInput.placeholder = "640x360";
-      targetInput.setAttribute("aria-label", "Exact output size, width by height in pixels");
-      // `all:unset` first so the page's own input styling cannot leak in and
-      // make this unreadable; everything it needs is then set explicitly.
-      targetInput.style.cssText =
-        "all:unset;box-sizing:border-box;width:86px;padding:2px 6px;border:1px solid #666;border-radius:4px;" +
-        "background:#111;color:#fff;font:12px system-ui, sans-serif;text-align:center;";
-      targetLabel.append(targetInput);
-      hint.append(hintText, sizeReadout, targetLabel);
+      const targetGroup = document.createElement("span");
+      targetGroup.style.cssText = "display:flex;align-items:center;gap:6px;color:#bbb;";
+      const targetGroupLabel = document.createElement("span");
+      targetGroupLabel.textContent = "Output";
+      // Two boxes with a × between them, rather than one field wanting
+      // "640x360" typed into it: a resolution is two numbers, and making
+      // someone type the separator makes them think about the format
+      // instead of the numbers.
+      function makeSizeInput(labelText: string, placeholder: string): HTMLInputElement {
+        const input = document.createElement("input");
+        // `inputmode` gets a numeric keypad on touch; the type stays "text"
+        // so a spinner does not appear and paste of an odd value is not
+        // silently swallowed by the browser's own number validation.
+        input.type = "text";
+        input.inputMode = "numeric";
+        input.placeholder = placeholder;
+        input.setAttribute("aria-label", labelText);
+        // `all:unset` first so the page's own input styling cannot leak in
+        // and make this unreadable; everything it needs is set explicitly.
+        input.style.cssText =
+          "all:unset;box-sizing:border-box;width:52px;padding:2px 6px;border:1px solid #666;border-radius:4px;" +
+          "background:#111;color:#fff;font:12px system-ui, sans-serif;text-align:center;";
+        return input;
+      }
+      const targetWidthInput = makeSizeInput("Output width in pixels", "640");
+      const targetHeightInput = makeSizeInput("Output height in pixels", "360");
+      const targetTimes = document.createElement("span");
+      targetTimes.textContent = "×";
+      targetTimes.style.cssText = "color:#888;";
+      targetGroup.append(targetGroupLabel, targetWidthInput, targetTimes, targetHeightInput);
+      hint.append(hintText, sizeReadout, targetGroup);
       hint.addEventListener("pointerdown", (e) => e.stopPropagation());
 
       // Touch fingertips are far less precise than a mouse cursor — a 10px
@@ -584,37 +601,25 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       }
 
       /**
-       * The target size the user typed, if it parses.
+       * The target size, once both boxes hold a usable number.
        *
-       * Accepts the shapes people actually write: "640x360", "640 x 360",
-       * "640*360", "640,360", "640×360". A bare ratio like "16:9" locks the
-       * shape without pinning the pixel count, which is a different (and
-       * also useful) request — see `lockedRatio`.
+       * Both or neither: a width with no height says nothing about what the
+       * output should be, so a half-filled pair is treated as still being
+       * typed rather than guessed at.
        */
       function parsedTarget(): { width: number; height: number } | null {
-        const m = targetInput.value.trim().match(/^(\d{1,5})\s*[x×*, ]\s*(\d{1,5})$/i);
-        if (!m) return null;
-        const width = Number(m[1]);
-        const height = Number(m[2]);
+        const width = Number(targetWidthInput.value.trim());
+        const height = Number(targetHeightInput.value.trim());
+        if (!Number.isFinite(width) || !Number.isFinite(height)) return null;
+        if (!Number.isInteger(width) || !Number.isInteger(height)) return null;
         if (width < 1 || height < 1) return null;
         return { width, height };
-      }
-
-      /** A bare "16:9" — shape only, no pixel count. */
-      function parsedRatio(): number | null {
-        const m = targetInput.value.trim().match(/^(\d{1,5})\s*:\s*(\d{1,5})$/);
-        if (!m) return null;
-        const w = Number(m[1]);
-        const h = Number(m[2]);
-        if (w < 1 || h < 1) return null;
-        return w / h;
       }
 
       /** Width/height the selection is constrained to, if any. */
       function lockedRatio(): number | null {
         const target = parsedTarget();
-        if (target) return target.width / target.height;
-        return parsedRatio();
+        return target ? target.width / target.height : null;
       }
 
       /**
@@ -723,13 +728,15 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       // Typing a size after the box is already drawn re-shapes what is on
       // screen instead of only affecting the next drag — otherwise the lock
       // appears to do nothing until you start over.
-      targetInput.addEventListener("input", () => {
-        if (rect) {
-          rect = boxFrom(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
-          positionSelBox(rect);
-        }
-        updateReadout(rect);
-      });
+      for (const input of [targetWidthInput, targetHeightInput]) {
+        input.addEventListener("input", () => {
+          if (rect) {
+            rect = boxFrom(rect.x, rect.y, rect.x + rect.width, rect.y + rect.height);
+            positionSelBox(rect);
+          }
+          updateReadout(rect);
+        });
+      }
 
       confirmBtn.addEventListener("pointerdown", (e) => e.stopPropagation());
       confirmBtn.addEventListener("click", (e) => {
@@ -792,10 +799,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         // means "I have finished typing" (and confirms if a box is ready);
         // Escape gives the page back its keyboard without cancelling the
         // capture, which would be a harsh punishment for a typo.
-        if (e.target === targetInput) {
+        if (e.target === targetWidthInput || e.target === targetHeightInput) {
           if (e.key === "Enter" || e.key === "Escape") {
             e.stopPropagation();
-            targetInput.blur();
+            (e.target as HTMLInputElement).blur();
             if (e.key === "Enter" && phase === "adjusting" && rect) finish(rect);
           }
           return;
