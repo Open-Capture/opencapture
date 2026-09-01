@@ -16,7 +16,7 @@ import { saveOutput } from "../chrome/save";
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
 import { clearWatermarkLogoDataUrl, getWatermarkLogoDataUrl, setWatermarkLogoDataUrl } from "../chrome/watermark-logo-store";
 import { isDoubleTap, type TapState } from "./double-tap";
-import { drawFrame, type FramePreset } from "./frame";
+import { drawFrame, framePixelInsets, type FramePreset } from "./frame";
 import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from "../../vendor-private/watermark-premium/src/watermark";
 import init, * as ShotCore from "../wasm-gen/shot_core.js";
 import { ext } from "../platform/webext";
@@ -43,6 +43,7 @@ const previewCtx = previewCanvas.getContext("2d")!;
 const canvasWrap = document.getElementById("canvasWrap") as HTMLDivElement;
 const statusEl = document.getElementById("status")!;
 const toolButtons = document.querySelectorAll<HTMLButtonElement>("#toolbar button[data-tool]");
+const cropBar = document.getElementById("cropBar") as HTMLDivElement;
 const cropApplyBtn = document.getElementById("cropApply") as HTMLButtonElement;
 const cropCancelBtn = document.getElementById("cropCancel") as HTMLButtonElement;
 
@@ -68,7 +69,11 @@ let currentDpr = 1;
 // A list of independent regions restores together as one undo step
 // instead.
 type Snapshot =
-  | { kind: "full"; width: number; height: number; data: ImageData }
+  // `frame` rides along on full snapshots so undo/redo restores *which frame
+  // is on the image*, not just the pixels. Without it, undoing a frame would
+  // leave the editor believing a frame it just removed was still there, and
+  // the next apply would crop chrome off a picture that no longer has any.
+  | { kind: "full"; width: number; height: number; data: ImageData; frame?: FramePreset }
   | { kind: "region"; x: number; y: number; data: ImageData }
   | { kind: "regions"; regions: { x: number; y: number; data: ImageData }[] };
 
@@ -92,7 +97,7 @@ const MAX_HISTORY = 20;
  */
 function inverseOf(like: Snapshot): Snapshot {
   if (like.kind === "full") {
-    return { kind: "full", width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height) };
+    return { kind: "full", width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height), frame: appliedFrame };
   }
   if (like.kind === "region") {
     return { kind: "region", x: like.x, y: like.y, data: ctx.getImageData(like.x, like.y, like.data.width, like.data.height) };
@@ -108,6 +113,9 @@ function applySnapshot(snap: Snapshot): void {
     canvas.width = snap.width;
     canvas.height = snap.height;
     ctx.putImageData(snap.data, 0, 0);
+    // Only frame steps record this; a crop's snapshot leaves it undefined
+    // because a crop does not change which frame is on the image.
+    if (snap.frame !== undefined) appliedFrame = snap.frame;
     syncPreviewCanvas(); // canvas dimensions may have just changed (undoing a crop)
   } else if (snap.kind === "region") {
     ctx.putImageData(snap.data, snap.x, snap.y);
@@ -444,14 +452,10 @@ function renderCropOverlay(r: Rect): void {
 }
 
 function updateCropActionButtons(): void {
-  // "" (remove inline override) would fall back to the stylesheet's own
-  // `#cropApply, #cropCancel { display: none; }` rule and stay hidden —
-  // needs an explicit visible value to actually win the cascade.
-  // inline-flex (not inline-block) matches .btn's own display value, so
-  // its icon+label row stays centered instead of reflowing as a block.
-  const display = pendingCrop !== null ? "inline-flex" : "none";
-  cropApplyBtn.style.display = display;
-  cropCancelBtn.style.display = display;
+  // The whole bar toggles, not the two buttons individually: they live in a
+  // floating container now, so there is one thing to show and its layout is
+  // the container's business rather than something this has to restate.
+  cropBar.hidden = pendingCrop === null;
 }
 
 function cancelPendingCrop(): void {
@@ -1516,6 +1520,9 @@ let zoom: Zoom = "fit";
 const zoomOutBtn = document.getElementById("zoomOut") as HTMLButtonElement;
 const zoomInBtn = document.getElementById("zoomIn") as HTMLButtonElement;
 const zoomLevelBtn = document.getElementById("zoomLevel") as HTMLButtonElement;
+// The level is written into the label span, not the button: the button also
+// holds an icon, and setting its textContent would delete it.
+const zoomLevelLabel = document.getElementById("zoomLevelLabel") as HTMLSpanElement;
 const zoomFitBtn = document.getElementById("zoomFit") as HTMLButtonElement;
 
 /** What "fit" currently works out to, so stepping from it continues sensibly. */
@@ -1528,11 +1535,11 @@ function applyZoom(): void {
   if (zoom === "fit") {
     canvas.classList.remove("is-zoomed");
     canvas.style.width = "";
-    zoomLevelBtn.textContent = "Fit";
+    zoomLevelLabel.textContent = "Fit";
   } else {
     canvas.classList.add("is-zoomed");
     canvas.style.width = `${Math.round(canvas.width * zoom)}px`;
-    zoomLevelBtn.textContent = `${Math.round(zoom * 100)}%`;
+    zoomLevelLabel.textContent = `${Math.round(zoom * 100)}%`;
   }
   zoomOutBtn.disabled = zoom !== "fit" && zoom <= ZOOM_STEPS[0]!;
   zoomInBtn.disabled = zoom !== "fit" && zoom >= ZOOM_STEPS[ZOOM_STEPS.length - 1]!;
@@ -1593,6 +1600,17 @@ const toolFrameBtn = document.getElementById("toolFrame") as HTMLButtonElement;
 let capturePageUrl = "";
 let captureTakenAt = Date.now();
 
+/**
+ * Which frame is currently composited into the canvas.
+ *
+ * A frame is a property of the image, not an edit stacked onto it: choosing a
+ * second preset must *replace* the first. Tracking what is already there is
+ * what makes that possible — the old chrome is cropped back off before the new
+ * one is drawn, so "macOS then Windows" gives a Windows window, and "None"
+ * gives the bare screenshot back.
+ */
+let appliedFrame: FramePreset = "none";
+
 function refreshFramePreview(): void {
   // The URL shows whatever the preset, because it is information about the
   // capture rather than about the frame — and seeing it is how you tell
@@ -1605,6 +1623,9 @@ function refreshFramePreview(): void {
 }
 
 function openFramePanel(): void {
+  // Show the frame that is actually on the image, not whatever was picked
+  // last time. Reopening the panel is how you check, change, or remove it.
+  framePresetEl.value = appliedFrame;
   framePanel.hidden = false;
   refreshFramePreview();
 }
@@ -1615,13 +1636,52 @@ function closeFramePanel(): void {
 }
 
 /**
- * Compose the frame into the canvas as one undoable step. It changes the
- * canvas size, so the snapshot has to be a full one — the same shape a crop
- * pushes.
+ * The screenshot with the current frame cropped back off.
+ *
+ * Frames are drawn into the canvas rather than kept beside it, so removing or
+ * replacing one means undoing that draw geometrically. `framePixelInsets` is
+ * the same arithmetic `drawFrame` used to add the chrome, so this lands on
+ * exactly the original pixel bounds. Annotations drawn on top of the
+ * screenshot survive; anything drawn on the chrome itself goes with it, which
+ * is the only sensible reading of "replace this frame".
+ */
+function unframedSource(): HTMLCanvasElement {
+  const { top, bottom, side } = framePixelInsets(appliedFrame, currentDpr);
+  const out = document.createElement("canvas");
+  out.width = Math.max(1, canvas.width - side * 2);
+  out.height = Math.max(1, canvas.height - top - bottom);
+  const octx = out.getContext("2d");
+  if (octx) octx.drawImage(canvas, side, top, out.width, out.height, 0, 0, out.width, out.height);
+  return out;
+}
+
+/**
+ * Put the chosen frame on the image as one undoable step — replacing whatever
+ * frame was there, never wrapping it. It changes the canvas size, so the
+ * snapshot has to be a full one, the same shape a crop pushes.
  */
 function applyFrame(): void {
   const preset = framePresetEl.value as FramePreset;
-  const framed = drawFrame(canvas, {
+
+  // Nothing to add and nothing to strip.
+  if (preset === "none" && appliedFrame === "none") {
+    closeFramePanel();
+    return;
+  }
+
+  const before: Snapshot = {
+    kind: "full",
+    width: canvas.width,
+    height: canvas.height,
+    data: ctx.getImageData(0, 0, canvas.width, canvas.height),
+    frame: appliedFrame,
+  };
+
+  // Strip the old chrome first; `unframedSource` is a copy, so the canvas is
+  // safe to resize out from under it below.
+  const bare = appliedFrame === "none" ? null : unframedSource();
+  const source = bare ?? canvas;
+  const framed = drawFrame(source, {
     preset,
     url: capturePageUrl,
     capturedAt: captureTakenAt,
@@ -1629,18 +1689,23 @@ function applyFrame(): void {
     showDate: frameShowDateEl.checked,
     showTime: frameShowTimeEl.checked,
   }, currentDpr);
-  if (!framed) {
+
+  // drawFrame returns null for "none" — then the bare screenshot *is* the
+  // result. `bare` is non-null here: the both-none case returned above.
+  const next = framed ?? bare;
+  if (!next) {
     closeFramePanel();
     return;
   }
 
-  pushHistory({ kind: "full", width: canvas.width, height: canvas.height, data: ctx.getImageData(0, 0, canvas.width, canvas.height) });
-  canvas.width = framed.width;
-  canvas.height = framed.height;
-  ctx.drawImage(framed, 0, 0);
+  pushHistory(before);
+  canvas.width = next.width;
+  canvas.height = next.height;
+  ctx.drawImage(next, 0, 0);
+  appliedFrame = preset;
   syncPreviewCanvas();
   closeFramePanel();
-  setStatus("Frame added.");
+  setStatus(preset === "none" ? "Frame removed." : "Frame applied.");
 }
 
 toolFrameBtn.addEventListener("click", openFramePanel);

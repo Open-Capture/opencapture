@@ -520,7 +520,8 @@ test("zoom changes the rendered size without breaking draw coordinates", async (
       const c = document.getElementById("canvas") as HTMLCanvasElement;
       const p = document.getElementById("previewCanvas") as HTMLCanvasElement;
       return {
-        label: document.getElementById("zoomLevel")!.textContent,
+        // The label span, not the button: the button also holds an icon.
+        label: document.getElementById("zoomLevelLabel")!.textContent,
         cssWidth: Math.round(c.getBoundingClientRect().width),
         pixelWidth: c.width,
         // The overlay is positioned in JS; if it stops matching, the crop
@@ -744,12 +745,37 @@ test("browser frame wraps the capture, carries the URL, and undoes as one step",
   await editorPage.click("#redo");
   expect(await size()).toEqual(framed);
 
-  // "None" is a no-op rather than a copy that changes nothing.
-  const beforeNone = await size();
+  // Reopening the panel shows the frame that is on the image, not whatever
+  // was picked last time — that is how you can tell what you are replacing.
   await editorPage.click("#toolFrame");
+  await expect(editorPage.locator("#framePreset")).toHaveValue("macos");
+
+  // A second preset REPLACES the first. Choosing another style used to wrap
+  // the already-framed picture in a second window, which is never what
+  // anyone means by changing the frame. macOS and Windows reserve the same
+  // chrome, so a correct replace lands on exactly the same size — stacking
+  // would add another title bar and two more hairlines.
+  await editorPage.selectOption("#framePreset", "windows");
+  await editorPage.click("#frameApply");
+  expect(await size()).toEqual(framed);
+
+  // ...and it is still one undoable step back to the macOS frame, not a
+  // rebuild from the bare screenshot.
+  await editorPage.click("#undo");
+  expect(await size()).toEqual(framed);
+  await editorPage.click("#redo");
+
+  // "None" removes the frame that is on the image, returning the bare
+  // screenshot at exactly its original size.
+  await editorPage.click("#toolFrame");
+  await expect(editorPage.locator("#framePreset")).toHaveValue("windows");
   await editorPage.selectOption("#framePreset", "none");
   await editorPage.click("#frameApply");
-  expect(await size()).toEqual(beforeNone);
+  expect(await size()).toEqual(before);
+
+  // Undo puts the frame back, so removing one is as reversible as adding one.
+  await editorPage.click("#undo");
+  expect(await size()).toEqual(framed);
 
   await editorPage.close();
   await page.close();

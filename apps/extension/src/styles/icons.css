@@ -27,3 +27,6 @@
 .icon-trash-2{--icon-src:url("../assets/icons/trash-2.svg")}
 .icon-history{--icon-src:url("../assets/icons/history.svg")}
 .icon-star{--icon-src:url("../assets/icons/star.svg")}
+.icon-zoom-in{--icon-src:url("../assets/icons/zoom-in.svg")}
+.icon-zoom-out{--icon-src:url("../assets/icons/zoom-out.svg")}
+.icon-maximize{--icon-src:url("../assets/icons/maximize.svg")}

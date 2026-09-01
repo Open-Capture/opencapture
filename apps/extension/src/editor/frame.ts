@@ -50,6 +50,21 @@ export function frameMetrics(preset: FramePreset): FrameMetrics {
 }
 
 /**
+ * The same chrome, in device pixels — what the canvas is actually sized in.
+ *
+ * Exported because removing a frame is the exact inverse of drawing one: the
+ * editor crops these insets back off before applying a different preset, and
+ * if the two ever rounded differently the crop would shave a pixel row off
+ * the screenshot (or leave a sliver of the old chrome) every time the preset
+ * changed. One function, so they cannot drift.
+ */
+export function framePixelInsets(preset: FramePreset, dpr: number): FrameMetrics {
+  const s = Math.max(1, dpr);
+  const m = frameMetrics(preset);
+  return { top: Math.round(m.top * s), bottom: Math.round(m.bottom * s), side: Math.round(m.side * s) };
+}
+
+/**
  * The timestamp as it appears in the frame. Empty when neither part was asked
  * for, so callers can skip the draw rather than paint an empty string.
  */
@@ -113,10 +128,7 @@ export function drawFrame(source: HTMLCanvasElement, options: FrameOptions, dpr:
   if (options.preset === "none") return null;
 
   const s = Math.max(1, dpr);
-  const m = frameMetrics(options.preset);
-  const top = Math.round(m.top * s);
-  const bottom = Math.round(m.bottom * s);
-  const side = Math.round(m.side * s);
+  const { top, bottom, side } = framePixelInsets(options.preset, dpr);
 
   const out = document.createElement("canvas");
   out.width = source.width + side * 2;

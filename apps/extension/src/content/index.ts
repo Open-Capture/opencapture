@@ -37,7 +37,25 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   // showing it even once is showing it once too often.
   type PinnedKind = "top" | "bottom" | "always";
 
-  let pinnedElements: Array<{ el: HTMLElement; kind: PinnedKind; originalVisibility: string }> = [];
+  interface PinnedStyle {
+    value: string;
+    priority: string;
+  }
+  let pinnedElements: Array<{
+    el: HTMLElement;
+    kind: PinnedKind;
+    originalVisibility: PinnedStyle;
+    originalOpacity: PinnedStyle;
+  }> = [];
+
+  function inlineStyle(el: HTMLElement, prop: string): PinnedStyle {
+    return { value: el.style.getPropertyValue(prop), priority: el.style.getPropertyPriority(prop) };
+  }
+
+  function restoreStyle(el: HTMLElement, prop: string, saved: PinnedStyle): void {
+    if (saved.value) el.style.setProperty(prop, saved.value, saved.priority);
+    else el.style.removeProperty(prop);
+  }
   let totalHeightCss = 0;
   // Set for the duration of one capture (prep -> scrollTo* -> restore) when
   // detectDominantScroller finds a container worth driving instead of the
@@ -245,16 +263,29 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       // the capture instead of cleaning it up.
       if (innerScroller && (el === innerScroller || el.contains(innerScroller))) continue;
 
-      const rect = el.getBoundingClientRect();
-      if (rect.width < 40 || rect.height < 8) continue;
-
-      // Must actually intrude on the band being captured. In inner-scroll mode
-      // this drops the page's own sidebar chrome, which the orchestrator crops
-      // away anyway.
-      if (rect.bottom <= view.top || rect.top >= viewBottom) continue;
-      if (rect.right <= view.left || rect.left >= viewRight) continue;
-
       const alwaysHide = looksLikeConsentOverlay(el) || looksLikeChatOverlay(el);
+      const rect = el.getBoundingClientRect();
+
+      // Consent and chat widgets skip the geometry guards entirely.
+      //
+      // Measuring the pinned element assumes it is the thing you can see, and
+      // for these widgets it frequently is not: the pinned node is a container
+      // whose own box collapses to nothing while the bubble people actually
+      // see is an absolutely-positioned child of it. LinkedIn's messaging dock
+      // is exactly that shape — a 0x0 `#msg-overlay` holding a 300x400 bubble
+      // — so the minimum-size check dropped it and the dock was re-photographed
+      // into every slice. Hiding it regardless is safe: to get here an element
+      // must already be fixed/sticky *and* carry a consent/chat name, and
+      // hiding a container hides the descendants that render outside its box.
+      if (!alwaysHide) {
+        if (rect.width < 40 || rect.height < 8) continue;
+
+        // Must actually intrude on the band being captured. In inner-scroll
+        // mode this drops the page's own sidebar chrome, which the
+        // orchestrator crops away anyway.
+        if (rect.bottom <= view.top || rect.top >= viewBottom) continue;
+        if (rect.right <= view.left || rect.left >= viewRight) continue;
+      }
 
       // A tall sticky element is usually page furniture holding real content —
       // a sticky column, a nav rail — and hiding it would remove content
@@ -272,7 +303,12 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         : rect.top + rect.height / 2 < midline
           ? "top"
           : "bottom";
-      pinnedElements.push({ el, kind, originalVisibility: el.style.visibility });
+      pinnedElements.push({
+        el,
+        kind,
+        originalVisibility: inlineStyle(el, "visibility"),
+        originalOpacity: inlineStyle(el, "opacity"),
+      });
       el.setAttribute(PINNED_ATTR, kind);
     }
   }
@@ -308,13 +344,32 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     for (const p of pinnedElements) {
       const shouldShow =
         p.kind === "always" ? false : (p.kind === "top" && isFirstSlice) || (p.kind === "bottom" && isLastSlice);
-      p.el.style.visibility = shouldShow ? p.originalVisibility : "hidden";
+      if (shouldShow) {
+        restoreStyle(p.el, "visibility", p.originalVisibility);
+        restoreStyle(p.el, "opacity", p.originalOpacity);
+        continue;
+      }
+      // Both properties, both !important.
+      //
+      // `visibility` alone is not enough to hide a subtree: it is an inherited
+      // property, so any descendant that sets `visibility: visible` re-shows
+      // itself inside a hidden ancestor — and chat widgets do exactly that to
+      // animate their launcher. `opacity` has no such escape hatch: it applies
+      // to the element's whole rendered group, so a descendant cannot opt back
+      // in. `important` because a stylesheet rule marked `!important` would
+      // otherwise outrank a plain inline declaration.
+      //
+      // Neither property affects layout, so nothing reflows and the slice
+      // still lines up with the ones around it.
+      p.el.style.setProperty("visibility", "hidden", "important");
+      p.el.style.setProperty("opacity", "0", "important");
     }
   }
 
   function restorePinnedElements(): void {
     for (const p of pinnedElements) {
-      p.el.style.visibility = p.originalVisibility;
+      restoreStyle(p.el, "visibility", p.originalVisibility);
+      restoreStyle(p.el, "opacity", p.originalOpacity);
       p.el.removeAttribute(PINNED_ATTR);
     }
     pinnedElements = [];

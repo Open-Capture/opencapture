@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatStamp, frameMetrics } from "./frame";
+import { formatStamp, frameMetrics, framePixelInsets } from "./frame";
 
 // 2026-08-28T14:32:00 local — constructed from parts so the test does not
 // depend on the runner's timezone.
@@ -48,5 +48,27 @@ describe("formatStamp", () => {
 
     expect(both).toContain(date);
     expect(both).toContain(time);
+  });
+});
+
+describe("framePixelInsets", () => {
+  // The editor crops these exact insets back off to remove or replace a
+  // frame. If they ever disagreed with what drawFrame added, every preset
+  // change would shave a row off the screenshot or leave a sliver of the old
+  // window behind — so the scaling is pinned here rather than trusted.
+  it("scales the chrome by the device pixel ratio", () => {
+    const css = frameMetrics("macos");
+    const device = framePixelInsets("macos", 2);
+    expect(device.top).toBe(css.top * 2);
+    expect(device.side).toBe(css.side * 2);
+    expect(device.bottom).toBe(css.bottom * 2);
+  });
+
+  it("never scales below 1, so a reported dpr of 0 cannot collapse the frame", () => {
+    expect(framePixelInsets("macos", 0)).toEqual(framePixelInsets("macos", 1));
+  });
+
+  it("is all zeroes for none, so stripping 'no frame' is a no-op crop", () => {
+    expect(framePixelInsets("none", 3)).toEqual({ top: 0, bottom: 0, side: 0 });
   });
 });

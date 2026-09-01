@@ -123,8 +123,24 @@
         color: var(--text-brand);
         border-color: var(--border-hairline);
       }
-      #cropApply,
-      #cropCancel {
+      #cropBar {
+        position: fixed;
+        left: 50%;
+        transform: translateX(-50%);
+        bottom: var(--space-5);
+        z-index: 30;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-2);
+        background: var(--surface-card);
+        border: var(--border-width) solid var(--border-hairline);
+        border-radius: var(--radius-md);
+        box-shadow: var(--shadow-md);
+      }
+      /* The attribute has to beat the display:flex above, which would
+         otherwise keep the bar on screen with nothing pending. */
+      #cropBar[hidden] {
         display: none;
       }
       #status {
@@ -182,60 +198,6 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-      }
-      #zoomBar {
-        position: fixed;
-        right: var(--space-5);
-        bottom: var(--space-5);
-        z-index: 30;
-        display: flex;
-        align-items: center;
-        gap: 2px;
-        padding: 3px;
-        background: var(--surface-card);
-        border: var(--border-width) solid var(--border-hairline);
-        border-radius: var(--radius-md);
-        box-shadow: var(--shadow-md);
-      }
-      .zoom-btn,
-      .zoom-fit,
-      .zoom-level {
-        height: 26px;
-        min-width: 26px;
-        padding: 0 7px;
-        border: var(--border-width) solid transparent;
-        border-radius: var(--radius-sm);
-        background: transparent;
-        color: var(--text-body);
-        font: var(--type-ui);
-        cursor: pointer;
-        transition: var(--transition-control);
-      }
-      .zoom-level {
-        min-width: 52px;
-        font-variant-numeric: tabular-nums;
-        color: var(--text-muted);
-      }
-      .zoom-fit {
-        border-left: var(--border-width) solid var(--border-hairline);
-        border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
-        margin-left: 2px;
-      }
-      .zoom-btn:hover:not(:disabled),
-      .zoom-fit:hover,
-      .zoom-level:hover {
-        background: var(--surface-hover);
-        color: var(--text-strong);
-      }
-      .zoom-btn:disabled {
-        opacity: 0.35;
-        cursor: not-allowed;
-      }
-      .zoom-btn:focus-visible,
-      .zoom-fit:focus-visible,
-      .zoom-level:focus-visible {
-        outline: none;
-        box-shadow: var(--focus-ring);
       }
       /* Zoomed past the window, the image is panned by scrolling the wrap, so
          it must not stay centred or the left edge becomes unreachable. */
@@ -438,14 +400,6 @@
           <span class="tool-label">Watermark</span>
         </button>
       </div>
-      <button id="cropApply" class="btn btn-primary btn-sm">
-        <span class="oa-icon oa-icon-14 icon-check"></span>
-        Apply crop
-      </button>
-      <button id="cropCancel" class="btn btn-secondary btn-sm">
-        <span class="oa-icon oa-icon-14 icon-x"></span>
-        Cancel
-      </button>
       <div class="toolbar-divider"></div>
       <!-- Undo and Redo are one group: they are the same control in two
            directions, and pairing them makes the counts readable as "3 back,
@@ -454,6 +408,29 @@
         <button id="toolFrame" class="tool-btn" data-tool="frame" title="Put the screenshot in a browser window">
           <span class="oa-icon icon-square"></span>
           <span class="tool-label">Frame</span>
+        </button>
+      </div>
+      <!-- Zoom sits in the toolbar with every other control, not floating over
+           the image. It used to be a bare "- Fit + Fit" strip in the bottom
+           corner: nothing in it said "zoom", it duplicated the word "Fit"
+           twice, and it was the only control outside the labelled groups —
+           so it read as missing rather than as a feature. -->
+      <div class="tool-group" role="group" aria-label="Zoom">
+        <button id="zoomOut" class="tool-btn" title="Zoom out (Ctrl/Cmd -)">
+          <span class="oa-icon icon-zoom-out"></span>
+          <span class="tool-label">Zoom out</span>
+        </button>
+        <button id="zoomLevel" class="tool-btn" title="Switch between 100% and fit (Ctrl/Cmd 0)">
+          <span class="oa-icon icon-maximize"></span>
+          <span class="tool-label" id="zoomLevelLabel">Fit</span>
+        </button>
+        <button id="zoomIn" class="tool-btn" title="Zoom in (Ctrl/Cmd +)">
+          <span class="oa-icon icon-zoom-in"></span>
+          <span class="tool-label">Zoom in</span>
+        </button>
+        <button id="zoomFit" class="tool-btn" title="Fit the whole image in the window">
+          <span class="oa-icon icon-crop"></span>
+          <span class="tool-label">Fit</span>
         </button>
       </div>
       <div class="tool-group" role="group" aria-label="History">
@@ -488,14 +465,22 @@
         <span class="oa-icon icon-x"></span>
       </button>
     </div>
-    <!-- Floating rather than in the toolbar: the strip is already one row at
-         1280px with nothing to spare, and a zoom control belongs next to the
-         thing it zooms anyway. -->
-    <div id="zoomBar" role="group" aria-label="Zoom">
-      <button id="zoomOut" type="button" class="zoom-btn" title="Zoom out (Ctrl/Cmd -)" aria-label="Zoom out">&#8722;</button>
-      <button id="zoomLevel" type="button" class="zoom-level" title="Reset to 100% (Ctrl/Cmd 0)">Fit</button>
-      <button id="zoomIn" type="button" class="zoom-btn" title="Zoom in (Ctrl/Cmd +)" aria-label="Zoom in">&#43;</button>
-      <button id="zoomFit" type="button" class="zoom-fit" title="Fit the image to the window">Fit</button>
+    <!-- Contextual, and deliberately not in the toolbar. These two only exist
+         while a crop is pending, and putting them in the toolbar meant the
+         toolbar reflowed onto a second row the instant the marquee was
+         drawn — which pushed the image down 40px mid-interaction, so the
+         next grab at the corner handle landed 40px above it and collapsed
+         the selection. A floating bar cannot change the toolbar's height,
+         and it puts the confirmation next to the thing being confirmed. -->
+    <div id="cropBar" hidden>
+      <button id="cropApply" class="btn btn-primary btn-sm">
+        <span class="oa-icon oa-icon-14 icon-check"></span>
+        Apply crop
+      </button>
+      <button id="cropCancel" class="btn btn-secondary btn-sm">
+        <span class="oa-icon oa-icon-14 icon-x"></span>
+        Cancel
+      </button>
     </div>
     <div id="framePanel" class="card" hidden>
       <p class="oa-caption">Wrap the screenshot in a browser window. The chrome is drawn, never captured — your tabs and profile stay out of it.</p>
