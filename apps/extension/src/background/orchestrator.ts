@@ -82,6 +82,43 @@ async function sendToContent<T>(tabId: number, request: ContentRequest): Promise
 }
 
 /**
+ * The pixel width recorded in a PNG's IHDR chunk.
+ *
+ * Fixed layout: 8-byte signature, 4-byte chunk length, the four bytes
+ * "IHDR", then width as a big-endian u32. Reading it costs nothing and does
+ * not need the image decoded.
+ */
+function pngPixelWidth(bytes: Uint8Array): number | null {
+  if (bytes.length < 24) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return view.getUint32(16);
+}
+
+/**
+ * How many image pixels the browser actually gave us per CSS pixel.
+ *
+ * `window.devicePixelRatio` is what the page believes, and on desktop the
+ * screenshot matches it. It is not a promise: a browser is free to hand back
+ * a bitmap at some other scale, and mobile browsers do. When the two disagree
+ * every slice is placed at the wrong offset, because placement converts a CSS
+ * scroll position into image rows using this number — the capture comes out
+ * with rows duplicated or missing depending on which way the mismatch runs.
+ *
+ * Measuring it from the bitmap makes the question moot: whatever the browser
+ * did, this is the scale it did it at. Falls back to the reported ratio only
+ * when the width cannot be read at all.
+ */
+function measuredScale(firstSlice: Uint8Array, viewportWidthCss: number, reportedDpr: number): number {
+  const widthDev = pngPixelWidth(firstSlice);
+  if (!widthDev || viewportWidthCss <= 0) return reportedDpr;
+  const scale = widthDev / viewportWidthCss;
+  // A nonsensical result means the assumption behind this is wrong, not that
+  // the scale really is 0.01 — leave the reported value alone in that case.
+  if (!Number.isFinite(scale) || scale <= 0.05 || scale > 16) return reportedDpr;
+  return scale;
+}
+
+/**
  * Tell the popup how far along a capture is.
  *
  * A full-page capture is bound by the browser's own screenshot quota —
@@ -110,7 +147,11 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
 
   const targets = shotCore.scrollTargets(metrics.totalHeightCss, metrics.viewportHeightCss) as Float64Array;
 
-  const session: ShotCoreSession = new shotCore.CaptureSession(metrics.dpr);
+  // Built after the first slice, not before: the scale every placement is
+  // computed with comes from the bitmap the browser actually returns rather
+  // than from what the page reports (see measuredScale).
+  let session: ShotCoreSession | null = null;
+  let scale = metrics.dpr;
 
   let sliceIndex = 0;
   for (const target of targets) {
@@ -137,8 +178,17 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
       const heightDev = Math.round(innerRect.height * metrics.dpr);
       pngBytes = shotCore.cropAndEncode(pngBytes, xDev, yDev, widthDev, heightDev, metrics.dpr) as Uint8Array;
     }
+    if (!session) {
+      // In inner-scroll mode the slice was just cropped to the scroller's own
+      // rect, so the width to compare against is that rect's, not the window's.
+      const widthCss = innerRect ? innerRect.width : metrics.viewportWidthCss;
+      scale = measuredScale(pngBytes, widthCss, metrics.dpr);
+      session = new shotCore.CaptureSession(scale);
+    }
     session.pushSlice(actualScrollCss, pngBytes);
   }
+
+  if (!session) throw new Error("capture produced no slices");
 
   reportProgress(targets.length, targets.length);
   await sendToContent(tabId, { action: "restore" });
