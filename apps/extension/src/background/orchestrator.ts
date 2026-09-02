@@ -1,3 +1,4 @@
+import { getCapturePrefs } from "../chrome/capture-prefs";
 import { explainInjectionFailure } from "./injection-error";
 import { captureVisibleTabPaced } from "../chrome/capture";
 import { LAST_CAPTURE_BLOB_KEY, extraLastCaptureBlobKey, getBlob, putBlob } from "../chrome/blob-store";
@@ -80,12 +81,30 @@ async function sendToContent<T>(tabId: number, request: ContentRequest): Promise
   return ext.tabs.sendMessage(tabId, request) as Promise<T>;
 }
 
+/**
+ * Tell the popup how far along a capture is.
+ *
+ * A full-page capture is bound by the browser's own screenshot quota —
+ * `tabs.captureVisibleTab` allows two calls a second, so a nine-slice page
+ * takes about five seconds and there is no way to make it take less. What was
+ * fixable is that the popup said "Capturing full page…" for all five of them,
+ * which reads as a hang rather than as work in progress.
+ *
+ * Fire-and-forget: the popup is transient and is often already closed, and a
+ * message with no receiver rejects. That is not an error worth surfacing —
+ * the capture carries on either way.
+ */
+function reportProgress(done: number, total: number): void {
+  void ext.runtime.sendMessage({ type: "captureProgress", done, total }).catch(() => {});
+}
+
 export async function captureFullPage(tabId: number, windowId: number): Promise<CaptureOutcome> {
   await injectContentScript(tabId);
 
   const shotCore = await loadShotCore();
 
-  const prep = await sendToContent<PrepResponse>(tabId, { action: "prep" });
+  const { sticky } = await getCapturePrefs();
+  const prep = await sendToContent<PrepResponse>(tabId, { action: "prep", sticky });
   const metrics: PageMetrics = prep.metrics;
   const innerRect = prep.innerScrollRect;
 
@@ -93,7 +112,10 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
 
   const session: ShotCoreSession = new shotCore.CaptureSession(metrics.dpr);
 
+  let sliceIndex = 0;
   for (const target of targets) {
+    reportProgress(sliceIndex, targets.length);
+    sliceIndex += 1;
     const { actualScrollCss } = await sendToContent<ScrollToResponse>(tabId, {
       action: "scrollTo",
       targetCss: target,
@@ -118,6 +140,7 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
     session.pushSlice(actualScrollCss, pngBytes);
   }
 
+  reportProgress(targets.length, targets.length);
   await sendToContent(tabId, { action: "restore" });
 
   const options = JSON.stringify({

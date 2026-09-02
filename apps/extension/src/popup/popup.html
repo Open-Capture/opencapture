@@ -240,6 +240,24 @@
         </label>
       </fieldset>
 
+      <!-- One row, not a panel. The popup is the most space-constrained
+           surface in the extension and this is a set-once preference; the
+           explanation lives in the tooltip rather than costing four lines
+           every time the popup opens. -->
+      <label id="stickyRow" class="field">
+        <span class="field-label">Sticky bars</span>
+        <span class="field-control">
+          <select
+            id="prefSticky"
+            title="Headers, footers, chat docks and cookie bars stay on screen while the page scrolls underneath them. A scrolling capture would otherwise photograph them again in every slice."
+          >
+            <option value="once">Capture each once</option>
+            <option value="hide-overlays">Skip chat &amp; cookie bars</option>
+            <option value="hide-all">Skip all</option>
+          </select>
+        </span>
+      </label>
+
       <div id="resultCard" class="card">
         <div id="status" class="status">No capture yet — choose an action above.</div>
         <div id="resultActions">

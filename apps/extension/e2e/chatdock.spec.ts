@@ -12,6 +12,12 @@ test("chat docks that collapse or force visibility stay out of the capture", asy
   await page.setViewportSize({ width: 1200, height: 1000 });
   await page.goto(`${BASE_URL}/chat-dock-linkedin.html`);
 
+  // Docks are only dropped outright when asked for — the default shows each
+  // pinned element once. See chrome/capture-prefs.ts.
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({ capturePrefs: { sticky: "hide-overlays" } });
+  });
+
   const tabInfo = await serviceWorker.evaluate(async (url) => {
     const tabs = await chrome.tabs.query({});
     const tab = tabs.find((t) => t.url === url);
@@ -76,6 +82,12 @@ test("a dock inside a shadow root, outside the scrolling container, stays out to
   await page.setViewportSize({ width: 1200, height: 1000 });
   await page.goto(`${BASE_URL}/shadow-dock-inner-scroll.html`);
 
+  // Docks are only dropped outright when asked for — the default shows each
+  // pinned element once. See chrome/capture-prefs.ts.
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({ capturePrefs: { sticky: "hide-overlays" } });
+  });
+
   const tabInfo = await serviceWorker.evaluate(async (url) => {
     const tabs = await chrome.tabs.query({});
     const tab = tabs.find((t) => t.url === url);
@@ -112,6 +124,73 @@ test("a dock inside a shadow root, outside the scrolling container, stays out to
   // a shadow boundary, so the sweep never saw it; and its host is `absolute`
   // rather than fixed, which on an app shell is enough to stay put.
   expect(counts.magenta).toBe(0);
+
+  await page.close();
+});
+
+test("by default every sticky element is captured once — not dropped, not repeated", async ({
+  context,
+  serviceWorker,
+}) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1200, height: 1000 });
+  await page.goto(`${BASE_URL}/chat-dock-linkedin.html`);
+
+  // The shipped default, set explicitly so a pref left behind by another test
+  // cannot make this pass for the wrong reason.
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({ capturePrefs: { sticky: "once" } });
+  });
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    // @ts-expect-error test-only global
+    async (t) => globalThis.__test.captureFullPage(t.tabId, t.windowId),
+    tabInfo,
+  );
+
+  // Count the dock's rows rather than its pixels: "appears once" is a
+  // statement about how many bands of the image it occupies, and a row count
+  // survives the dock being clipped at the edge of a slice.
+  const rows = await page.evaluate(async (b64: string) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const cx = c.getContext("2d")!;
+    cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, c.width, c.height).data;
+    const hit: boolean[] = [];
+    for (let y = 0; y < c.height; y++) {
+      let found = false;
+      for (let x = 0; x < c.width && !found; x++) {
+        const i = (y * c.width + x) * 4;
+        // the hashed-class dock's blue
+        if (d[i] === 0 && d[i + 1] === 0 && d[i + 2] === 255) found = true;
+      }
+      hit.push(found);
+    }
+    let runs = 0;
+    for (let y = 0; y < hit.length; y++) if (hit[y] && !hit[y - 1]) runs++;
+    return { runs, rows: hit.filter(Boolean).length, height: c.height };
+  }, result.imagesBase64[0]);
+
+  console.log("DEFAULT MODE DOCK:", JSON.stringify(rows));
+  // Present...
+  expect(rows.rows).toBeGreaterThan(0);
+  // ...exactly once, in one contiguous band, rather than repeated down the page.
+  expect(rows.runs).toBe(1);
+  // And no taller than the dock itself (408px), so it is one copy, not several
+  // that happen to touch.
+  expect(rows.rows).toBeLessThanOrEqual(420);
 
   await page.close();
 });

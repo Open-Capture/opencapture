@@ -10,6 +10,11 @@
 
 export type PinnedKind = "top" | "bottom" | "always";
 
+/** Mirrors StickyMode in chrome/capture-prefs.ts; duplicated rather than
+ * imported because this module is bundled into the content script, which
+ * must stay free of anything pulling in the extension APIs. */
+export type StickyMode = "once" | "hide-overlays" | "hide-all";
+
 export interface Box {
   top: number;
   left: number;
@@ -41,32 +46,43 @@ const MIN_HEIGHT = 8;
  * `null` means "leave it alone" — it is either too small to matter, outside
  * the band being captured, or large enough to be the page's own content.
  */
-export function classifyPinned(opts: { box: Box; view: Box; signature: string }): PinnedKind | null {
-  const { box, view, signature } = opts;
+export function classifyPinned(opts: {
+  box: Box;
+  view: Box;
+  signature: string;
+  mode: StickyMode;
+}): PinnedKind | null {
+  const { box, view, signature, mode } = opts;
   const viewBottom = view.top + view.height;
   const viewRight = view.left + view.width;
 
-  // Named widgets are hidden on every slice, and skip the geometry checks:
-  // a consent modal is often paired with a full-screen scrim, and a scrim
-  // left visible would tint the entire stitched capture.
-  if (CONSENT_PATTERN.test(signature) || CHAT_PATTERN.test(signature)) return "always";
+  // An overlay skips the geometry checks below: a consent modal is often
+  // paired with a full-screen scrim, and its own box is regularly a collapsed
+  // anchor rather than the thing anyone can see.
+  const overlay = CONSENT_PATTERN.test(signature) || CHAT_PATTERN.test(signature);
 
-  if (box.width < MIN_WIDTH || box.height < MIN_HEIGHT) return null;
+  if (!overlay) {
+    if (box.width < MIN_WIDTH || box.height < MIN_HEIGHT) return null;
 
-  // Must actually intrude on the band being captured.
-  if (box.top + box.height <= view.top || box.top >= viewBottom) return null;
-  if (box.left + box.width <= view.left || box.left >= viewRight) return null;
+    // Must actually intrude on the band being captured.
+    if (box.top + box.height <= view.top || box.top >= viewBottom) return null;
+    if (box.left + box.width <= view.left || box.left >= viewRight) return null;
+  }
 
-  if (isFloatingWidget(box, view)) return "always";
+  const floating = overlay || isFloatingWidget(box, view);
+
+  if (mode === "hide-all") return "always";
+  if (mode === "hide-overlays" && floating) return "always";
 
   // A pinned element that is both tall and wide is page furniture holding
-  // real content — a sticky column, a nav rail. Hiding it would remove
-  // content rather than clean up chrome. Both are required: a chat dock is
-  // tall and *narrow*, and height alone once let LinkedIn's messaging
-  // overlay through.
+  // real content — a sticky column, a nav rail. Leaving it visible on every
+  // slice is right: it *is* the page, not chrome laid over it. Both are
+  // required, since a chat dock is tall and *narrow*; and an overlay never
+  // qualifies however big it is, because a full-screen scrim is exactly the
+  // shape this test would otherwise wave through.
   const tall = box.height > view.height * 0.5;
   const wide = box.width > view.width * 0.4;
-  if (tall && wide) return null;
+  if (!floating && tall && wide) return null;
 
   return box.top + box.height / 2 < view.top + view.height / 2 ? "top" : "bottom";
 }

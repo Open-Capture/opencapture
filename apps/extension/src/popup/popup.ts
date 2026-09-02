@@ -14,6 +14,7 @@ import {
   shouldShowRatingPrompt,
 } from "../chrome/rating-prompt";
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
+import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
 import { ext } from "../platform/webext";
 import type { PopupRequest, PopupResponse } from "../types";
 
@@ -59,6 +60,17 @@ async function loadSavePrefs(): Promise<void> {
   prefAskWhereEl.checked = prefs.askWhereToSave;
 }
 
+const prefStickyEl = $("prefSticky") as HTMLSelectElement;
+
+async function loadCapturePrefs(): Promise<void> {
+  const { sticky } = await getCapturePrefs();
+  prefStickyEl.value = sticky;
+}
+
+prefStickyEl.addEventListener("change", () => {
+  void setCapturePrefs({ sticky: prefStickyEl.value as StickyMode });
+});
+
 async function persistSavePrefs(): Promise<void> {
   await setSavePrefs({
     folder: "",
@@ -76,6 +88,7 @@ prefAskWhereEl.addEventListener("change", () => {
   void refreshCustomFolder();
 });
 loadSavePrefs();
+loadCapturePrefs();
 
 /** One line describing where the next capture lands, for the collapsed row. */
 function setSaveSummary(destination: string): void {
@@ -265,7 +278,22 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
   }
 }
 
+// A full-page capture is paced by the browser's screenshot quota, so it takes
+// seconds on a long page. Showing which slice it is on turns that wait into
+// something legible instead of a frozen message.
+let captureBusyMessage = "";
+ext.runtime.onMessage.addListener((message: unknown) => {
+  const m = message as { type?: string; done?: number; total?: number };
+  if (m.type !== "captureProgress" || typeof m.done !== "number" || typeof m.total !== "number") return;
+  if (!captureBusyMessage) return;
+  // The final call reports done === total; leave the message alone then, since
+  // the result is about to replace it anyway.
+  if (m.done >= m.total) return;
+  setStatusText(`${captureBusyMessage} ${m.done + 1} of ${m.total}`);
+});
+
 async function runCapture(request: PopupRequest, busyMessage: string): Promise<void> {
+  captureBusyMessage = busyMessage.replace(/…$/, "");
   setBusy(true, busyMessage);
   try {
     const response = await send(request);
@@ -273,6 +301,9 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<v
   } catch (err) {
     setStatusText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
   } finally {
+    // Stop listening for progress before the next click can start: a late
+    // message from a finished capture would otherwise overwrite its result.
+    captureBusyMessage = "";
     setBusy(false);
   }
 }

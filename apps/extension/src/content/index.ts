@@ -3,7 +3,7 @@
 // entry alone, so Rollup inlines it rather than splitting a shared chunk —
 // and scripts/verify-classic-scripts.mjs fails the build if that ever stops
 // being true, so the invariant is enforced rather than remembered.
-import { classifyPinned, type PinnedKind } from "./pinned";
+import { classifyPinned, type PinnedKind, type StickyMode } from "./pinned";
 
 // Content script: injected on demand per capture (see
 // background/orchestrator.ts — there is no static `content_scripts` entry
@@ -13,7 +13,7 @@ import { classifyPinned, type PinnedKind } from "./pinned";
 // docs/architecture.md.
 //
 // Message protocol (background -> content, request/response):
-//   {action:"prep"}                    -> {metrics, innerScrollRect, pinnedElementsHandled, lazyImagesForced, warnings}
+//   {action:"prep", sticky}            -> {metrics, innerScrollRect, pinnedElementsHandled, lazyImagesForced, warnings}
 //   {action:"scrollTo", targetCss}     -> {actualScrollCss}
 //   {action:"restore"}                 -> {ok:true}
 //   {action:"selectArea"}              -> {rect: {x,y,width,height} | null, dpr, target: {width,height} | null}
@@ -48,6 +48,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     value: string;
     priority: string;
   }
+  // How the user wants pinned elements treated, handed over with `prep` —
+  // the content script has no storage access of its own by design.
+  let stickyMode: StickyMode = "once";
+
   let pinnedElements: Array<{
     el: HTMLElement;
     kind: PinnedKind;
@@ -344,6 +348,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         box: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
         view: { top: view.top, left: view.left, width: view.width, height: view.height },
         signature: signature(el),
+        mode: stickyMode,
       });
       if (!kind) continue;
 
@@ -419,7 +424,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     pinnedElements = [];
   }
 
-  async function handlePrep() {
+  async function handlePrep(mode: StickyMode) {
+    stickyMode = mode;
     const lazyImagesForced = forceEagerLoading();
     await primingScrollPass();
 
@@ -969,10 +975,11 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   }
 
   ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
-    const request = message as { action?: string; targetCss?: number };
+    const request = message as { action?: string; targetCss?: number; sticky?: string };
 
     if (request.action === "prep") {
-      handlePrep().then(sendResponse);
+      const mode = request.sticky === "hide-overlays" || request.sticky === "hide-all" ? request.sticky : "once";
+      handlePrep(mode).then(sendResponse);
       return true;
     }
     if (request.action === "scrollTo" && typeof request.targetCss === "number") {

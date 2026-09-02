@@ -1406,18 +1406,53 @@ function closeWatermarkGate(): void {
 
 watermarkGateCancelBtn.addEventListener("click", closeWatermarkGate);
 
+/**
+ * A token-bearing request that survives an expired access token.
+ *
+ * Access tokens are short-lived — far shorter than a sitting with the editor
+ * open — and the SDK refreshes its own calls when one 401s. The two routes
+ * below are not SDK calls: it has no entitlement method, and the unlock goes
+ * through the gateway rather than the server. So they read an expired token
+ * straight out of the store, got a 401, and reported it as "no account" — a
+ * Supporter who unlocked months ago was asked to sign in again after half an
+ * hour of not touching the editor.
+ *
+ * `auth.me()` is the cheapest authenticated call the SDK has, and going
+ * through the SDK is what actually spends the refresh token. Afterwards the
+ * store holds a fresh access token to retry with. Retrying the POST is safe:
+ * a 401 is refused before anything is charged.
+ */
+async function authedFetch(url: string, init?: RequestInit): Promise<Response | null> {
+  const send = (token: string) =>
+    fetch(url, { ...init, headers: { ...(init?.headers ?? {}), Authorization: `Bearer ${token}` } });
+
+  const token = openappsStore.get()?.accessToken;
+  if (!token) return null;
+  const first = await send(token);
+  if (first.status !== 401) return first;
+
+  try {
+    await openappsClient.auth.me();
+  } catch {
+    // The refresh token is gone too — this really is a signed-out session,
+    // and the SDK has already cleared it.
+    return first;
+  }
+  const refreshed = openappsStore.get()?.accessToken;
+  if (!refreshed || refreshed === token) return first;
+  return send(refreshed);
+}
+
 /** Read-only: has this account already redeemed the Supporter unlock?
  * Calls openapps-server directly (no app key needed — it only ever
  * answers about the caller's own ledger), not the gateway, which is only
  * for the one route that actually spends credits. */
 async function isSupporterUnlocked(): Promise<boolean> {
-  const token = openappsStore.get()?.accessToken;
-  if (!token) return false;
   try {
-    const res = await fetch(`${OPENAPPS_BASE_URL}/v1/credits/entitlement?ref_id=${encodeURIComponent(SUPPORTER_REF_ID)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!res.ok) return false;
+    const res = await authedFetch(
+      `${OPENAPPS_BASE_URL}/v1/credits/entitlement?ref_id=${encodeURIComponent(SUPPORTER_REF_ID)}`,
+    );
+    if (!res || !res.ok) return false;
     const body = (await res.json()) as { unlocked?: boolean };
     return body.unlocked === true;
   } catch {
@@ -1434,13 +1469,9 @@ type UnlockResult =
  * openapps-gateway, never openapps-server directly — the gateway is what
  * holds the app key that turns a user token into an actual charge. */
 async function unlockSupporter(): Promise<UnlockResult> {
-  const token = openappsStore.get()?.accessToken;
-  if (!token) return { ok: false, kind: "other", message: "not signed in" };
   try {
-    const res = await fetch(`${OPENAPPS_GATEWAY_URL}/opencapture/supporter/unlock`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    const res = await authedFetch(`${OPENAPPS_GATEWAY_URL}/opencapture/supporter/unlock`, { method: "POST" });
+    if (!res) return { ok: false, kind: "other", message: "not signed in" };
     const body = (await res.json()) as { new_balance?: number; have?: number; need?: number; error?: string };
     if (res.ok && typeof body.new_balance === "number") return { ok: true, newBalance: body.new_balance };
     if (res.status === 402 && typeof body.have === "number" && typeof body.need === "number") {

@@ -68,7 +68,10 @@
            and the classifier keys on geometry rather than which of the two
            it is. The real sticky measurements are covered in pinned.test.ts. */
         position: fixed;
-        right: 40px;
+        /* Its own column. The other docks here are pinned to the corners and
+           paint above this one, and three overlapping panels made "is it in
+           the capture?" unanswerable for whichever lost the z-order. */
+        left: 300px;
         bottom: 51px;
         width: 304px;
         height: 408px;

@@ -646,6 +646,12 @@ test("a chat dock is kept out of the capture, without hiding a wide sticky area"
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto(`${BASE_URL}/chat-overlay.html`);
 
+  // Dropping a dock outright is a choice the user makes, not the default —
+  // by default every pinned element is captured once. See chrome/capture-prefs.ts.
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({ capturePrefs: { sticky: "hide-overlays" } });
+  });
+
   const tabInfo = await serviceWorker.evaluate(async (url) => {
     const tabs = await chrome.tabs.query({});
     const tab = tabs.find((t) => t.url === url);
