@@ -31,7 +31,14 @@ name: Publish to Chrome Web Store
 # the consent screen so releases don't start failing a week later.
 on:
   push:
-    tags: ["v*"]
+    tags:
+      # Release tags publish. Pre-release tags — anything with a hyphen, like
+      # v1.0.0-rc.1 — deliberately do not: they exist so a build can be handed
+      # round for checking, and a store submission cannot be recalled once it
+      # enters review. The GitHub Release workflow still builds artifacts for
+      # them, which is the whole point of cutting one.
+      - "v*"
+      - "!v*-*"
   workflow_dispatch:
 
 env:

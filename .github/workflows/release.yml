@@ -74,6 +74,11 @@ jobs:
           # so a manual run still lands somewhere sensible.
           tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('v{0}', env.VERSION) }}
           name: OpenCapture ${{ env.VERSION }}
+          # A hyphenated tag (v1.0.0-rc.1) is a build to hand round for
+          # checking, not the version anyone should install by accident —
+          # GitHub keeps a pre-release out of the "Latest" slot and labels it
+          # as one on the releases page.
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true
           body: |
             ### Try it before the stores catch up
