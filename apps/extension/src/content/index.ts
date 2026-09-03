@@ -800,23 +800,20 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
    * "photographed" refer to the same instant.
    */
   function handleReassert() {
-    // Re-applies; does not re-sweep.
+    // Re-sweeps, and that is deliberate even though it is the expensive part.
     //
-    // This used to re-run the whole classification, which on a real page means
-    // walking a couple of thousand elements and measuring a good few of them,
-    // once more per slice — the sweep is the expensive part of a capture and
-    // this doubled it. It was doing that to catch an element the page had
-    // rebuilt since it was hidden, which the stylesheet rule now handles by
-    // itself: a rule matches whatever is there at paint time, rebuilt or not.
-    // So all this has to do is put the inline styles back and make sure the
-    // rule is still present.
-    for (const p of pinnedElements) {
-      if (!p.hidden) continue;
-      for (const t of p.targets) {
-        if (!isHiddenByUs(t.el)) hideElement(t.el);
-      }
-    }
-    writeHideRules();
+    // Re-applying to the elements already known was tried, on the grounds that
+    // the stylesheet rule catches anything the page rebuilds. It does not
+    // catch everything: a rule needs a selector, and an element with no id and
+    // no class has none — and a page whose class names are hashed can rebuild
+    // an element under different ones, so a rule written a moment ago matches
+    // nothing. Both leave a rebuilt element visible for its screenshot, which
+    // is the whole failure this exists to prevent.
+    //
+    // The sweep's real cost was never the walk; it was the hit-testing done
+    // while measuring, which is now budgeted (see HIT_TEST_BUDGET_PER_SWEEP).
+    reclassifyPinnedElements();
+    applyPinnedVisibility(sliceFlags.first, sliceFlags.last);
     return { ok: true as const, pinned: pinnedElements.length };
   }
 

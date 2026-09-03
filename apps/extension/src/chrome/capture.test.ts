@@ -72,9 +72,21 @@ describe("captureVisibleTabPaced", () => {
   it("does not retry a failure that is not about the rate", async () => {
     limit = undefined;
     tabs.captureVisibleTab.mockImplementation(async () => {
+      throw new Error("Some other failure");
+    });
+    await expect(captureVisibleTabPaced(1)).rejects.toThrow(/Some other failure/);
+    expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1);
+  });
+
+  it("explains a lost permission instead of passing the raw message on", async () => {
+    limit = undefined;
+    tabs.captureVisibleTab.mockImplementation(async () => {
       throw new Error("Missing host permission for the tab");
     });
-    await expect(captureVisibleTabPaced(1)).rejects.toThrow(/Missing host permission/);
+    // activeTab is revoked when the page navigates, so this is a thing that
+    // just happened rather than a broken install — and retrying will not fix
+    // it, so it is not retried.
+    await expect(captureVisibleTabPaced(1)).rejects.toThrow(/reloads or navigates/);
     expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1);
   });
 });

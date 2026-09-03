@@ -25,6 +25,21 @@ function isQuotaError(error: unknown): boolean {
   return /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND|quota/i.test(message);
 }
 
+/**
+ * The browser saying it has no access to this tab.
+ *
+ * `activeTab` is granted for the tab that was showing when the extension was
+ * invoked, and it is revoked the moment that tab navigates — a reload, a
+ * link, a redirect. A capture runs for seconds, so a page that reloads part
+ * way through takes the permission with it and the next screenshot is
+ * refused. The raw message says "Missing host permission for the tab", which
+ * reads like a broken install rather than something that just happened.
+ */
+function isPermissionError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /missing host permission|cannot access|not allowed to access/i.test(message);
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -64,6 +79,11 @@ export async function captureVisibleTabPaced(
       lastCallAtMs = Date.now();
       return dataUrlToBytes(dataUrl);
     } catch (error) {
+      if (isPermissionError(error)) {
+        throw new Error(
+          "OpenCapture lost access to this tab, which happens when the page reloads or navigates while a capture is running. Open OpenCapture again and retry.",
+        );
+      }
       if (attempt >= MAX_ATTEMPTS || !isQuotaError(error)) throw error;
       // Count the refusal as a call: whatever the browser's clock thinks, it
       // has just told us we are early.
