@@ -41,7 +41,12 @@ export interface PrepResponse {
   // to capture its full scrolled content than just what the outer page
   // scroll shows. CSS px, viewport-relative — orchestrator.ts crops every
   // slice to this rect instead of using the whole captured viewport.
-  innerScrollRect: SelectedRect | null;
+  /**
+   * The scrolling element's box, plus how much of the window sits above it —
+   * a global header, typically, which is not part of what scrolls and would
+   * otherwise be cropped out of the capture entirely.
+   */
+  innerScrollRect: (SelectedRect & { headerCss: number }) | null;
 }
 
 export interface ScrollToResponse {

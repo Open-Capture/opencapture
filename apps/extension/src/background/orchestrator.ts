@@ -152,6 +152,9 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
   // than from what the page reports (see measuredScale).
   let session: ShotCoreSession | null = null;
   let scale = metrics.dpr;
+  // Cropping happens before the first slice has been measured, so it uses the
+  // reported ratio there and the measured one from then on.
+  let scaleForCrop = metrics.dpr;
 
   let sliceIndex = 0;
   for (const target of targets) {
@@ -175,11 +178,22 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
     // same cropAndEncode() a selected-area capture uses, so what gets
     // stitched is exactly analogous to window-scroll capture: a
     // fixed-size frame whose content changed by a known scroll delta.
+    // The output reads as "the header, then the scroller's content", so a
+    // slice belongs at the header's height plus how far the scroller has
+    // scrolled. The first slice is the exception: it carries the header
+    // itself, is cropped from the top of the window rather than from the
+    // scroller, and sits at row zero.
+    let placeAtCss = actualScrollCss;
     if (innerRect) {
-      const xDev = Math.round(innerRect.x * metrics.dpr);
-      const yDev = Math.round(innerRect.y * metrics.dpr);
-      const widthDev = Math.round(innerRect.width * metrics.dpr);
-      const heightDev = Math.round(innerRect.height * metrics.dpr);
+      const first = sliceIndex === 1;
+      const cropTopCss = first ? 0 : innerRect.y;
+      const cropHeightCss = first ? innerRect.headerCss + innerRect.height : innerRect.height;
+      placeAtCss = first ? 0 : actualScrollCss + innerRect.headerCss;
+
+      const xDev = Math.round(innerRect.x * scaleForCrop);
+      const yDev = Math.round(cropTopCss * scaleForCrop);
+      const widthDev = Math.round(innerRect.width * scaleForCrop);
+      const heightDev = Math.round(cropHeightCss * scaleForCrop);
       pngBytes = shotCore.cropAndEncode(pngBytes, xDev, yDev, widthDev, heightDev, metrics.dpr) as Uint8Array;
     }
     if (!session) {
@@ -187,9 +201,10 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
       // rect, so the width to compare against is that rect's, not the window's.
       const widthCss = innerRect ? innerRect.width : metrics.viewportWidthCss;
       scale = measuredScale(pngBytes, widthCss, metrics.dpr);
+      scaleForCrop = scale;
       session = new shotCore.CaptureSession(scale);
     }
-    session.pushSlice(actualScrollCss, pngBytes);
+    session.pushSlice(placeAtCss, pngBytes);
   }
 
   if (!session) throw new Error("capture produced no slices");

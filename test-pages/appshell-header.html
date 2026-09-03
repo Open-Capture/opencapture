@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>appshell-header</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; }
+      /* A global header above the scrolling element — LinkedIn's shape. It is
+         not inside what scrolls, so a capture cropped to the scroller misses
+         it entirely. */
+      #topbar {
+        height: 52px;
+        background: rgb(255, 255, 0);
+        color: #000;
+        font: 14px monospace;
+        padding-top: 4px;
+        box-sizing: border-box;
+      }
+      #shell { height: calc(100vh - 52px); overflow-y: auto; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      /* A dock, so both ends are covered by one fixture. */
+      #dock {
+        position: fixed;
+        right: 24px;
+        top: 400px;
+        width: 240px;
+        height: 380px;
+        background: rgb(255, 0, 255);
+        z-index: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="topbar">global header</div>
+    <div id="shell"><div id="bands"></div></div>
+    <div id="dock" class="msg-overlay-list-bubble">Messaging</div>
+    <script>
+      const c = document.getElementById("bands");
+      for (let i = 0; i < 26; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        c.appendChild(d);
+      }
+    </script>
+  </body>
+</html>

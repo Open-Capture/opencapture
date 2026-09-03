@@ -408,7 +408,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   function captureRect(): CaptureRect {
     if (innerScroller) {
       const r = innerScroller.getBoundingClientRect();
-      return { top: r.top, left: r.left, width: r.width, height: r.height };
+      // Matches the crop above: from the top of the window down to the
+      // scroller's bottom, so anything above the scroller is judged rather
+      // than silently outside the band.
+      return { top: 0, left: r.left, width: r.width, height: r.bottom };
     }
     return { top: 0, left: 0, width: window.innerWidth, height: window.innerHeight };
   }
@@ -687,12 +690,26 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     // like chatgpt.com: the window never scrolls there, but the bars pinned
     // over the scrolling container get re-photographed into every slice.
     let metrics: { viewportWidthCss: number; viewportHeightCss: number; totalHeightCss: number; dpr: number };
-    let innerScrollRect: { x: number; y: number; width: number; height: number } | null = null;
+    let innerScrollRect: { x: number; y: number; width: number; height: number; headerCss: number } | null = null;
     const dpr = window.devicePixelRatio || 1;
     if (innerScroller) {
       totalHeightCss = innerScroller.scrollHeight;
       const rect = innerScroller.getBoundingClientRect();
-      innerScrollRect = { x: rect.left, y: rect.top, width: rect.width, height: rect.height };
+      // The scroller's own box, plus how much sits above it.
+      //
+      // Whatever is above the scrolling element — a site's global header, most
+      // often — is not part of it, and cropping every slice to the scroller
+      // removed it from the capture entirely. It is wanted, once, at the top,
+      // so the first slice is cropped from the top of the window instead and
+      // the rest from the scroller. See captureFullPage for the arithmetic
+      // that keeps the two aligned.
+      innerScrollRect = {
+        x: rect.left,
+        y: rect.top,
+        width: rect.width,
+        height: rect.height,
+        headerCss: rect.top,
+      };
       metrics = { viewportWidthCss: rect.width, viewportHeightCss: innerScroller.clientHeight, totalHeightCss, dpr };
       classifyPinnedElements();
       applyPinnedVisibility(true, totalHeightCss <= innerScroller.clientHeight);

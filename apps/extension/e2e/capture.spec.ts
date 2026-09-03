@@ -139,9 +139,12 @@ test("full-page capture on a page with an inner scroller captures its full conte
   // the 600px-tall viewport on its own — a naive window-scroll capture
   // would need exactly one slice and would only ever show whatever
   // #scrollBox displayed at scrollTop 0 (its first ~500px of content).
-  // 2000px of output height only happens if the inner container's own
-  // 20 bands x 100px were actually driven and stitched, not the window.
-  expect(result.report.output_height_px).toBe(2000);
+  // 2000px of inner content only happens if the inner container's own
+  // 20 bands x 100px were actually driven and stitched, not the window —
+  // plus the 80px outer header above the scroller, which is kept once, at
+  // the top. It is not part of what scrolls, and cropping every slice to
+  // the scroller used to drop it from the capture entirely.
+  expect(result.report.output_height_px).toBe(2080);
   expect(result.report.output_width_px).toBe(800);
   expect(result.report.warnings).toContain("Captured an inner scrolling area on this page instead of the full window.");
 
@@ -150,13 +153,14 @@ test("full-page capture on a page with an inner scroller captures its full conte
 
   const info = JSON.parse(shotQa(["png-info", pngPath]).stdout);
   expect(info.width).toBe(800);
-  expect(info.height).toBe(2000);
+  expect(info.height).toBe(2080);
 
   // Same golden per-band assertion ruler-3000's test uses — every one of
   // the 20 bands generated *inside* #scrollBox, at its exact row and
   // color, proves the whole inner container was captured in order with
   // no duplicated or skipped slice.
-  const bandSample = shotQa(["band-sample", pngPath, "--bands", "20", "--band-height", "100", "--x", "10", "--y-offset", "50"]);
+  // Offset past the 80px header, which now occupies the first rows.
+  const bandSample = shotQa(["band-sample", pngPath, "--bands", "20", "--band-height", "100", "--x", "10", "--y-offset", "130"]);
   expect(bandSample.code).toBe(0);
   const bands = JSON.parse(bandSample.stdout) as Array<{ band: number; r: number; g: number; b: number }>;
   expect(bands.length).toBe(20);
