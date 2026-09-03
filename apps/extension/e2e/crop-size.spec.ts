@@ -29,7 +29,12 @@ test("crop reads out its size and delivers an exact one, like selected-area does
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const canvasSize = () =>

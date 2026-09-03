@@ -378,7 +378,12 @@ test("redo restores an undone edit, and the counters track both stacks", async (
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const readPixel = (x: number, y: number) =>
@@ -512,7 +517,12 @@ test("zoom changes the rendered size without breaking draw coordinates", async (
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const rendered = () =>
@@ -722,7 +732,12 @@ test("browser frame wraps the capture, carries the URL, and undoes as one step",
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const size = () =>
@@ -1035,7 +1050,12 @@ test("annotation editor: rectangle draws, blur pixelates, undo reverts", async (
     // canvas.width > 0 alone is satisfied by the browser's default
     // un-initialized canvas size (300x150) even before loadImage() runs --
     // wait for dimensions that actually differ from that default pair.
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   function readPixel(x: number, y: number) {
@@ -1229,7 +1249,12 @@ test("drag tools (arrow/rect/blur) don't touch canvas pixel data mid-drag, only 
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   await editorPage.evaluate(() => {
@@ -1318,7 +1343,12 @@ test("crop tool auto-scrolls the canvas wrapper while dragging near its edge", a
     // canvas.width > 0 alone is satisfied by the browser's default
     // un-initialized canvas size (300x150) even before loadImage() runs --
     // wait for dimensions that actually differ from that default pair.
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   // ruler-3000 stitched at 800x600 viewport is 800x3000 — far taller than
@@ -1394,7 +1424,12 @@ test("editor canvas scales to fit the window and maps clicks correctly when scal
     // canvas.width > 0 alone is satisfied by the browser's default
     // un-initialized canvas size (300x150) even before loadImage() runs --
     // wait for dimensions that actually differ from that default pair.
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const bufferWidth = await editorPage.evaluate(() => (document.getElementById("canvas") as HTMLCanvasElement).width);
@@ -1485,7 +1520,12 @@ test("previewCanvas's backing buffer tracks its own rendered size, not the full 
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const sizes = await editorPage.evaluate(() => {
@@ -1552,7 +1592,12 @@ test("text tool creates an editable text box at the clicked position, stays adju
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const canvasBox = await editorPage.locator("#canvas").boundingBox();
@@ -1649,7 +1694,12 @@ test("double-clicking a pending text shape re-opens it for editing, pre-filled w
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const canvasBox = await editorPage.locator("#canvas").boundingBox();
@@ -1701,7 +1751,12 @@ test("a pending shape can be moved and resized before it's committed, from the t
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   function readPixel(x: number, y: number) {
@@ -1815,7 +1870,12 @@ test("capturing opens the editor instead of downloading immediately", async ({ c
     // canvas.width > 0 alone is satisfied by the browser's default
     // un-initialized canvas size (300x150) even before loadImage() runs --
     // wait for dimensions that actually differ from that default pair.
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const canvasSize = await editorPage.evaluate(() => {
@@ -1928,7 +1988,12 @@ test("history: a real capture appears in history.html, opens back in the editor,
   await reopenedEditorPage.waitForLoadState();
   await reopenedEditorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
   const canvasSize = await reopenedEditorPage.evaluate(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
@@ -1989,7 +2054,12 @@ test("save-location preferences (filename) apply to downloads", async ({ context
     // canvas.width > 0 alone is satisfied by the browser's default
     // un-initialized canvas size (300x150) even before loadImage() runs --
     // wait for dimensions that actually differ from that default pair.
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   // Playwright's persistent context intercepts real downloads at the CDP
@@ -2079,7 +2149,12 @@ test("\"Ask where to save\" reaches downloads.download as saveAs", async ({ cont
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   // Same reason as the filename test: Playwright redirects real downloads, so
@@ -2426,7 +2501,12 @@ test("watermark tool: tiled pattern respects location/orientation, remembers the
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   const canvasSize = await editorPage.evaluate(() => {
@@ -2569,7 +2649,12 @@ test("watermark tool: signed-out click shows the Supporter sign-in gate, not the
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   // No session seeded — a genuinely fresh, signed-out profile.
@@ -2625,7 +2710,12 @@ test("watermark tool: signed in but not yet Supporter shows the 1000-credit unlo
   await editorPage.waitForLoadState();
   await editorPage.waitForFunction(() => {
     const c = document.getElementById("canvas") as HTMLCanvasElement;
-    return c.width > 0 && c.height > 0 && (c.width !== 300 || c.height !== 150);
+    const stack = document.getElementById("canvasStack");
+    // Size alone is no longer readiness: the canvas is given its real
+    // dimensions before the pixels arrive, so that a full-size placeholder can
+    // be shown instead of a small white box. The loading class is what says
+    // the image is actually drawn.
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
   });
 
   await editorPage.click("#toolWatermark");

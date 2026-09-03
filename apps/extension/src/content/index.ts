@@ -57,6 +57,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     kind: PinnedKind;
     originalVisibility: PinnedStyle;
     originalOpacity: PinnedStyle;
+    /** What the current slice wants. The guard below enforces it. */
+    hidden: boolean;
   }> = [];
 
   function inlineStyle(el: HTMLElement, prop: string): PinnedStyle {
@@ -434,6 +436,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         kind,
         originalVisibility: inlineStyle(el, "visibility"),
         originalOpacity: inlineStyle(el, "opacity"),
+        hidden: false,
       });
       el.setAttribute(PINNED_ATTR, kind);
     }
@@ -466,10 +469,63 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     document.getElementById(STYLE_ID)?.remove();
   }
 
+  /**
+   * Keep hidden elements hidden until the screenshot is actually taken.
+   *
+   * Hiding is an inline style, and the screenshot does not happen the moment
+   * it is applied — the browser's screenshot quota means up to half a second
+   * passes first. A framework that re-renders in that window puts the style
+   * attribute back the way it wants it, and the element reappears in time to
+   * be photographed. That is the "it disappears and comes back" behaviour: the
+   * hiding works and then is undone before it matters.
+   *
+   * So the hiding is re-applied the instant anything touches the attribute.
+   * Cheap: it only watches style and class, and only acts on the handful of
+   * elements already known to be pinned.
+   */
+  let pinnedGuard: MutationObserver | null = null;
+
+  function isHiddenByUs(el: HTMLElement): boolean {
+    return (
+      el.style.getPropertyValue("visibility") === "hidden" &&
+      el.style.getPropertyPriority("visibility") === "important"
+    );
+  }
+
+  function hideElement(el: HTMLElement): void {
+    el.style.setProperty("visibility", "hidden", "important");
+    el.style.setProperty("opacity", "0", "important");
+  }
+
+  function startPinnedGuard(): void {
+    stopPinnedGuard();
+    if (typeof MutationObserver !== "function") return;
+    pinnedGuard = new MutationObserver((records) => {
+      for (const record of records) {
+        const target = record.target;
+        if (!(target instanceof HTMLElement)) continue;
+        const pinned = pinnedElements.find((p) => p.el === target);
+        if (!pinned || !pinned.hidden) continue;
+        if (!isHiddenByUs(target)) hideElement(target);
+      }
+    });
+    pinnedGuard.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["style", "class"],
+      subtree: true,
+    });
+  }
+
+  function stopPinnedGuard(): void {
+    pinnedGuard?.disconnect();
+    pinnedGuard = null;
+  }
+
   function applyPinnedVisibility(isFirstSlice: boolean, isLastSlice: boolean): void {
     for (const p of pinnedElements) {
       const shouldShow =
         p.kind === "always" ? false : (p.kind === "top" && isFirstSlice) || (p.kind === "bottom" && isLastSlice);
+      p.hidden = !shouldShow;
       if (shouldShow) {
         restoreStyle(p.el, "visibility", p.originalVisibility);
         restoreStyle(p.el, "opacity", p.originalOpacity);
@@ -487,12 +543,15 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       //
       // Neither property affects layout, so nothing reflows and the slice
       // still lines up with the ones around it.
-      p.el.style.setProperty("visibility", "hidden", "important");
-      p.el.style.setProperty("opacity", "0", "important");
+      hideElement(p.el);
     }
+    // Only worth watching once something is actually meant to be hidden.
+    if (pinnedElements.some((p) => p.hidden)) startPinnedGuard();
+    else stopPinnedGuard();
   }
 
   function restorePinnedElements(): void {
+    stopPinnedGuard();
     for (const p of pinnedElements) {
       restoreStyle(p.el, "visibility", p.originalVisibility);
       restoreStyle(p.el, "opacity", p.originalOpacity);

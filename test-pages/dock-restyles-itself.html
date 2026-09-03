@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>dock-restyles-itself</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      #dock {
+        position: fixed;
+        right: 24px;
+        top: 60px;
+        width: 288px;
+        height: 500px;
+        background: rgb(255, 0, 255);
+        color: #fff;
+        font: 14px monospace;
+        z-index: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bands"></div>
+    <div id="dock">Messaging</div>
+    <script>
+      const c = document.getElementById("bands");
+      for (let i = 0; i < 28; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        c.appendChild(d);
+      }
+      // A framework that re-renders and writes the element's style back the way
+      // it wants it — which is what puts a hidden dock back on screen in time
+      // to be photographed. Frequent enough to land inside the window between
+      // hiding and the screenshot.
+      const dock = document.getElementById("dock");
+      setInterval(() => {
+        dock.style.visibility = "visible";
+        dock.style.opacity = "1";
+      }, 50);
+    </script>
+  </body>
+</html>
