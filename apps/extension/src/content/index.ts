@@ -368,13 +368,30 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     return paintedRectByHitTest(el) ?? { top, left, bottom, right, width: right - left, height: bottom - top };
   }
 
-  /** How coarsely to probe the viewport. Fine enough for a panel, cheap enough
-   * to be an exceptional path. */
-  const HIT_TEST_STEP_PX = 40;
+  /**
+   * How coarsely to probe the viewport, and how many elements may ask.
+   *
+   * Every probe is an `elementFromPoint`, which is a hit test against the
+   * whole page — cheap on a simple document, not on a real one. A 40px grid
+   * over a large window is several hundred of them *per element*, and a page
+   * with a dozen tiny pinned elements pays that a dozen times over, on every
+   * slice. Measured at ~230ms a capture on a 2,400-element page, and worse on
+   * anything heavier.
+   *
+   * A panel worth finding this way is large, so a coarse grid finds it just as
+   * well; and the case this exists for — a widget whose contents cannot be
+   * read at all — is rare enough that a handful of attempts per sweep is
+   * plenty.
+   */
+  const HIT_TEST_STEP_PX = 100;
+  const HIT_TEST_BUDGET_PER_SWEEP = 3;
+  let hitTestsThisSweep = 0;
 
   function paintedRectByHitTest(
     el: HTMLElement,
   ): { top: number; left: number; bottom: number; right: number; width: number; height: number } | null {
+    if (hitTestsThisSweep >= HIT_TEST_BUDGET_PER_SWEEP) return null;
+    hitTestsThisSweep += 1;
     let top = Infinity;
     let left = Infinity;
     let bottom = -Infinity;
@@ -435,6 +452,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
    */
   function classifyPinnedElements(): void {
     pinnedElements = [];
+    hitTestsThisSweep = 0;
 
     const view = captureRect();
     const viewBottom = view.top + view.height;
@@ -782,8 +800,23 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
    * "photographed" refer to the same instant.
    */
   function handleReassert() {
-    reclassifyPinnedElements();
-    applyPinnedVisibility(sliceFlags.first, sliceFlags.last);
+    // Re-applies; does not re-sweep.
+    //
+    // This used to re-run the whole classification, which on a real page means
+    // walking a couple of thousand elements and measuring a good few of them,
+    // once more per slice — the sweep is the expensive part of a capture and
+    // this doubled it. It was doing that to catch an element the page had
+    // rebuilt since it was hidden, which the stylesheet rule now handles by
+    // itself: a rule matches whatever is there at paint time, rebuilt or not.
+    // So all this has to do is put the inline styles back and make sure the
+    // rule is still present.
+    for (const p of pinnedElements) {
+      if (!p.hidden) continue;
+      for (const t of p.targets) {
+        if (!isHiddenByUs(t.el)) hideElement(t.el);
+      }
+    }
+    writeHideRules();
     return { ok: true as const, pinned: pinnedElements.length };
   }
 

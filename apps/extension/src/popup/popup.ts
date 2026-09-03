@@ -328,9 +328,22 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<v
 
 $("captureFullPage").addEventListener("click", () => runCapture({ action: "captureFullPage" }, "Capturing full page…"));
 $("captureVisible").addEventListener("click", () => runCapture({ action: "captureVisible" }, "Capturing visible area…"));
-$("captureSelectedArea").addEventListener("click", () =>
-  runCapture({ action: "captureSelectedArea" }, "Drag to select an area on the page…"),
-);
+$("captureSelectedArea").addEventListener("click", () => {
+  // Sent, then this popup closes itself, rather than waiting to be dismissed.
+  //
+  // Selecting an area is the one action carried out on the page rather than
+  // in here, and a popup is dismissed by the first click anywhere outside it.
+  // That click was therefore spent closing this window instead of starting
+  // the selection: the crosshair only appeared on the click *after* the one
+  // the user meant as their first. Closing up front gives that click back.
+  //
+  // Nothing is lost by not awaiting the reply. The whole flow runs in the
+  // background, independent of this popup's lifetime — it opens the editor
+  // and records what happened for the next time the popup is opened (see
+  // last-capture-ui.ts), neither of which needs anyone listening here.
+  void send({ action: "captureSelectedArea" }).catch(() => {});
+  window.close();
+});
 exportPdfBtn.addEventListener("click", () => runCapture({ action: "exportPdf" }, "Exporting PDF…"));
 openEditorBtn.addEventListener("click", () => runCapture({ action: "openEditor" }, "Opening editor…"));
 
