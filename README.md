@@ -53,37 +53,20 @@ copy, or annotate it.
 
 ## How it compares
 
-Researched against public pricing pages, privacy policies, and (where
-relevant) documented incidents, as of mid-2026. Pricing and policies
-change — verify directly with a vendor before relying on this table for a
-purchase decision. `–` means not independently confirmed one way or the
-other.
+|  | **OpenCapture** | GoFullPage | FireShot | Awesome Screenshot |
+|---|---|---|---|---|
+| Free tier covers | Everything but watermarking | Capture and export only<br>editing needs Premium | Capture and export only<br>editing needs a Pro licence | 100 captures<br>basic annotation |
+| Blur private details | Free | Paid | Paid | Free |
+| Watermarking | Paid | No | Paid | Beta |
+| Billing | One-time | Subscription | Annual or one-time | Subscription |
+| Price | US$5 once, never expires | From $1/month<br>billed annually | $39.95/year<br>or $99.95 once | From $6/month<br>Basic plan |
+| Firefox | Yes | No | Yes | Yes |
+| Open source | Yes<br>AGPL-3.0-or-later | MIT up to 2018<br>private branch since | No | No |
 
-| Tool | Price | Processed locally, no cloud upload | Account required | Annotation tools | PDF export | Open source |
-|---|---|---|---|---|---|---|
-| **OpenCapture** | Free (watermark: 1000 credits, one-time) | ✅ Always | ❌ No for everything except watermark | Crop, arrow, rect, text, blur, tiled watermark¹ | ✅ | ✅ AGPL-3.0 |
-| [GoFullPage](https://gofullpage.com) | Free | ✅ | ❌ No | ❌ None | ❌ | Partial — legacy core is MIT; the shipped build now runs from a private branch |
-| [FireShot](https://getfireshot.com) | Free (Lite) / $60 lifetime or $7.95/mo (Pro) | – Unconfirmed | ❌ No (Lite) | Limited free, full set in Pro | Pro only | ❌ |
-| [Lightshot](https://app.prntscr.com) | Free | ❌ — uploads to a public server; short guessable URLs have exposed other users' screenshots | ❌ No (optional gallery account) | Basic (arrow, text, box) | ❌ | ❌ |
-| [Awesome Screenshot](https://www.awesomescreenshot.com) | Free tier / from ~$6/user/mo | ❌ Cloud-centric sync | Effectively yes, for cloud/team features | Arrow, text, shapes, blur, crop | – | ❌ |
-| [Nimbus Screenshot](https://nimbusweb.me/screenshot.php) | Free tier / paid subscription | ⚠️ Optional cloud save, not local-only by design | Optional | Yes | – | ❌ |
-| [Snagit](https://www.techsmith.com/screen-capture.html) (TechSmith) | $39/yr (subscription-only since 2025) | ✅ Local-first desktop app, optional cloud library | Yes (license) | Full suite | – (image-focused) | ❌ |
-| [CloudApp / Zight](https://zight.com) | Free tier / ~$8–17/mo | ❌ Cloud-native by design | Yes | Basic | – | ❌ |
-| [Loom](https://loom.com) | Free tier (capped) / paid | ❌ Cloud-native by design | Yes | Minimal (screenshots are secondary to video) | ❌ | ❌ |
+Every figure is checked against that product's own site or store listing.
+Last reviewed August 2026 — [tell us if something is out of date](https://github.com/Open-Capture/OpenCapture/issues).
 
-¹ The only paid part of OpenCapture — a one-time, 1000-credit Supporter
-unlock, not a subscription or a per-export charge. Crop/arrow/rect/text/
-blur and PNG/PDF export are free with no account.
-
-The pattern that stands out: **local-only and open source rarely coexist**
-in this space. GoFullPage matches OpenCapture on "local, no account" but
-has no annotation tools at all and its current build isn't verifiably
-open; Lightshot's "no account needed" comes at the cost of a real,
-documented privacy failure in its cloud upload. OpenCapture is, as far as
-this research could confirm, the only option that's simultaneously fully
-local, open source under a copyleft license, and free for every feature
-except one optional, one-time watermark unlock — with no account needed
-for anything else.
+[Full comparison, including where each one is the better pick →](https://opencapture.app/alternatives.html?utm_source=github&utm_medium=readme&utm_campaign=comparison)
 
 ## Install
 
@@ -94,6 +77,12 @@ for anything else.
 | Firefox | [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/opencapture-full-page-capture/) |
 
 Also on [opencapture.app](https://opencapture.app).
+
+## Star us
+
+If OpenCapture saved you time, a star helps other people find it.
+
+[![Star OpenCapture](docs/star-us.gif)](https://github.com/Open-Capture/OpenCapture)
 
 ## Status
 
