@@ -62,15 +62,28 @@ export function classifyPinned(opts: {
    * it: sites ship hashed class names now.
    */
   inFlow: boolean;
+  /**
+   * An empty container that exists for an overlay to be rendered into later —
+   * a shadow host, floating over the page, with no box of its own.
+   *
+   * These have to be judged on what they are for rather than on what they
+   * currently show. A page keeps several of them standing by, all identical
+   * and all measuring nothing, and renders a panel into one of them when it
+   * feels like it. Measured at the moment of a sweep they look like empty
+   * slivers and get dropped; a moment later one of them is a messaging dock,
+   * and the screenshot has it. Hiding whichever one happened to be occupied
+   * is no good either — the next render can pick a different one.
+   */
+  isOverlayHost: boolean;
 }): PinnedKind | null {
-  const { box, view, signature, mode, inFlow } = opts;
+  const { box, view, signature, mode, inFlow, isOverlayHost } = opts;
   const viewBottom = view.top + view.height;
   const viewRight = view.left + view.width;
 
   // An overlay skips the geometry checks below: a consent modal is often
   // paired with a full-screen scrim, and its own box is regularly a collapsed
   // anchor rather than the thing anyone can see.
-  const overlay = CONSENT_PATTERN.test(signature) || CHAT_PATTERN.test(signature);
+  const overlay = CONSENT_PATTERN.test(signature) || CHAT_PATTERN.test(signature) || isOverlayHost;
 
   if (!overlay) {
     if (box.width < MIN_WIDTH || box.height < MIN_HEIGHT) return null;
@@ -84,6 +97,10 @@ export function classifyPinned(opts: {
 
   const floating = overlay || !inFlow || isFloatingWidget(box, view);
 
+  // An empty overlay container is nothing to look at yet, so nothing decides
+  // where it belongs except what it is going to hold: a panel, at the end.
+  if (isOverlayHost) return "bottom";
+
   // Page furniture holding real content — a sticky column or nav rail — is
   // left exactly where it is, on every slice. Hiding it after the first one
   // leaves a blank column down the rest of the capture, which reads as a bug
@@ -93,14 +110,16 @@ export function classifyPinned(opts: {
   if (!floating && tall && wide) return null;
   if (!floating && isSideRail(box, view)) return null;
 
-  // Which end it appears at is its own midpoint, and deliberately not "docks
-  // go at the bottom" however tempting that reads.
+  // A floating *panel* goes at the bottom whatever its midpoint says: a dock
+  // spans most of the window, so its midpoint lands a hair either side of
+  // centre depending on the screen, and deciding by it put the same dock at
+  // the top on one machine and the bottom on another.
   //
-  // The last slice contributes only the rows below the previous one — the
-  // overlap is discarded — and on a long page that tail is a sliver. Forcing a
-  // tall panel onto it made the panel disappear from the capture entirely
-  // (measured: 640px of dock, 96px of tail, nothing left). Appearing once at
-  // the wrong end beats not appearing at all.
+  // A floating *bar* is a different thing and keeps the midpoint rule. Sending
+  // everything floating to the bottom moved a site's top navigation there —
+  // fifteen buttons and links that belong at the top of the capture, dropped
+  // at the end of it.
+  if (floating && box.height > view.height * 0.4) return "bottom";
   return box.top + box.height / 2 < view.top + view.height / 2 ? "top" : "bottom";
 }
 

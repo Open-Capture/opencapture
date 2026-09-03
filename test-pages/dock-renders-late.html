@@ -1,0 +1,54 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>dock-renders-late</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; }
+      #shell { height: 100vh; overflow-y: auto; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      /* Several identical overlay containers, floating over the page with no
+         box of their own — the shape a real feed keeps standing by. */
+      .overlay-host { position: absolute; top: 100vh; left: 0; width: 100%; height: 0; z-index: 500; }
+    </style>
+  </head>
+  <body>
+    <div id="shell"><div id="bands"></div></div>
+    <script>
+      const c = document.getElementById("bands");
+      for (let i = 0; i < 26; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        c.appendChild(d);
+      }
+
+      // Seven of them, each with its own shadow root, and nothing in any of
+      // them that can be measured.
+      //
+      // The visible panel is painted by a pseudo-element. That is the property
+      // that matters: a pseudo-element has no node, so nothing inside the
+      // shadow root has a box, and measuring the host by unioning what is
+      // inside it comes back with the host's own empty box — which is exactly
+      // what the real page reports (2191x0). Judged on that, every one of
+      // these is discarded as a sliver while one of them is painting a dock.
+      for (let i = 0; i < 7; i++) {
+        const host = document.createElement("div");
+        host.className = "overlay-host";
+        document.documentElement.appendChild(host);
+        const root = host.attachShadow({ mode: "open" });
+        const style = document.createElement("style");
+        // Only the fourth one paints, to make the point that hiding whichever
+        // one happens to be occupied is not the same as hiding the container.
+        style.textContent =
+          i === 3
+            ? ".anchor::before{content:'';position:fixed;right:24px;top:80px;width:300px;height:600px;background:rgb(255,0,255)}"
+            : ".anchor{}";
+        const anchor = document.createElement("div");
+        anchor.className = "anchor";
+        root.append(style, anchor);
+      }
+    </script>
+  </body>
+</html>

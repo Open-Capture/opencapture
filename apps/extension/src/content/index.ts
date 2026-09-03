@@ -467,6 +467,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       // Hiding either of these blanks the capture rather than cleaning it up.
       if (el === document.body || el === document.documentElement) continue;
       const style = window.getComputedStyle(el);
+      const dbgOwn = el.getBoundingClientRect();
+      const isShadowHost = !!shadowRootOf(el);
       if (style.display === "none" || style.visibility === "hidden") continue;
 
       // Hiding the scroll container — or anything wrapping it — would blank
@@ -493,12 +495,19 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       // document and `fixed` does not.
       const inFlow = innerScroller ? innerScroller.contains(el) : style.position === "sticky";
 
+      // Standing by to hold an overlay: a shadow host with no box of its own,
+      // floating over the page. There are usually several, identical, and the
+      // page renders into whichever it likes — after the sweep has looked.
+      const ownBox = el.getBoundingClientRect();
+      const isOverlayHost = isShadowHost && !inFlow && (ownBox.width < 40 || ownBox.height < 8);
+
       const kind = classifyPinned({
         box: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
         view: { top: view.top, left: view.left, width: view.width, height: view.height },
         signature: signature(el),
         mode: stickyMode,
         inFlow,
+        isOverlayHost,
       });
       if (!kind) continue;
 
