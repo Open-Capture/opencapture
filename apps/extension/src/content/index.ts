@@ -50,7 +50,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   }
   // How the user wants pinned elements treated, handed over with `prep` —
   // the content script has no storage access of its own by design.
-  let stickyMode: StickyMode = "once";
+  let stickyMode: StickyMode = "keep";
 
   let pinnedElements: Array<{
     el: HTMLElement;
@@ -344,11 +344,17 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
       // What it paints, not what it measures — see `paintedRect`.
       const rect = paintedRect(el);
+      // Part of what scrolls, or parked on top of it. With an inner scroller
+      // that is simply containment; without one, `sticky` moves with the
+      // document and `fixed` does not.
+      const inFlow = innerScroller ? innerScroller.contains(el) : style.position === "sticky";
+
       const kind = classifyPinned({
         box: { top: rect.top, left: rect.left, width: rect.width, height: rect.height },
         view: { top: view.top, left: view.left, width: view.width, height: view.height },
         signature: signature(el),
         mode: stickyMode,
+        inFlow,
       });
       if (!kind) continue;
 
@@ -978,7 +984,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     const request = message as { action?: string; targetCss?: number; sticky?: string };
 
     if (request.action === "prep") {
-      const mode = request.sticky === "hide-overlays" || request.sticky === "hide-all" ? request.sticky : "once";
+      const mode: StickyMode = request.sticky === "remove" ? "remove" : "keep";
       handlePrep(mode).then(sendResponse);
       return true;
     }

@@ -240,20 +240,18 @@
         </label>
       </fieldset>
 
-      <!-- One row, not a panel. The popup is the most space-constrained
-           surface in the extension and this is a set-once preference; the
-           explanation lives in the tooltip rather than costing four lines
-           every time the popup opens. -->
+      <!-- One row, and two choices. Written for someone who has never heard
+           the word "sticky": what they see is a menu that follows them down
+           the page, so that is what it is called. -->
       <label id="stickyRow" class="field">
-        <span class="field-label">Sticky bars</span>
+        <span class="field-label">Floating menus</span>
         <span class="field-control">
           <select
             id="prefSticky"
-            title="Headers, footers, chat docks and cookie bars stay on screen while the page scrolls underneath them. A scrolling capture would otherwise photograph them again in every slice."
+            title="Menus, chat bubbles and cookie banners that follow you as you scroll. Kept, each appears once and sidebars stay where they are. Removed, the capture shows only the page."
           >
-            <option value="once">Capture each once</option>
-            <option value="hide-overlays">Skip chat &amp; cookie bars</option>
-            <option value="hide-all">Skip all</option>
+            <option value="keep">Keep them</option>
+            <option value="remove">Remove them</option>
           </select>
         </span>
       </label>

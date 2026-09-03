@@ -25,7 +25,7 @@ export interface CaptureReport {
 }
 
 export type ContentRequest =
-  | { action: "prep"; sticky: "once" | "hide-overlays" | "hide-all" }
+  | { action: "prep"; sticky: "keep" | "remove" }
   | { action: "scrollTo"; targetCss: number }
   | { action: "restore" }
   | { action: "selectArea" };

@@ -12,10 +12,10 @@ test("chat docks that collapse or force visibility stay out of the capture", asy
   await page.setViewportSize({ width: 1200, height: 1000 });
   await page.goto(`${BASE_URL}/chat-dock-linkedin.html`);
 
-  // Docks are only dropped outright when asked for — the default shows each
-  // pinned element once. See chrome/capture-prefs.ts.
+  // Docks are only dropped outright when asked for — the default keeps the
+  // page's furniture and shows each floating bar once. See capture-prefs.ts.
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.local.set({ capturePrefs: { sticky: "hide-overlays" } });
+    await chrome.storage.local.set({ capturePrefs: { sticky: "remove" } });
   });
 
   const tabInfo = await serviceWorker.evaluate(async (url) => {
@@ -68,8 +68,11 @@ test("chat docks that collapse or force visibility stay out of the capture", asy
   // Hashed class names, exactly as LinkedIn ships today: no name to match
   // on at all, so only its shape identifies it as a dock.
   expect(counts.blue).toBe(0);
-  // The wide+tall sticky is real content and must survive.
-  expect(counts.green).toBeGreaterThan(0);
+  // "Remove" means remove: the page's own sticky furniture goes with the
+  // rest. That is the point of the two-way choice — a setting whose effect
+  // people cannot predict is not a setting. Keeping furniture is the
+  // default's job, covered by the test below.
+  expect(counts.green).toBe(0);
 
   await page.close();
 });
@@ -82,10 +85,10 @@ test("a dock inside a shadow root, outside the scrolling container, stays out to
   await page.setViewportSize({ width: 1200, height: 1000 });
   await page.goto(`${BASE_URL}/shadow-dock-inner-scroll.html`);
 
-  // Docks are only dropped outright when asked for — the default shows each
-  // pinned element once. See chrome/capture-prefs.ts.
+  // Docks are only dropped outright when asked for — the default keeps the
+  // page's furniture and shows each floating bar once. See capture-prefs.ts.
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.local.set({ capturePrefs: { sticky: "hide-overlays" } });
+    await chrome.storage.local.set({ capturePrefs: { sticky: "remove" } });
   });
 
   const tabInfo = await serviceWorker.evaluate(async (url) => {
@@ -128,7 +131,7 @@ test("a dock inside a shadow root, outside the scrolling container, stays out to
   await page.close();
 });
 
-test("by default every sticky element is captured once — not dropped, not repeated", async ({
+test("by default a floating dock is captured once — not dropped, not repeated", async ({
   context,
   serviceWorker,
 }) => {
@@ -139,7 +142,7 @@ test("by default every sticky element is captured once — not dropped, not repe
   // The shipped default, set explicitly so a pref left behind by another test
   // cannot make this pass for the wrong reason.
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.local.set({ capturePrefs: { sticky: "once" } });
+    await chrome.storage.local.set({ capturePrefs: { sticky: "keep" } });
   });
 
   const tabInfo = await serviceWorker.evaluate(async (url) => {
@@ -184,6 +187,24 @@ test("by default every sticky element is captured once — not dropped, not repe
   }, result.imagesBase64[0]);
 
   console.log("DEFAULT MODE DOCK:", JSON.stringify(rows));
+
+  // ...and the page's own wide sticky area is still there, which is what
+  // "keep" is for.
+  const green = await page.evaluate(async (b64: string) => {
+    const img = new Image();
+    img.src = `data:image/png;base64,${b64}`;
+    await img.decode();
+    const c = document.createElement("canvas");
+    c.width = img.naturalWidth;
+    c.height = img.naturalHeight;
+    const cx = c.getContext("2d")!;
+    cx.drawImage(img, 0, 0);
+    const d = cx.getImageData(0, 0, c.width, c.height).data;
+    let n = 0;
+    for (let i = 0; i < d.length; i += 4) if (d[i] === 0 && d[i + 1] === 255 && d[i + 2] === 0) n++;
+    return n;
+  }, result.imagesBase64[0]);
+  expect(green).toBeGreaterThan(0);
   // Present...
   expect(rows.rows).toBeGreaterThan(0);
   // ...exactly once, in one contiguous band, rather than repeated down the page.

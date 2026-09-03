@@ -1,0 +1,59 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>sidebar-and-dock</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #111; }
+      /* An app shell, the shape ChatGPT and LinkedIn both use: the window does
+         not scroll, an inner element does. */
+      #shell { display: flex; height: 100vh; overflow-y: auto; }
+      /* The page's own left rail: sticky, and *inside* the thing that scrolls.
+         It should survive the whole capture — hiding it after the first slice
+         leaves a blank column down the rest. */
+      #rail {
+        position: sticky;
+        top: 0;
+        align-self: flex-start;
+        width: 220px;
+        height: 100vh;
+        background: rgb(0, 255, 0);
+        color: #000;
+        font: 14px monospace;
+        flex: 0 0 auto;
+      }
+      #content { flex: 1 1 auto; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      /* A dock: same tall-narrow-edge shape as the rail, but parked on top of
+         the page rather than inside what scrolls. It should appear once. */
+      #dock {
+        position: fixed;
+        right: 24px;
+        top: 40px;
+        width: 260px;
+        height: 80vh;
+        background: rgb(255, 0, 255);
+        color: #fff;
+        font: 14px monospace;
+        z-index: 50;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shell">
+      <div id="rail">sidebar</div>
+      <div id="content"><div id="bands"></div></div>
+    </div>
+    <div id="dock">dock</div>
+    <script>
+      const c = document.getElementById("bands");
+      for (let i = 0; i < 24; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        c.appendChild(d);
+      }
+    </script>
+  </body>
+</html>

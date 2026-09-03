@@ -1,48 +1,39 @@
-// What a scrolling capture does with elements that stay put while the page
-// moves underneath them — sticky headers, footers, chat docks, cookie bars.
+// What a scrolling capture does with the bars and panels that follow you down
+// a page — menus, chat bubbles, cookie banners, sidebars.
 //
-// There is no right answer to impose. A sticky header is usually wanted, once,
-// at the top; a chat dock usually is not wanted at all; and which is which is
-// a judgement about the page, not a fact about the DOM. So the capture makes
-// the safe choice by default — show everything, but only once — and the
-// choice is the user's to change.
+// Two choices, not three. An earlier version offered a middle setting that
+// dropped chat and cookie widgets while keeping everything else, and in
+// testing nobody could tell it apart from the default without reading the
+// code. A choice people cannot predict the effect of is not a choice.
 
 import { ext } from "../platform/webext";
 
 export type StickyMode =
-  /** Every pinned element appears once, at the end it belongs to. */
-  | "once"
-  /** Chat docks, cookie bars and corner widgets are dropped; the rest appear once. */
-  | "hide-overlays"
-  /** Nothing pinned appears at all. */
-  | "hide-all";
+  /** Sidebars stay; bars and bubbles appear once, where they belong. */
+  | "keep"
+  /** The capture shows the page and nothing that floats over it. */
+  | "remove";
 
 export interface CapturePrefs {
   sticky: StickyMode;
 }
 
-/**
- * Show everything once.
- *
- * The alternative default — quietly dropping anything that looks like a
- * widget — means a capture can silently omit something the page really did
- * show, and the user has no way to know what went missing. Appearing once is
- * the honest version of "don't repeat it down the page", which is the actual
- * problem being solved.
- */
-const DEFAULT_PREFS: CapturePrefs = { sticky: "once" };
+const DEFAULT_PREFS: CapturePrefs = { sticky: "keep" };
 const STORAGE_KEY = "capturePrefs";
+
+/** Values written by earlier builds, which had three modes. */
+function migrate(saved: string | undefined): StickyMode {
+  if (saved === "keep" || saved === "remove") return saved;
+  if (saved === "hide-all") return "remove";
+  // "once" and "hide-overlays" both meant "show me the page with its
+  // furniture", which is what keep does now.
+  return DEFAULT_PREFS.sticky;
+}
 
 export async function getCapturePrefs(): Promise<CapturePrefs> {
   const stored = await ext.storage.local.get(STORAGE_KEY);
   const saved = stored[STORAGE_KEY] as Partial<CapturePrefs> | undefined;
-  const prefs = { ...DEFAULT_PREFS, ...saved };
-  // Anything unrecognised (an older build, a hand-edited value) falls back
-  // rather than reaching the content script as an unknown mode.
-  if (prefs.sticky !== "once" && prefs.sticky !== "hide-overlays" && prefs.sticky !== "hide-all") {
-    prefs.sticky = DEFAULT_PREFS.sticky;
-  }
-  return prefs;
+  return { sticky: migrate(saved?.sticky) };
 }
 
 export async function setCapturePrefs(prefs: CapturePrefs): Promise<void> {

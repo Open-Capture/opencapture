@@ -630,7 +630,7 @@ test("popup: Rate us is always available and Save to is collapsed by default", a
   await popup.close();
 });
 
-test("a chat dock is kept out of the capture, without hiding a wide sticky area", async ({
+test("a chat dock appears once by default, and the wide sticky area is untouched", async ({
   context,
   serviceWorker,
 }) => {
@@ -646,10 +646,10 @@ test("a chat dock is kept out of the capture, without hiding a wide sticky area"
   await page.setViewportSize({ width: 800, height: 600 });
   await page.goto(`${BASE_URL}/chat-overlay.html`);
 
-  // Dropping a dock outright is a choice the user makes, not the default —
-  // by default every pinned element is captured once. See chrome/capture-prefs.ts.
+  // The shipped default, set explicitly so a pref left behind by another test
+  // cannot make this pass for the wrong reason.
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.local.set({ capturePrefs: { sticky: "hide-overlays" } });
+    await chrome.storage.local.set({ capturePrefs: { sticky: "keep" } });
   });
 
   const tabInfo = await serviceWorker.evaluate(async (url) => {
@@ -689,8 +689,12 @@ test("a chat dock is kept out of the capture, without hiding a wide sticky area"
     return { magenta, cyan };
   }, result.imagesBase64[0]!);
 
-  expect(scan.magenta).toBe(0);
-  // And the wide sticky area is still there — the guard it relies on survived.
+  // Once, not smeared down the page. The dock is 240x420 in an 800x600
+  // viewport, so a single appearance is about one dock's worth of pixels;
+  // repeating it into every slice was ~348,000.
+  expect(scan.magenta).toBeGreaterThan(0);
+  expect(scan.magenta).toBeLessThan(240 * 420 * 1.2);
+  // And the wide sticky area is untouched — it is the page, not chrome.
   expect(scan.cyan).toBeGreaterThan(0);
 
   await page.close();

@@ -2,132 +2,83 @@ import { describe, expect, it } from "vitest";
 import { classifyPinned, type Box, type StickyMode } from "./pinned";
 
 /**
- * Geometry taken from a real, logged-in LinkedIn feed with the messaging dock
- * open — read out of the page rather than imagined. Every element there
- * carries hashed class names (`_6116e3cc fe61ecd8`), so none of them match any
- * widget-name pattern; the signature is deliberately empty here to keep that
- * honest.
- *
- * The viewport width is known from a full-width fixed bar the page reported at
- * 1166px. The height is only known to be greater than 1205 (a fixed bar sits at
- * that y), so the cases below sweep a range of plausible heights.
+ * Geometry measured on a real, logged-in LinkedIn feed with the messaging dock
+ * open. Every element there carries hashed class names (`_6116e3cc fe61ecd8`),
+ * so none match any widget-name pattern; the signatures here are empty to keep
+ * that honest, which is also what forces the classification to work on shape
+ * and structure rather than on names.
  */
-const HEIGHTS = [1210, 1229, 1280, 1360, 1440];
-const VIEW = (height: number): Box => ({ top: 0, left: 0, width: 1166, height });
+const BAND: Box = { top: 52, left: 0, width: 1192, height: 1410 };
 
-const SIDEBAR: Box = { left: 97, top: 76, width: 222, height: 625 };
-const FULL_WIDTH_BAR: Box = { left: 0, top: 1205, width: 1166, height: 0 };
+// Sticky, and inside the element that scrolls: the page's own left rail.
+const SIDEBAR: Box = { left: 109, top: 76, width: 222, height: 545 };
+// The messaging dock: same tall-narrow-edge shape, but parked on top of the
+// page rather than inside it.
+const DOCK: Box = { left: 880, top: 100, width: 288, height: 1362 };
 
-// Anchored to the bottom of the viewport, so its `top` is a function of the
-// viewport height rather than a constant — modelling it as fixed while growing
-// the viewport describes a dock detaching from the bottom edge, which is not a
-// thing that happens.
-const DOCK_GAP_BELOW = 51;
-const dockAt = (viewportHeight: number, gap = DOCK_GAP_BELOW): Box => ({
-  left: 753,
-  top: viewportHeight - gap - 408,
-  width: 304,
-  height: 408,
-});
+const classify = (box: Box, mode: StickyMode, inFlow: boolean, signature = "", view: Box = BAND) =>
+  classifyPinned({ box, view, signature, mode, inFlow });
 
-const classify = (box: Box, view: Box, signature: string, mode: StickyMode) =>
-  classifyPinned({ box, view, signature, mode });
-
-describe("classifyPinned: the default, which shows everything once", () => {
-  const view = VIEW(1000);
-
-  it("shows a corner dock once at the bottom rather than dropping it", () => {
-    for (const height of HEIGHTS) {
-      expect(classify(dockAt(height), VIEW(height), "", "once")).toBe("bottom");
-    }
+describe("classifyPinned: keep (the default)", () => {
+  it("leaves a sidebar in place on every slice", () => {
+    // Hiding it after the first slice leaves a blank column down the rest of
+    // the capture, which is what the sidebar complaint was about.
+    expect(classify(SIDEBAR, "keep", true)).toBeNull();
   });
 
-  it("shows a named chat widget once too — the name stops mattering", () => {
-    const dock: Box = { left: 700, top: 700, width: 300, height: 260 };
-    expect(classify(dock, view, "msg-overlay-bubble", "once")).toBe("bottom");
+  it("shows the messaging dock once, even though it is the same shape as the sidebar", () => {
+    // Identical geometry class — tall, narrow, hugging an edge. Only its
+    // relationship to the scrolling element separates them.
+    expect(classify(DOCK, "keep", false)).toBe("bottom");
+  });
+
+  it("does not need a name to tell them apart", () => {
+    // Both signatures empty: this is the case hashed class names create.
+    expect(classify(SIDEBAR, "keep", true)).toBeNull();
+    expect(classify(DOCK, "keep", false)).not.toBeNull();
+  });
+
+  it("still shows a named chat widget once, wherever it sits", () => {
+    expect(classify(DOCK, "keep", true, "msg-overlay-list-bubble")).toBe("bottom");
   });
 
   it("shows a sticky header once, at the top", () => {
-    expect(classify({ left: 0, top: 0, width: 1166, height: 60 }, view, "", "once")).toBe("top");
+    expect(classify({ left: 0, top: 52, width: 1192, height: 60 }, "keep", true)).toBe("top");
   });
 
   it("shows a sticky footer once, at the bottom", () => {
-    expect(classify({ left: 0, top: 940, width: 1166, height: 60 }, view, "", "once")).toBe("bottom");
+    expect(classify({ left: 0, top: 1400, width: 1192, height: 60 }, "keep", true)).toBe("bottom");
   });
 
-  it("still leaves a wide, tall pinned column alone — that is the page, not chrome", () => {
-    expect(classify({ left: 0, top: 0, width: 800, height: 900 }, view, "", "once")).toBeNull();
+  it("leaves a wide, tall pinned column alone — that is the page itself", () => {
+    expect(classify({ left: 0, top: 52, width: 900, height: 1300 }, "keep", true)).toBeNull();
   });
 
   it("shows a consent scrim once rather than tinting every slice", () => {
-    // Full-screen, so the content test above would otherwise wave it through
-    // and leave it over the whole capture.
-    const scrim: Box = { left: 0, top: 0, width: 1166, height: 1000 };
-    expect(classify(scrim, view, "onetrust-consent-sdk", "once")).not.toBeNull();
+    const scrim: Box = { left: 0, top: 52, width: 1192, height: 1410 };
+    expect(classify(scrim, "keep", true, "onetrust-consent-sdk")).not.toBeNull();
+  });
+
+  it("shows a corner bubble once, even inside the scrolling element", () => {
+    const bubble: Box = { left: 900, top: 1150, width: 260, height: 260 };
+    expect(classify(bubble, "keep", true)).toBe("bottom");
   });
 });
 
-describe("classifyPinned: hide-overlays", () => {
-  const view = VIEW(1000);
-
-  it("drops the dock entirely, by shape, with no usable name", () => {
-    for (const height of HEIGHTS) {
-      expect(classify(dockAt(height), VIEW(height), "", "hide-overlays")).toBe("always");
-    }
-  });
-
-  it("drops anything named like a chat or consent widget, whatever its shape", () => {
-    const huge: Box = { left: 0, top: 0, width: 1166, height: 1000 };
-    expect(classify(huge, view, "onetrust-consent-sdk", "hide-overlays")).toBe("always");
-    expect(classify(huge, view, "msg-overlay-bubble", "hide-overlays")).toBe("always");
-  });
-
-  it("keeps the sticky sidebar, which is content and not a widget", () => {
-    for (const height of HEIGHTS) {
-      expect(classify(SIDEBAR, VIEW(height), "", "hide-overlays")).toBe("top");
-    }
-  });
-
-  it("keeps a plain header and footer, showing each once", () => {
-    expect(classify({ left: 0, top: 0, width: 1166, height: 60 }, view, "", "hide-overlays")).toBe("top");
-    expect(classify({ left: 0, top: 940, width: 1166, height: 60 }, view, "", "hide-overlays")).toBe("bottom");
+describe("classifyPinned: remove", () => {
+  it("drops everything pinned, sidebar included", () => {
+    expect(classify(SIDEBAR, "remove", true)).toBe("always");
+    expect(classify(DOCK, "remove", false)).toBe("always");
+    expect(classify({ left: 0, top: 52, width: 1192, height: 60 }, "remove", true)).toBe("always");
   });
 });
 
-describe("classifyPinned: hide-all", () => {
-  const view = VIEW(1000);
-
-  it("drops every pinned element, header and dock alike", () => {
-    expect(classify({ left: 0, top: 0, width: 1166, height: 60 }, view, "", "hide-all")).toBe("always");
-    expect(classify(dockAt(1000), view, "", "hide-all")).toBe("always");
-    expect(classify(SIDEBAR, view, "", "hide-all")).toBe("always");
-  });
-
-  it("still ignores things too small or too far away to be worth touching", () => {
-    expect(classify({ left: 0, top: 500, width: 20, height: 300 }, view, "", "hide-all")).toBeNull();
-    expect(classify({ left: 0, top: -400, width: 300, height: 100 }, view, "", "hide-all")).toBeNull();
-  });
-});
-
-describe("classifyPinned: guards that hold in every mode", () => {
-  const view = VIEW(1229);
-
-  it("ignores the zero-height full-width bar entirely", () => {
-    for (const mode of ["once", "hide-overlays", "hide-all"] as const) {
-      expect(classify(FULL_WIDTH_BAR, view, "", mode)).toBeNull();
-    }
-  });
-
-  it("ignores slivers too small to be worth hiding", () => {
-    for (const mode of ["once", "hide-overlays", "hide-all"] as const) {
-      expect(classify({ left: 0, top: 500, width: 20, height: 300 }, view, "", mode)).toBeNull();
-      expect(classify({ left: 0, top: 500, width: 300, height: 4 }, view, "", mode)).toBeNull();
-    }
-  });
-
-  it("ignores anything that misses the captured band", () => {
-    for (const mode of ["once", "hide-overlays", "hide-all"] as const) {
-      expect(classify({ left: 0, top: -400, width: 300, height: 100 }, view, "", mode)).toBeNull();
-    }
-  });
+describe("classifyPinned: guards that hold in both modes", () => {
+  for (const mode of ["keep", "remove"] as const) {
+    it(`ignores slivers and off-band elements in ${mode}`, () => {
+      expect(classify({ left: 0, top: 500, width: 20, height: 300 }, mode, true)).toBeNull();
+      expect(classify({ left: 0, top: 500, width: 300, height: 4 }, mode, true)).toBeNull();
+      expect(classify({ left: 0, top: -900, width: 300, height: 100 }, mode, true)).toBeNull();
+    });
+  }
 });

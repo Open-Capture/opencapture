@@ -1341,6 +1341,9 @@ watermarkAddBtn.addEventListener("click", async () => {
 
 const SUPPORTER_REF_ID = "opencapture_supporter_unlock";
 
+/** How long the account check may take before it is worth saying so. */
+const SLOW_CHECK_MS = 400;
+
 const watermarkGatePanel = document.getElementById("watermarkGatePanel")!;
 const watermarkGateMessageEl = document.getElementById("watermarkGateMessage")!;
 const watermarkGateCancelBtn = document.getElementById("watermarkGateCancel") as HTMLButtonElement;
@@ -1543,19 +1546,32 @@ async function handleWatermarkToolClick(): Promise<void> {
   if (watermarkGateCheckInFlight || !watermarkPanel.hidden) return;
   watermarkGateCheckInFlight = true;
   try {
-    renderWatermarkGate({ kind: "checking" });
-    await openappsReady;
-    if (!openappsClient.isLoggedIn) {
-      renderWatermarkGate({ kind: "signed-out" });
-      return;
+    // No "Checking your account…" panel up front. For anyone who has already
+    // unlocked — which is everyone who uses this tool more than once — the
+    // check finishes in a few hundred milliseconds and the panel exists only
+    // long enough to flash. Asking about someone's account is background
+    // work; it should look like it.
+    //
+    // The panel appears only if the check takes long enough that the click
+    // would otherwise feel ignored, and is cancelled the moment the answer
+    // arrives.
+    const slowCheck = setTimeout(() => renderWatermarkGate({ kind: "checking" }), SLOW_CHECK_MS);
+    try {
+      await openappsReady;
+      if (!openappsClient.isLoggedIn) {
+        renderWatermarkGate({ kind: "signed-out" });
+        return;
+      }
+      const unlocked = await isSupporterUnlocked();
+      if (unlocked) {
+        closeWatermarkGate();
+        void openWatermarkPanel();
+        return;
+      }
+      renderWatermarkGate({ kind: "locked" });
+    } finally {
+      clearTimeout(slowCheck);
     }
-    const unlocked = await isSupporterUnlocked();
-    if (unlocked) {
-      closeWatermarkGate();
-      void openWatermarkPanel();
-      return;
-    }
-    renderWatermarkGate({ kind: "locked" });
   } finally {
     watermarkGateCheckInFlight = false;
   }

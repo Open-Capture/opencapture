@@ -13,7 +13,7 @@ export type PinnedKind = "top" | "bottom" | "always";
 /** Mirrors StickyMode in chrome/capture-prefs.ts; duplicated rather than
  * imported because this module is bundled into the content script, which
  * must stay free of anything pulling in the extension APIs. */
-export type StickyMode = "once" | "hide-overlays" | "hide-all";
+export type StickyMode = "keep" | "remove";
 
 export interface Box {
   top: number;
@@ -51,8 +51,19 @@ export function classifyPinned(opts: {
   view: Box;
   signature: string;
   mode: StickyMode;
+  /**
+   * Whether the element belongs to the page's own layout — sticky inside the
+   * thing that scrolls — as opposed to floating over it.
+   *
+   * This is what tells a sidebar from a chat dock, without knowing either
+   * one's name. Both are tall, narrow and pinned to an edge; the difference
+   * is that a sidebar is part of the document being scrolled and a dock is
+   * parked on top of it. Names were doing this job and could not keep doing
+   * it: sites ship hashed class names now.
+   */
+  inFlow: boolean;
 }): PinnedKind | null {
-  const { box, view, signature, mode } = opts;
+  const { box, view, signature, mode, inFlow } = opts;
   const viewBottom = view.top + view.height;
   const viewRight = view.left + view.width;
 
@@ -69,22 +80,38 @@ export function classifyPinned(opts: {
     if (box.left + box.width <= view.left || box.left >= viewRight) return null;
   }
 
-  const floating = overlay || isFloatingWidget(box, view);
+  if (mode === "remove") return "always";
 
-  if (mode === "hide-all") return "always";
-  if (mode === "hide-overlays" && floating) return "always";
+  const floating = overlay || !inFlow || isFloatingWidget(box, view);
 
-  // A pinned element that is both tall and wide is page furniture holding
-  // real content — a sticky column, a nav rail. Leaving it visible on every
-  // slice is right: it *is* the page, not chrome laid over it. Both are
-  // required, since a chat dock is tall and *narrow*; and an overlay never
-  // qualifies however big it is, because a full-screen scrim is exactly the
-  // shape this test would otherwise wave through.
+  // Page furniture holding real content — a sticky column or nav rail — is
+  // left exactly where it is, on every slice. Hiding it after the first one
+  // leaves a blank column down the rest of the capture, which reads as a bug
+  // rather than as tidying up.
   const tall = box.height > view.height * 0.5;
   const wide = box.width > view.width * 0.4;
   if (!floating && tall && wide) return null;
+  if (!floating && isSideRail(box, view)) return null;
 
+  // Everything else — headers, footers, docks, banners — appears once, at the
+  // end it belongs to.
   return box.top + box.height / 2 < view.top + view.height / 2 ? "top" : "bottom";
+}
+
+/**
+ * A sidebar: tall, narrow, and hugging one side of the band.
+ *
+ * Only ever reached for elements that are part of the page's own scrolling
+ * layout, which is what stops a chat dock — the same shape, but parked on top
+ * of the page rather than inside it — from qualifying.
+ */
+function isSideRail(box: Box, view: Box): boolean {
+  const tallEnough = box.height > view.height * 0.35;
+  const narrowEnough = box.width < view.width * 0.35;
+  const margin = view.width * 0.15;
+  const hugsLeft = box.left - view.left < margin;
+  const hugsRight = view.left + view.width - (box.left + box.width) < margin;
+  return tallEnough && narrowEnough && (hugsLeft || hugsRight);
 }
 
 /**
