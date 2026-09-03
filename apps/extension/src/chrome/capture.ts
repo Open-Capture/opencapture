@@ -6,7 +6,10 @@ import { captureRateLimit, ext } from "../platform/webext";
 let lastCallAtMs = 0;
 
 function quotaIntervalMs(): number {
-  return Math.ceil(1000 / captureRateLimit());
+  const perSecond = captureRateLimit();
+  // No declared limit means no waiting. If the browser turns out to enforce
+  // one anyway, the retry below absorbs it.
+  return perSecond === null ? 0 : Math.ceil(1000 / perSecond);
 }
 
 /** Extra wait after actually being throttled, before trying that slice again. */

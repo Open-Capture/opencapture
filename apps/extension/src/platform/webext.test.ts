@@ -45,6 +45,9 @@ describe("captureRateLimit", () => {
 
     const { captureRateLimit } = await import("./webext");
 
-    expect(captureRateLimit()).toBe(2);
+    // Nothing declared means nothing to pace to. Assuming Chromium's limit
+    // here cost half a second a slice on every Firefox capture, for a quota
+    // Firefox does not have.
+    expect(captureRateLimit()).toBeNull();
   });
 });

@@ -119,6 +119,26 @@ function measuredScale(firstSlice: Uint8Array, viewportWidthCss: number, reporte
 }
 
 /**
+ * `tabs.captureVisibleTab` photographs whatever tab is active in the window,
+ * not a tab you name. A full-page capture takes seconds — long enough for the
+ * user to switch tabs, or for something else to steal focus — and if that
+ * happens the call either photographs the wrong page or, more often, fails
+ * with "Missing host permission for the tab", because `activeTab` was granted
+ * for the tab that was active when the extension was invoked and not for
+ * whatever is active now.
+ *
+ * Neither outcome is worth producing quietly, so the tab is checked before
+ * each screenshot and the capture stops with something the user can act on.
+ */
+async function assertStillActive(tabId: number, windowId: number): Promise<void> {
+  const [active] = await ext.tabs.query({ active: true, windowId });
+  if (active?.id === tabId) return;
+  throw new Error(
+    "The active tab changed while the capture was running, so it stopped. Switch back to the page you want and start it again.",
+  );
+}
+
+/**
  * Tell the popup how far along a capture is.
  *
  * A full-page capture is bound by the browser's own screenshot quota —
@@ -167,6 +187,7 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
     // Re-assert the hiding after the quota wait, not before it: those are up
     // to half a second apart, and the page keeps running in between.
     let pngBytes = await captureVisibleTabPaced(windowId, async () => {
+      await assertStillActive(tabId, windowId);
       await sendToContent(tabId, { action: "reassert" });
     });
     // Dominant-inner-scroller mode (see content/index.ts's

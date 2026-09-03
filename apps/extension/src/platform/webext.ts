@@ -32,17 +32,24 @@ export const isFirefox: boolean =
   typeof (ext.runtime as { getBrowserInfo?: unknown } | undefined)?.getBrowserInfo === "function";
 
 /**
- * Safe pacing interval for `tabs.captureVisibleTab`, in calls per second.
- * `chrome.tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` has been
- * hard-capped at 2 since Chrome 92 with no override, and @types/chrome
- * doesn't declare it even though it exists at runtime — read it
- * defensively. Firefox exposes no equivalent constant at all, so the same
- * fallback value (2) covers it too.
+ * How many `tabs.captureVisibleTab` calls a second the browser allows, or
+ * null when it does not say.
+ *
+ * Chromium has been hard-capped at 2 since Chrome 92 with no override, and
+ * declares it as `chrome.tabs.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND` —
+ * undeclared in @types/chrome, hence the cast.
+ *
+ * Firefox declares nothing, and this used to assume that meant "2 as well".
+ * It does not: Firefox has no such quota, and pacing to Chromium's cost half
+ * a second per slice on every Firefox capture for a limit that was never
+ * there. A browser that declares no limit is now paced by nothing, and the
+ * retry in chrome/capture.ts covers the case where one turns out to exist
+ * after all — a wrong guess costs one retry, not half a second a slice.
  */
-export function captureRateLimit(): number {
+export function captureRateLimit(): number | null {
   const tabsApi = ext.tabs as typeof chrome.tabs & { MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND?: number };
-  // `||` (not `??`) is deliberate: a value of exactly 0 must also fall
-  // back to 2, since Math.ceil(1000/0) is Infinity and would hang every
-  // capture.
-  return tabsApi.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND || 2;
+  const declared = tabsApi.MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND;
+  // A declared 0 is not a rate; treat it as "unspecified" rather than
+  // dividing by it.
+  return typeof declared === "number" && declared > 0 ? declared : null;
 }

@@ -25,6 +25,12 @@ test("a long capture reports which slice it is on, rather than sitting on one me
     });
   });
 
+  // The popup is opened as a tab here so it can receive the progress
+  // messages, which makes it the active tab — and a capture now stops if the
+  // active tab is not the one it is photographing. Put the page back in front;
+  // the popup keeps receiving messages either way.
+  await page.bringToFront();
+
   const tabInfo = await serviceWorker.evaluate(async (url) => {
     const tabs = await chrome.tabs.query({});
     const tab = tabs.find((t) => t.url === url);
