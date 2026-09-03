@@ -282,18 +282,35 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
 // seconds on a long page. Showing which slice it is on turns that wait into
 // something legible instead of a frozen message.
 let captureBusyMessage = "";
+const captureProgressEl = $("captureProgress");
+const captureProgressBarEl = $("captureProgressBar");
+
+function showCaptureProgress(fraction: number | null): void {
+  if (fraction === null) {
+    captureProgressEl.hidden = true;
+    captureProgressBarEl.style.width = "0%";
+    return;
+  }
+  captureProgressEl.hidden = false;
+  captureProgressBarEl.style.width = `${Math.round(Math.min(1, Math.max(0, fraction)) * 100)}%`;
+}
+
 ext.runtime.onMessage.addListener((message: unknown) => {
   const m = message as { type?: string; done?: number; total?: number };
   if (m.type !== "captureProgress" || typeof m.done !== "number" || typeof m.total !== "number") return;
   if (!captureBusyMessage) return;
-  // The final call reports done === total; leave the message alone then, since
-  // the result is about to replace it anyway.
+  showCaptureProgress(m.total > 0 ? m.done / m.total : 0);
+  // The final call reports done === total; leave the words alone then, since
+  // the result is about to replace them anyway.
   if (m.done >= m.total) return;
   setStatusText(`${captureBusyMessage} ${m.done + 1} of ${m.total}`);
 });
 
 async function runCapture(request: PopupRequest, busyMessage: string): Promise<void> {
   captureBusyMessage = busyMessage.replace(/…$/, "");
+  // Zero-width to start: the bar appears the moment work begins, rather than
+  // popping into existence at the first slice.
+  showCaptureProgress(0);
   setBusy(true, busyMessage);
   try {
     const response = await send(request);
@@ -304,6 +321,7 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<v
     // Stop listening for progress before the next click can start: a late
     // message from a finished capture would otherwise overwrite its result.
     captureBusyMessage = "";
+    showCaptureProgress(null);
     setBusy(false);
   }
 }

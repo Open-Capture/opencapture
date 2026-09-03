@@ -1695,7 +1695,11 @@ function applyZoom(): void {
   if (zoom === "fit") {
     canvas.classList.remove("is-zoomed");
     canvas.style.width = "";
-    zoomLevelLabel.textContent = "Fit";
+    // The actual percentage, never the word "Fit" — the button beside this one
+    // is already called Fit, and two controls reading the same word is how you
+    // get a toolbar nobody can parse. This one answers "how big is it right
+    // now"; that one answers "make it fit".
+    zoomLevelLabel.textContent = `${Math.round(fittedFactor() * 100)}%`;
   } else {
     canvas.classList.add("is-zoomed");
     canvas.style.width = `${Math.round(canvas.width * zoom)}px`;
@@ -2094,7 +2098,30 @@ function requestEditorImageBytes(): Promise<Uint8Array | null> {
 // original at export time instead of baking them into a capped canvas —
 // which needs every shape kept as data, not pixels — a much bigger change
 // than this file makes today.
+const canvasLoadingEl = document.getElementById("canvasLoading") as HTMLDivElement;
+const canvasLoadingTextEl = document.getElementById("canvasLoadingText") as HTMLSpanElement;
+const canvasStackEl = document.getElementById("canvasStack") as HTMLDivElement;
+
+function finishLoading(): void {
+  canvasLoadingEl.hidden = true;
+  canvasStackEl.classList.remove("loading");
+}
+
 async function loadImage(): Promise<void> {
+  // Size the canvas before asking for a single byte. The dimensions were
+  // stored when the capture finished, so the placeholder can occupy exactly
+  // the shape the finished image will — no small white rectangle that jumps
+  // to full size once the pixels land.
+  const early = await ext.storage.session.get(["editorImageWidth", "editorImageHeight"]);
+  const earlyWidth = Number(early["editorImageWidth"]) || 0;
+  const earlyHeight = Number(early["editorImageHeight"]) || 0;
+  if (earlyWidth > 0 && earlyHeight > 0) {
+    canvas.width = earlyWidth;
+    canvas.height = earlyHeight;
+    syncPreviewCanvas();
+    canvasLoadingTextEl.textContent = `Loading ${earlyWidth} × ${earlyHeight} capture…`;
+  }
+
   const bytes = await requestEditorImageBytes();
   const stored = await ext.storage.session.get(["editorDpr", "editorImageCount", "editorPageUrl", "editorCapturedAt"]);
   const dpr: number | undefined = stored["editorDpr"];
@@ -2102,6 +2129,7 @@ async function loadImage(): Promise<void> {
   capturePageUrl = (stored["editorPageUrl"] as string | undefined) ?? "";
   captureTakenAt = (stored["editorCapturedAt"] as number | undefined) ?? Date.now();
   if (!bytes) {
+    finishLoading();
     setStatus("No captured image found — capture a page first, then click Annotate.");
     return;
   }
@@ -2111,6 +2139,7 @@ async function loadImage(): Promise<void> {
   canvas.width = bitmap.width;
   canvas.height = bitmap.height;
   ctx.drawImage(bitmap, 0, 0);
+  finishLoading();
   syncPreviewCanvas();
   setStatus(`${bitmap.width}×${bitmap.height}`);
   selectTool("crop");

@@ -531,7 +531,9 @@ test("zoom changes the rendered size without breaking draw coordinates", async (
     });
 
   const fit = await rendered();
-  expect(fit.label).toBe("Fit");
+  // A percentage, not the word "Fit" — the Fit button next to it owns that
+  // word, and this readout answers a different question.
+  expect(fit.label).toMatch(/^\d+%$/);
   expect(fit.previewWidth).toBe(fit.cssWidth);
 
   await editorPage.click("#zoomIn");
@@ -541,7 +543,7 @@ test("zoom changes the rendered size without breaking draw coordinates", async (
   expect(zoomed.previewWidth).toBe(zoomed.cssWidth);
 
   await editorPage.click("#zoomFit");
-  expect(await rendered()).toMatchObject({ label: "Fit", cssWidth: fit.cssWidth });
+  expect(await rendered()).toMatchObject({ cssWidth: fit.cssWidth });
 
   // 100% must mean one image pixel per CSS pixel, whatever "fit" worked out to.
   await editorPage.click("#zoomLevel");

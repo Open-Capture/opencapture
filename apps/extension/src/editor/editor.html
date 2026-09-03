@@ -178,7 +178,51 @@
       #status {
         margin-left: auto;
       }
+      /* The stack is hidden, not absent, while loading: keeping its box in the
+         layout means nothing shifts when the image finally lands. */
+      #canvasStack.loading {
+        visibility: hidden;
+      }
+      #canvasLoading {
+        position: absolute;
+        inset: 0;
+        display: flex;
+        align-items: flex-start;
+        justify-content: center;
+        background: var(--surface-page);
+        z-index: 5;
+      }
+      #canvasLoading[hidden] {
+        display: none;
+      }
+      /* Pinned near the top rather than centred: a full-page capture is taller
+         than the window, and a message centred in it would sit below the fold
+         where nobody waiting for it can see it. */
+      #canvasLoadingInner {
+        position: sticky;
+        top: 0;
+        display: flex;
+        align-items: center;
+        gap: var(--space-2);
+        padding: var(--space-6);
+        color: var(--text-muted);
+        font: var(--type-ui);
+      }
+      .spin {
+        animation: oa-spin 1s linear infinite;
+      }
+      @keyframes oa-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .spin {
+          animation: none;
+        }
+      }
       #canvasWrap {
+        position: relative;
         overflow: auto;
         padding: var(--space-6);
         flex: 1 1 auto;
@@ -643,9 +687,23 @@
       </div>
     </div>
     <div id="canvasWrap">
-      <div id="canvasStack">
+      <!-- Starts hidden in the markup, not from script. A module script does
+           not run until the document has parsed, so anything JS does to hide
+           this happens a frame too late — and that frame is the small white
+           canvas. -->
+      <div id="canvasStack" class="loading">
         <canvas id="canvas"></canvas>
         <canvas id="previewCanvas"></canvas>
+      </div>
+      <!-- Deliberately a sibling of the canvas stack, not a child of it. As a
+           child it would be sized *by* the canvas, and the canvas starts at
+           the HTML default of 300x150 — so the placeholder meant to hide a
+           small white box would itself have been a small white box. -->
+      <div id="canvasLoading">
+        <div id="canvasLoadingInner">
+          <span class="oa-icon oa-icon-14 icon-loader-circle spin"></span>
+          <span id="canvasLoadingText">Loading capture…</span>
+        </div>
       </div>
     </div>
     <script type="module" src="./editor.ts"></script>

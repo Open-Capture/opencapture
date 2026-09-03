@@ -58,6 +58,19 @@ async function getActiveTab(): Promise<chrome.tabs.Tab> {
 // needs the real count, so the editor can say so instead of silently
 // showing a partial page.
 /**
+ * Width and height from a PNG's IHDR chunk: a fixed offset, two big-endian
+ * u32s, no decoding involved.
+ */
+function pngPixelSize(bytes: Uint8Array): { width: number; height: number } | null {
+  if (bytes.length < 24) return null;
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const width = view.getUint32(16);
+  const height = view.getUint32(20);
+  if (!width || !height) return null;
+  return { width, height };
+}
+
+/**
  * `source` is what the browser-frame tool stamps into the address bar. It is
  * carried here rather than read in the editor because the editor runs in its
  * own tab and has no idea which page the pixels came from — and by the time it
@@ -70,7 +83,18 @@ async function openEditorWithBytes(
   source?: { url: string; capturedAt: number },
 ): Promise<number | undefined> {
   await putBlob(EDITOR_IMAGE_BLOB_KEY, bytes);
-  await ext.storage.session.set({ editorDpr: dpr, editorImageCount: imageCount });
+  // The image's own dimensions travel ahead of its pixels. The editor cannot
+  // learn them until it has decoded the PNG, and until then its canvas is the
+  // HTML default — a 300x150 white rectangle, which on a full-page capture is
+  // a tiny white box that then jumps to the real size. Knowing the size up
+  // front lets it hold the right shape from the first frame.
+  const size = pngPixelSize(bytes);
+  await ext.storage.session.set({
+    editorDpr: dpr,
+    editorImageCount: imageCount,
+    editorImageWidth: size?.width ?? 0,
+    editorImageHeight: size?.height ?? 0,
+  });
   // Only a fresh capture knows where the pixels came from. Re-opening the last
   // capture (the popup's Annotate button) deliberately leaves these alone, so
   // the frame tool still stamps the page that was actually captured rather

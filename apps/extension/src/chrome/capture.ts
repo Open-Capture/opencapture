@@ -6,10 +6,20 @@ import { captureRateLimit, ext } from "../platform/webext";
 let lastCallAtMs = 0;
 
 function quotaIntervalMs(): number {
-  const perSecond = captureRateLimit();
-  // A little slack above the raw 1000/perSecond so we don't ride the edge
-  // of the quota and trip a rate-limit error under real-world jitter.
-  return Math.ceil(1000 / perSecond) + 50;
+  return Math.ceil(1000 / captureRateLimit());
+}
+
+/** Extra wait after actually being throttled, before trying that slice again. */
+const THROTTLED_BACKOFF_MS = 250;
+const MAX_ATTEMPTS = 3;
+
+/**
+ * The browser refusing a screenshot for going too fast, as opposed to any
+ * other failure — a discarded tab, a page that cannot be captured.
+ */
+function isQuotaError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return /MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND|quota/i.test(message);
 }
 
 async function sleep(ms: number): Promise<void> {
@@ -21,16 +31,31 @@ async function sleep(ms: number): Promise<void> {
  * as needed to respect the capture-rate quota.
  */
 export async function captureVisibleTabPaced(windowId: number): Promise<Uint8Array> {
-  const elapsed = Date.now() - lastCallAtMs;
-  const minInterval = quotaIntervalMs();
-  if (elapsed < minInterval) {
-    await sleep(minInterval - elapsed);
+  // Paced at exactly the quota, not a little under it.
+  //
+  // This used to add 50ms of slack to every single call so as never to ride
+  // the edge. That slack is the dominant cost of a long capture — the quota
+  // wait is the whole per-slice budget, everything else fits inside it, so
+  // 50ms a slice is 50ms of the total per slice, on every page anyone
+  // captures. Paying it up front on the chance of being throttled is the
+  // wrong trade when being throttled is both detectable and recoverable:
+  // ask at the real rate, and on the rare refusal, wait and ask again.
+  for (let attempt = 1; ; attempt++) {
+    const wait = quotaIntervalMs() - (Date.now() - lastCallAtMs);
+    if (wait > 0) await sleep(wait);
+
+    try {
+      const dataUrl = await ext.tabs.captureVisibleTab(windowId, { format: "png" });
+      lastCallAtMs = Date.now();
+      return dataUrlToBytes(dataUrl);
+    } catch (error) {
+      if (attempt >= MAX_ATTEMPTS || !isQuotaError(error)) throw error;
+      // Count the refusal as a call: whatever the browser's clock thinks, it
+      // has just told us we are early.
+      lastCallAtMs = Date.now();
+      await sleep(THROTTLED_BACKOFF_MS);
+    }
   }
-
-  const dataUrl = await ext.tabs.captureVisibleTab(windowId, { format: "png" });
-  lastCallAtMs = Date.now();
-
-  return dataUrlToBytes(dataUrl);
 }
 
 export function dataUrlToBytes(dataUrl: string): Uint8Array {

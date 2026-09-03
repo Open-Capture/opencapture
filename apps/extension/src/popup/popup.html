@@ -158,6 +158,23 @@
       .rating-star:hover {
         color: var(--text-muted);
       }
+      #captureProgress {
+        height: 4px;
+        margin-top: var(--space-2);
+        border-radius: var(--radius-sm);
+        background: var(--surface-hover);
+        overflow: hidden;
+      }
+      #captureProgress[hidden] {
+        display: none;
+      }
+      #captureProgressBar {
+        height: 100%;
+        width: 0%;
+        background: var(--text-brand);
+        border-radius: inherit;
+        transition: width 120ms linear;
+      }
     </style>
   </head>
   <body>
@@ -258,6 +275,13 @@
 
       <div id="resultCard" class="card">
         <div id="status" class="status">No capture yet — choose an action above.</div>
+        <!-- A real bar, not just a counter. A full-page capture is paced by the
+             browser's screenshot quota — two a second, with no way around it —
+             so a long page takes seconds, and seconds of an unchanging message
+             read as a hang. -->
+        <div id="captureProgress" hidden>
+          <div id="captureProgressBar"></div>
+        </div>
         <div id="resultActions">
           <button id="exportPdf" class="btn btn-secondary btn-sm" disabled>
             <span class="oa-icon oa-icon-14 icon-file-down"></span>
