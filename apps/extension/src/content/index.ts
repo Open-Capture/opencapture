@@ -320,8 +320,14 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     const viewBottom = view.top + view.height;
     const viewRight = view.left + view.width;
 
-    for (const el of document.body?.querySelectorAll("*") ?? []) {
+    // From the document element, not from body. An overlay root is regularly
+    // mounted as a sibling of <body> rather than inside it, and a sweep rooted
+    // at body cannot see one — it would be invisible to every check here no
+    // matter how good the checks got.
+    for (const el of document.documentElement?.querySelectorAll("*") ?? []) {
       if (!(el instanceof HTMLElement)) continue;
+      // Hiding either of these blanks the capture rather than cleaning it up.
+      if (el === document.body || el === document.documentElement) continue;
       const style = window.getComputedStyle(el);
       if (style.display === "none" || style.visibility === "hidden") continue;
 

@@ -93,8 +93,14 @@ export function classifyPinned(opts: {
   if (!floating && tall && wide) return null;
   if (!floating && isSideRail(box, view)) return null;
 
-  // Everything else — headers, footers, docks, banners — appears once, at the
-  // end it belongs to.
+  // Which end it appears at is its own midpoint, and deliberately not "docks
+  // go at the bottom" however tempting that reads.
+  //
+  // The last slice contributes only the rows below the previous one — the
+  // overlap is discarded — and on a long page that tail is a sliver. Forcing a
+  // tall panel onto it made the panel disappear from the capture entirely
+  // (measured: 640px of dock, 96px of tail, nothing left). Appearing once at
+  // the wrong end beats not appearing at all.
   return box.top + box.height / 2 < view.top + view.height / 2 ? "top" : "bottom";
 }
 

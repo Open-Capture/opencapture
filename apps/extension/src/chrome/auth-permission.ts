@@ -75,13 +75,20 @@ export async function registerCallbackScript(): Promise<void> {
  * needs the user gesture and the first await spends it.
  */
 export async function ensureAuthAccess(): Promise<boolean> {
-  let granted = await hasAuthAccess();
-  if (!granted) {
-    try {
-      granted = await ext.permissions.request({ origins: [AUTH_ORIGIN] });
-    } catch {
-      granted = false;
-    }
+  let granted = false;
+  try {
+    // `request` must be the FIRST await here, and this the first await in the
+    // click handler that calls it. Firefox discards the user gesture at the
+    // first await and then resolves `request` to false having never shown a
+    // prompt — which looks from the outside like a browser that silently
+    // refused, and is what "I do not see it asking for permission" was.
+    //
+    // This used to check `contains` first, which is what spent the gesture.
+    // There was nothing to gain by it: `request` resolves true without a
+    // prompt when the origin is already granted.
+    granted = await ext.permissions.request({ origins: [AUTH_ORIGIN] });
+  } catch {
+    granted = false;
   }
   if (!granted) return false;
   await registerCallbackScript();

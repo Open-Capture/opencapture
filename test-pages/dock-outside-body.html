@@ -1,0 +1,53 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>dock-outside-body</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      /* An app shell whose inner element scrolls — and the window scrolls too,
+         which is what a real feed does. */
+      #shell { height: 100vh; overflow-y: auto; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      /* Measured on a live LinkedIn feed: position absolute, z-index 500,
+         outside the scrolling element, and — the part that made it invisible
+         to the sweep — mounted as a sibling of <body> rather than inside it. */
+      #dock-host { position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 500; }
+      #dock-host .msg-overlay-list-bubble {
+        position: fixed;
+        right: 24px;
+        top: 60px;
+        width: 288px;
+        height: 705px;
+        background: rgb(255, 0, 255);
+        color: #fff;
+        font: 14px monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="shell"><div id="bands"></div></div>
+  </body>
+  <script>
+    const c = document.getElementById("bands");
+    for (let i = 0; i < 28; i++) {
+      const d = document.createElement("div");
+      d.className = "band";
+      d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+      d.textContent = `band ${i}`;
+      c.appendChild(d);
+    }
+    // Mounted on <html>, beside <body> — exactly where the real one lives.
+    const host = document.createElement("div");
+    host.id = "dock-host";
+    document.documentElement.appendChild(host);
+    const root = host.attachShadow({ mode: "open" });
+    const panel = document.createElement("div");
+    panel.className = "msg-overlay-list-bubble";
+    panel.textContent = "Messaging";
+    const style = document.createElement("style");
+    style.textContent =
+      ".msg-overlay-list-bubble{position:fixed;right:24px;top:60px;width:288px;height:705px;background:rgb(255,0,255);color:#fff;font:14px monospace}";
+    root.append(style, panel);
+  </script>
+</html>

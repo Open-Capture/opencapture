@@ -1500,9 +1500,12 @@ async function unlockSupporter(): Promise<UnlockResult> {
 async function ensureGatewayAccess(): Promise<boolean> {
   const origins = [`${OPENAPPS_GATEWAY_URL}/*`];
   try {
-    // Already granted on every run after the first — and in the E2E build,
-    // whose <all_urls> covers it, so the tests never see a prompt.
-    if (await ext.permissions.contains({ origins })) return true;
+    // Straight to `request`, with nothing awaited before it. Firefox discards
+    // the user gesture at the first await and then resolves `request` to false
+    // without ever prompting. Checking `contains` first — as this did — is
+    // exactly that first await, and it bought nothing: `request` resolves true
+    // silently when the origin is already granted, which it is on every run
+    // after the first and in the E2E build, whose <all_urls> covers it.
     return await ext.permissions.request({ origins });
   } catch {
     return false;
