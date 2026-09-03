@@ -1,0 +1,45 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>tall-bottom-dock</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      /* Nearly the height of the window and sitting below its midline, so it
+         is shown once at the end — the shape of a messaging dock. The page
+         height is chosen so the final slice adds only a sliver, which is what
+         used to clip this to a fraction of itself. */
+      #dock {
+        position: fixed;
+        right: 24px;
+        top: 90px;
+        width: 288px;
+        height: 700px;
+        background: rgb(255, 0, 255);
+        color: #fff;
+        font: 14px monospace;
+        z-index: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bands"></div>
+    <div id="dock" class="msg-overlay-list-bubble">Messaging</div>
+    <script>
+      const c = document.getElementById("bands");
+      // 24 bands + 20px = 2420px, against an 800px window: the last scroll
+      // position is clamped, so that slice contributes about 20 rows.
+      for (let i = 0; i < 24; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        c.appendChild(d);
+      }
+      const tail = document.createElement("div");
+      tail.style.height = "20px";
+      c.appendChild(tail);
+    </script>
+  </body>
+</html>

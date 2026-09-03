@@ -98,12 +98,40 @@ pub fn place_slices(dpr: f64, observations: &[SliceObservation]) -> Result<Stitc
     let mut placements = Vec::with_capacity(observations.len());
     let mut canvas_bottom_dev: u32 = 0;
 
+    let last_index = observations.len() - 1;
+
     for (i, obs) in observations.iter().enumerate() {
         let y_dev = to_device_px(obs.actual_scroll_css, dpr);
         let crop_top_dev = canvas_bottom_dev
             .saturating_sub(y_dev)
             .min(obs.bitmap_height_dev);
         let rows_dev = obs.bitmap_height_dev - crop_top_dev;
+
+        if i == last_index {
+            // The final slice is painted whole, over the tail it shares with
+            // the one before it, ending exactly where the canvas ends.
+            //
+            // Its own new rows are usually very few: the last scroll position
+            // is clamped to the bottom of the page, so it repeats almost all
+            // of the previous slice. That is fine for page content, which is
+            // identical in both — but not for anything shown only on this
+            // slice. A dock pinned to the bottom of the window is drawn once,
+            // here, and cropping this slice to its new rows clipped it to
+            // whatever those few rows happened to cover: measured on a real
+            // page, 28 rows of a 1440-row panel.
+            //
+            // Painting it whole costs nothing (the overlap is the same
+            // pixels) and lets a bottom-pinned element arrive intact.
+            let final_height = canvas_bottom_dev + rows_dev;
+            placements.push(Placement {
+                slice_index: i,
+                crop_top_dev: 0,
+                canvas_y_dev: final_height.saturating_sub(obs.bitmap_height_dev),
+                rows_dev: obs.bitmap_height_dev,
+            });
+            canvas_bottom_dev = final_height;
+            continue;
+        }
 
         if rows_dev == 0 {
             // Fully redundant slice (duplicate scroll position, or a
@@ -247,10 +275,21 @@ mod tests {
             },
         ];
         let plan = place_slices(1.0, &obs).unwrap();
+        // The canvas is the same height it always was: the last slice adds its
+        // 400 new rows and nothing more.
         assert_eq!(plan.canvas_height_dev, 1300);
-        assert_eq!(plan.placements[1].crop_top_dev, 500);
-        assert_eq!(plan.placements[1].canvas_y_dev, 900);
-        assert_eq!(plan.placements[1].rows_dev, 400);
+        // But it is painted whole, over the 500 rows it shares with the slice
+        // before it, so anything drawn only on this slice — a dock pinned to
+        // the bottom of the window — arrives intact instead of clipped to the
+        // new rows. The shared rows are the same pixels either way.
+        assert_eq!(plan.placements[1].crop_top_dev, 0);
+        assert_eq!(plan.placements[1].canvas_y_dev, 400);
+        assert_eq!(plan.placements[1].rows_dev, 900);
+        // And it still ends exactly at the bottom of the canvas.
+        assert_eq!(
+            plan.placements[1].canvas_y_dev + plan.placements[1].rows_dev,
+            plan.canvas_height_dev
+        );
     }
 
     #[test]
@@ -268,8 +307,13 @@ mod tests {
             },
         ];
         let plan = place_slices(1.0, &obs).unwrap();
-        assert_eq!(plan.placements.len(), 1);
+        // A duplicate final slice adds no rows, so the canvas is unchanged —
+        // but it is still painted, entirely over the first, because it is the
+        // one carrying whatever is shown only on the last slice.
         assert_eq!(plan.canvas_height_dev, 900);
+        let last = plan.placements.last().unwrap();
+        assert_eq!(last.canvas_y_dev, 0);
+        assert_eq!(last.rows_dev, 900);
     }
 
     #[test]
@@ -359,15 +403,24 @@ mod tests {
             }
             let plan = place_slices(dpr, &obs).unwrap();
 
-            // Contiguous tiling: placements sorted by canvas_y_dev with no
-            // gap and no overlap, starting at 0.
+            // Every row of the canvas is painted by something, and the
+            // placements reach the bottom exactly.
+            //
+            // Not "no overlap" any more: the final slice is painted whole,
+            // over the tail it shares with the one before it, so that anything
+            // drawn only on that slice arrives intact. Gaps are still
+            // forbidden — a gap is a missing strip of page.
+            let (last, rest) = plan.placements.split_last().unwrap();
             let mut expected_y = 0u32;
-            for p in &plan.placements {
+            for p in rest {
                 prop_assert_eq!(p.canvas_y_dev, expected_y);
                 prop_assert!(p.rows_dev > 0);
                 expected_y += p.rows_dev;
             }
-            prop_assert_eq!(expected_y, plan.canvas_height_dev);
+            // The last one may start earlier than where the others left off,
+            // but never later — that would leave a gap.
+            prop_assert!(last.canvas_y_dev <= expected_y);
+            prop_assert_eq!(last.canvas_y_dev + last.rows_dev, plan.canvas_height_dev);
 
             // Every placement's crop stays within the source bitmap.
             for p in &plan.placements {
