@@ -30,7 +30,18 @@ async function sleep(ms: number): Promise<void> {
  * Captures the currently visible viewport of `windowId` as a PNG, waiting
  * as needed to respect the capture-rate quota.
  */
-export async function captureVisibleTabPaced(windowId: number): Promise<Uint8Array> {
+export async function captureVisibleTabPaced(
+  windowId: number,
+  /**
+   * Run after the quota wait and immediately before the screenshot.
+   *
+   * The wait is the whole point: it is up to half a second long, and anything
+   * the page does in it — re-rendering a panel that was hidden, say — lands in
+   * the picture. A caller that needs the page in a particular state needs it
+   * *here*, not before the wait.
+   */
+  beforeShot?: () => Promise<void>,
+): Promise<Uint8Array> {
   // Paced at exactly the quota, not a little under it.
   //
   // This used to add 50ms of slack to every single call so as never to ride
@@ -45,6 +56,7 @@ export async function captureVisibleTabPaced(windowId: number): Promise<Uint8Arr
     if (wait > 0) await sleep(wait);
 
     try {
+      if (beforeShot) await beforeShot();
       const dataUrl = await ext.tabs.captureVisibleTab(windowId, { format: "png" });
       lastCallAtMs = Date.now();
       return dataUrlToBytes(dataUrl);

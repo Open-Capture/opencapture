@@ -161,7 +161,11 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
       action: "scrollTo",
       targetCss: target,
     });
-    let pngBytes = await captureVisibleTabPaced(windowId);
+    // Re-assert the hiding after the quota wait, not before it: those are up
+    // to half a second apart, and the page keeps running in between.
+    let pngBytes = await captureVisibleTabPaced(windowId, async () => {
+      await sendToContent(tabId, { action: "reassert" });
+    });
     // Dominant-inner-scroller mode (see content/index.ts's
     // detectDominantScroller): captureVisibleTabPaced still returns the
     // whole browser viewport, most of which — anything outside the inner

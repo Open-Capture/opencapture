@@ -52,14 +52,63 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   // the content script has no storage access of its own by design.
   let stickyMode: StickyMode = "keep";
 
+  interface HideTarget {
+    el: HTMLElement;
+    originalVisibility: PinnedStyle;
+    originalOpacity: PinnedStyle;
+  }
+
   let pinnedElements: Array<{
     el: HTMLElement;
     kind: PinnedKind;
-    originalVisibility: PinnedStyle;
-    originalOpacity: PinnedStyle;
+    /**
+     * Everything that has to be hidden for this element to disappear.
+     *
+     * Usually just the element. Not always: hiding an ancestor does not hide
+     * content promoted to the top layer (a popover, a modal dialog), which
+     * renders outside the tree and ignores an ancestor's visibility and
+     * opacity entirely. LinkedIn's messaging dock is that shape — the host
+     * measured as hidden at the moment of every screenshot while the panel
+     * inside it carried on painting.
+     */
+    targets: HideTarget[];
     /** What the current slice wants. The guard below enforces it. */
     hidden: boolean;
   }> = [];
+
+  /** How many painted descendants are worth hiding alongside their host. */
+  const HIDE_TARGET_LIMIT = 8;
+
+  /**
+   * The element, plus the descendants that actually paint when hiding the
+   * element alone is not enough.
+   *
+   * Only collected when the element's own box says nothing — the case where
+   * what you can see lives somewhere the element's own styles do not reach.
+   * For ordinary pinned bars this is just the element, at no cost.
+   */
+  function hideTargetsFor(el: HTMLElement): HideTarget[] {
+    const asTarget = (target: HTMLElement): HideTarget => ({
+      el: target,
+      originalVisibility: inlineStyle(target, "visibility"),
+      originalOpacity: inlineStyle(target, "opacity"),
+    });
+    const targets = [asTarget(el)];
+
+    const own = el.getBoundingClientRect();
+    if (own.width >= 40 && own.height >= 8 && !shadowRootOf(el)) return targets;
+
+    for (const child of deepDescendants(el, PAINTED_DESCENDANTS)) {
+      if (targets.length > HIDE_TARGET_LIMIT) break;
+      if (!(child instanceof HTMLElement)) continue;
+      const rect = child.getBoundingClientRect();
+      if (rect.width < 40 || rect.height < 8) continue;
+      // Only the outermost painted things; their own children go with them.
+      if (targets.some((t) => t.el !== el && t.el.contains(child))) continue;
+      targets.push(asTarget(child));
+    }
+    return targets;
+  }
 
   function inlineStyle(el: HTMLElement, prop: string): PinnedStyle {
     return { value: el.style.getPropertyValue(prop), priority: el.style.getPropertyPriority(prop) };
@@ -383,6 +432,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
    */
   function classifyPinnedElements(): void {
     pinnedElements = [];
+
     const view = captureRect();
     const viewBottom = view.top + view.height;
     const viewRight = view.left + view.width;
@@ -431,13 +481,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       });
       if (!kind) continue;
 
-      pinnedElements.push({
-        el,
-        kind,
-        originalVisibility: inlineStyle(el, "visibility"),
-        originalOpacity: inlineStyle(el, "opacity"),
-        hidden: false,
-      });
+      pinnedElements.push({ el, kind, targets: hideTargetsFor(el), hidden: false });
       el.setAttribute(PINNED_ATTR, kind);
     }
   }
@@ -497,6 +541,62 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     el.style.setProperty("opacity", "0", "important");
   }
 
+  const HIDE_STYLE_ID = "__opencapture_hide__";
+
+  /**
+   * A selector that will match this element again if the page rebuilds it.
+   *
+   * Inline styles are attached to a node. A framework that re-renders by
+   * *replacing* the node produces a fresh one with none of them, and no
+   * amount of watching the old node helps — nothing was edited, the element
+   * is simply a different object. A rule in a stylesheet has no such problem:
+   * it matches whatever is there at paint time, including something built a
+   * millisecond ago.
+   */
+  function selectorFor(el: HTMLElement): string | null {
+    const escape = (value: string): string =>
+      typeof CSS !== "undefined" && typeof CSS.escape === "function" ? CSS.escape(value) : value;
+    if (el.id) return `#${escape(el.id)}`;
+    const classes =
+      typeof el.className === "string" ? el.className.trim().split(/\s+/).filter(Boolean) : [];
+    if (classes.length === 0) return null;
+    return el.tagName.toLowerCase() + classes.map((c) => `.${escape(c)}`).join("");
+  }
+
+  /**
+   * Hide by rule as well as by inline style.
+   *
+   * Belt and braces on purpose: the inline style covers an element with no
+   * usable selector, and the rule covers an element that gets rebuilt. Neither
+   * alone was enough — the inline style lost the node, and a selector cannot
+   * be written for everything.
+   */
+  function writeHideRules(): void {
+    const selectors = new Set<string>();
+    for (const p of pinnedElements) {
+      if (!p.hidden) continue;
+      for (const t of p.targets) {
+        const selector = selectorFor(t.el);
+        if (selector) selectors.add(selector);
+      }
+    }
+    let style = document.getElementById(HIDE_STYLE_ID) as HTMLStyleElement | null;
+    if (selectors.size === 0) {
+      style?.remove();
+      return;
+    }
+    if (!style) {
+      style = document.createElement("style");
+      style.id = HIDE_STYLE_ID;
+      document.documentElement.appendChild(style);
+    }
+    style.textContent = `${[...selectors].join(",")}{visibility:hidden!important;opacity:0!important}`;
+  }
+
+  function removeHideRules(): void {
+    document.getElementById(HIDE_STYLE_ID)?.remove();
+  }
+
   function startPinnedGuard(): void {
     stopPinnedGuard();
     if (typeof MutationObserver !== "function") return;
@@ -504,8 +604,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       for (const record of records) {
         const target = record.target;
         if (!(target instanceof HTMLElement)) continue;
-        const pinned = pinnedElements.find((p) => p.el === target);
-        if (!pinned || !pinned.hidden) continue;
+        const pinned = pinnedElements.find((p) => p.hidden && p.targets.some((t) => t.el === target));
+        if (!pinned) continue;
         if (!isHiddenByUs(target)) hideElement(target);
       }
     });
@@ -521,14 +621,20 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     pinnedGuard = null;
   }
 
+  /** The slice currently being photographed, so hiding can be re-asserted. */
+  let sliceFlags: { first: boolean; last: boolean } = { first: true, last: false };
+
   function applyPinnedVisibility(isFirstSlice: boolean, isLastSlice: boolean): void {
+    sliceFlags = { first: isFirstSlice, last: isLastSlice };
     for (const p of pinnedElements) {
       const shouldShow =
         p.kind === "always" ? false : (p.kind === "top" && isFirstSlice) || (p.kind === "bottom" && isLastSlice);
       p.hidden = !shouldShow;
       if (shouldShow) {
-        restoreStyle(p.el, "visibility", p.originalVisibility);
-        restoreStyle(p.el, "opacity", p.originalOpacity);
+        for (const t of p.targets) {
+          restoreStyle(t.el, "visibility", t.originalVisibility);
+          restoreStyle(t.el, "opacity", t.originalOpacity);
+        }
         continue;
       }
       // Both properties, both !important.
@@ -543,8 +649,9 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       //
       // Neither property affects layout, so nothing reflows and the slice
       // still lines up with the ones around it.
-      hideElement(p.el);
+      for (const t of p.targets) hideElement(t.el);
     }
+    writeHideRules();
     // Only worth watching once something is actually meant to be hidden.
     if (pinnedElements.some((p) => p.hidden)) startPinnedGuard();
     else stopPinnedGuard();
@@ -552,9 +659,12 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
   function restorePinnedElements(): void {
     stopPinnedGuard();
+    removeHideRules();
     for (const p of pinnedElements) {
-      restoreStyle(p.el, "visibility", p.originalVisibility);
-      restoreStyle(p.el, "opacity", p.originalOpacity);
+      for (const t of p.targets) {
+        restoreStyle(t.el, "visibility", t.originalVisibility);
+        restoreStyle(t.el, "opacity", t.originalOpacity);
+      }
       p.el.removeAttribute(PINNED_ATTR);
     }
     pinnedElements = [];
@@ -633,6 +743,25 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     await sleep(2 * 16);
 
     return { actualScrollCss };
+  }
+
+  /**
+   * Hide everything again, right now.
+   *
+   * Applying the hiding and taking the screenshot are up to half a second
+   * apart — the browser's screenshot quota sits between them — and a page that
+   * re-renders in that window can put back what was hidden. Watching the style
+   * attribute catches an edit; it cannot catch the element being replaced by a
+   * freshly built one, which is a new node with no style of ours on it.
+   *
+   * So the sweep runs again immediately before the shutter. It costs a
+   * millisecond or two and it is the only point at which "hidden" and
+   * "photographed" refer to the same instant.
+   */
+  function handleReassert() {
+    reclassifyPinnedElements();
+    applyPinnedVisibility(sliceFlags.first, sliceFlags.last);
+    return { ok: true as const, pinned: pinnedElements.length };
   }
 
   function handleRestore() {
@@ -1121,6 +1250,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     if (request.action === "scrollTo" && typeof request.targetCss === "number") {
       handleScrollTo(request.targetCss).then(sendResponse);
       return true;
+    }
+    if (request.action === "reassert") {
+      sendResponse(handleReassert());
+      return false;
     }
     if (request.action === "restore") {
       sendResponse(handleRestore());

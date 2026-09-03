@@ -1,0 +1,48 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>dock-rebuilds-itself</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      .dock {
+        position: fixed;
+        right: 24px;
+        top: 60px;
+        width: 288px;
+        height: 500px;
+        background: rgb(255, 0, 255);
+        color: #fff;
+        font: 14px monospace;
+        z-index: 500;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="bands"></div>
+    <div id="dock-slot"><div class="dock msg-overlay-list-bubble">Messaging</div></div>
+    <script>
+      const c = document.getElementById("bands");
+      for (let i = 0; i < 28; i++) {
+        const d = document.createElement("div");
+        d.className = "band";
+        d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+        d.textContent = `band ${i}`;
+        c.appendChild(d);
+      }
+      // A framework re-rendering: the dock is REPLACED with a freshly built
+      // node, not restyled. Any style an extension put on the old node goes
+      // with it, and watching the style attribute cannot see this happen —
+      // there is no attribute change, there is a different element.
+      const slot = document.getElementById("dock-slot");
+      setInterval(() => {
+        slot.replaceChildren();
+        const fresh = document.createElement("div");
+        fresh.className = "dock msg-overlay-list-bubble";
+        fresh.textContent = "Messaging";
+        slot.appendChild(fresh);
+      }, 120);
+    </script>
+  </body>
+</html>
