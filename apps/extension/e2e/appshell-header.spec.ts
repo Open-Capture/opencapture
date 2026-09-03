@@ -75,3 +75,40 @@ test("a header above the scrolling element is captured, once, at the top", async
 
   await page.close();
 });
+
+test("remove takes the header with it, static markup included", async ({ context, serviceWorker }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1200, height: 800 });
+  await page.goto(`${BASE_URL}/appshell-header.html`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.bringToFront();
+
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.set({ capturePrefs: { sticky: "remove" } });
+  });
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    // @ts-expect-error test-only global
+    async (t) => globalThis.__test.captureFullPage(t.tabId, t.windowId),
+    tabInfo,
+  );
+
+  const header = await rowsOf(page, result.imagesBase64[0], [255, 255, 0]);
+  const dock = await rowsOf(page, result.imagesBase64[0], [255, 0, 255]);
+  console.log("REMOVE MODE — HEADER:", JSON.stringify(header), "DOCK:", JSON.stringify(dock));
+
+  // The header is ordinary static markup, not a pinned element — hiding
+  // pinned things would never have touched it. "Remove" means the capture
+  // shows the page and nothing framing it, so it is cropped out instead.
+  expect(header.rows).toBe(0);
+  expect(dock.rows).toBe(0);
+
+  await page.close();
+});

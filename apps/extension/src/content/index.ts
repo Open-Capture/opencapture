@@ -506,7 +506,13 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     style.textContent = `
       html { scroll-behavior: auto !important; }
       *, *::before, *::after { animation-play-state: paused !important; transition: none !important; }
-      html::-webkit-scrollbar { display: none; }
+      /* Every scrollbar, not just the window's, and in both engines.
+         A scrollbar is an artefact of looking at the page, not part of it —
+         and an inner scroller's one would otherwise be photographed down the
+         entire right edge of the capture. scrollbar-width is the standard
+         property Firefox implements; the pseudo-element is Chromium's. */
+      * { scrollbar-width: none !important; }
+      *::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; }
     `;
     document.documentElement.appendChild(style);
     document.querySelectorAll("video").forEach((v) => v.pause());

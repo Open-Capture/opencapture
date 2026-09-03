@@ -185,7 +185,12 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
     // scroller, and sits at row zero.
     let placeAtCss = actualScrollCss;
     if (innerRect) {
-      const first = sliceIndex === 1;
+      // Only when the user wants the page's furniture kept. "Remove" means the
+      // capture shows the page and nothing framing it, and the header above
+      // the scrolling element is exactly that framing — including the bits of
+      // it that are ordinary static markup rather than pinned elements, which
+      // nothing else here would ever hide.
+      const first = sliceIndex === 1 && sticky === "keep";
       const cropTopCss = first ? 0 : innerRect.y;
       const cropHeightCss = first ? innerRect.headerCss + innerRect.height : innerRect.height;
       placeAtCss = first ? 0 : actualScrollCss + innerRect.headerCss;
