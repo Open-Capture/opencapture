@@ -1,0 +1,41 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>dock-closed-shadow</title>
+    <style>
+      html, body { margin: 0; padding: 0; background: #111; }
+      #shell { height: 100vh; overflow-y: auto; }
+      .band { height: 100px; color: #fff; font: 14px monospace; padding-top: 4px; }
+      #dock-host { position: absolute; top: 0; left: 0; width: 0; height: 0; z-index: 500; }
+    </style>
+  </head>
+  <body>
+    <div id="shell"><div id="bands"></div></div>
+  </body>
+  <script>
+    const c = document.getElementById("bands");
+    for (let i = 0; i < 28; i++) {
+      const d = document.createElement("div");
+      d.className = "band";
+      d.style.backgroundColor = `rgb(${40 + i * 4},${60 + i * 3},${90 + i * 5})`;
+      d.textContent = `band ${i}`;
+      c.appendChild(d);
+    }
+    // A CLOSED shadow root: nothing outside can read its contents, and
+    // `host.shadowRoot` is null. This is the same position a Firefox content
+    // script is in for an *open* root — Xray wrappers hide it — so it stands
+    // in for that here, where a real Firefox content script cannot be driven.
+    const host = document.createElement("div");
+    host.id = "dock-host";
+    document.documentElement.appendChild(host);
+    const root = host.attachShadow({ mode: "closed" });
+    const panel = document.createElement("div");
+    panel.className = "msg-overlay-list-bubble";
+    panel.textContent = "Messaging";
+    const style = document.createElement("style");
+    style.textContent =
+      ".msg-overlay-list-bubble{position:fixed;right:24px;top:60px;width:288px;height:600px;background:rgb(255,0,255);color:#fff;font:14px monospace}";
+    root.append(style, panel);
+  </script>
+</html>

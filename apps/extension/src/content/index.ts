@@ -214,16 +214,35 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
    * children has nothing for `querySelectorAll` to iterate, so descending
    * only from its descendants never reaches inside it at all.
    */
+  /**
+   * The shadow root of an element, from a content script.
+   *
+   * `element.shadowRoot` is not enough on Firefox. Content scripts there see
+   * the page through an Xray wrapper, and that wrapper reports null for a
+   * shadow root the *page* created — which is every shadow root worth looking
+   * into. Firefox exposes `openOrClosedShadowRoot` to extensions for exactly
+   * this reason; Chromium has no such property and `shadowRoot` works there.
+   *
+   * This is why a console snippet could find LinkedIn's messaging dock while
+   * the extension could not: a snippet typed into the console runs in the page,
+   * and the extension does not.
+   */
+  function shadowRootOf(el: Element): ShadowRoot | null {
+    const firefoxOnly = (el as Element & { openOrClosedShadowRoot?: ShadowRoot | null }).openOrClosedShadowRoot;
+    return firefoxOnly ?? el.shadowRoot;
+  }
+
   function deepDescendants(node: Element | ShadowRoot, cap: number): Element[] {
     const found: Element[] = [];
     const walk = (current: Element | ShadowRoot): void => {
       if (found.length >= cap) return;
-      const root = (current as Element).shadowRoot;
+      const root = current instanceof Element ? shadowRootOf(current) : null;
       if (root) walk(root);
       for (const el of current.querySelectorAll("*")) {
         if (found.length >= cap) return;
         found.push(el);
-        if (el.shadowRoot) walk(el.shadowRoot);
+        const childRoot = shadowRootOf(el);
+        if (childRoot) walk(childRoot);
       }
     };
     walk(node);
@@ -285,6 +304,52 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       bottom = Math.max(bottom, r.bottom);
       right = Math.max(right, r.right);
     }
+    if (found) return { top, left, bottom, right, width: right - left, height: bottom - top };
+
+    // Nothing measurable inside, yet the element is pinned and has a box of
+    // its own that says nothing. Ask the page where it is actually painted.
+    //
+    // This is the case where descendants cannot be read at all — a shadow root
+    // the browser will not hand over. Hit-testing goes through a different
+    // door: `elementsFromPoint` reports the host for anything its shadow
+    // content paints, so the widget's extent can be recovered without ever
+    // seeing inside it.
+    return paintedRectByHitTest(el) ?? { top, left, bottom, right, width: right - left, height: bottom - top };
+  }
+
+  /** How coarsely to probe the viewport. Fine enough for a panel, cheap enough
+   * to be an exceptional path. */
+  const HIT_TEST_STEP_PX = 40;
+
+  function paintedRectByHitTest(
+    el: HTMLElement,
+  ): { top: number; left: number; bottom: number; right: number; width: number; height: number } | null {
+    let top = Infinity;
+    let left = Infinity;
+    let bottom = -Infinity;
+    let right = -Infinity;
+    let hits = 0;
+
+    for (let y = 0; y < window.innerHeight; y += HIT_TEST_STEP_PX) {
+      for (let x = 0; x < window.innerWidth; x += HIT_TEST_STEP_PX) {
+        const hit = document.elementFromPoint(x, y);
+        if (!hit || (hit !== el && !el.contains(hit))) continue;
+        hits += 1;
+        top = Math.min(top, y);
+        left = Math.min(left, x);
+        bottom = Math.max(bottom, y);
+        right = Math.max(right, x);
+      }
+    }
+    if (hits < 2) return null;
+
+    // The grid samples points, so the real edges sit up to one step outside
+    // the sampled ones. Grow by a step so the box covers what is painted
+    // rather than only what was probed.
+    top -= HIT_TEST_STEP_PX;
+    left -= HIT_TEST_STEP_PX;
+    bottom += HIT_TEST_STEP_PX;
+    right += HIT_TEST_STEP_PX;
     return { top, left, bottom, right, width: right - left, height: bottom - top };
   }
 
