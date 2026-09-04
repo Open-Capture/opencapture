@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>App shell with a static sidebar</title>
+<!--
+  The chatgpt.com shape: a full-height column that does not scroll, beside a
+  pane that does. Nothing about the column is fixed or sticky, so the pinned
+  handling never sees it — it is page layout, and cropping each slice to the
+  pane used to cut it out of the capture entirely.
+
+  The marker block exists to count how many times the column's *content* is
+  painted. Its background has to survive to the bottom of the capture while
+  that content appears once.
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; }
+  #shell { display: flex; height: 100vh; }
+  #rail {
+    width: 240px;
+    flex: 0 0 240px;
+    height: 100vh;
+    background: rgb(20, 30, 40);
+    color: #fff;
+    font: 14px/1.4 system-ui, sans-serif;
+  }
+  #marker { height: 60px; margin: 24px 16px; background: rgb(255, 0, 0); }
+  #rail p { margin: 12px 16px; }
+  #pane { flex: 1 1 auto; height: 100vh; overflow-y: auto; background: #fff; }
+  .row {
+    height: 140px;
+    margin: 20px;
+    background: rgb(0, 0, 255);
+    color: #fff;
+    font: 16px/140px system-ui, sans-serif;
+    text-align: center;
+  }
+</style>
+<div id="shell">
+  <nav id="rail">
+    <div id="marker"></div>
+    <p>Conversations</p>
+    <p>Settings</p>
+  </nav>
+  <div id="pane">
+    <div class="row">1</div><div class="row">2</div><div class="row">3</div>
+    <div class="row">4</div><div class="row">5</div><div class="row">6</div>
+    <div class="row">7</div><div class="row">8</div><div class="row">9</div>
+    <div class="row">10</div><div class="row">11</div><div class="row">12</div>
+    <div class="row">13</div><div class="row">14</div><div class="row">15</div>
+  </div>
+</div>

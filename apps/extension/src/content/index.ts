@@ -688,11 +688,137 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       for (const t of p.targets) hideElement(t.el);
     }
     writeHideRules();
+    applyGutterVisibility(isFirstSlice);
     // Only worth watching once something is actually meant to be hidden.
     if (pinnedElements.some((p) => p.hidden)) startPinnedGuard();
     else stopPinnedGuard();
   }
 
+  /**
+   * The columns an app shell puts beside its scrolling pane.
+   *
+   * On a layout like chatgpt.com the conversation list is a static full-height
+   * column next to the pane that actually scrolls. Nothing pins it, so the
+   * sticky handling never sees it, and cropping each slice to the pane cut it
+   * out of the capture altogether — "the left sidebar never shows".
+   *
+   * Keeping the whole window instead brings it back, but it is photographed
+   * into every slice, so the finished capture repeats the sidebar down its
+   * whole length. That is the same thing people complained about elsewhere,
+   * and it is worse here because the column is tall.
+   *
+   * So show its contents once, on the first slice, and afterwards keep only
+   * its background — which is what the eye expects a sidebar to do beside a
+   * long page. Hiding it the way pinned elements are hidden would take the
+   * background with it (`visibility` hides an element's own painting too) and
+   * leave a bare gutter, so the descendants are hidden and the colour is
+   * pinned onto the column itself.
+   */
+  interface ShellGutter {
+    el: HTMLElement;
+    background: string;
+    originalBackground: PinnedStyle;
+  }
+
+  let shellGutters: ShellGutter[] = [];
+  const GUTTER_ATTR = "data-opencapture-gutter";
+  const GUTTER_STYLE_ID = "__opencapture_gutter__";
+
+  /**
+   * The colour actually painted at a point, by walking out to whichever
+   * ancestor paints it.
+   *
+   * Reading the column's own background-color is not enough: app shells stack
+   * several wrappers and the colour can be set on any of them, with the outer
+   * ones transparent. Sampling a point and walking up finds it wherever it is.
+   */
+  function paintedBackgroundAt(x: number, y: number): string {
+    let node: Element | null = document.elementFromPoint(x, y);
+    while (node instanceof HTMLElement) {
+      const colour = window.getComputedStyle(node).backgroundColor;
+      if (colour && colour !== "transparent" && !/^rgba\(.*,\s*0\)$/.test(colour)) return colour;
+      node = node.parentElement;
+    }
+    const body = document.body ? window.getComputedStyle(document.body).backgroundColor : "";
+    return body && body !== "transparent" && !/^rgba\(.*,\s*0\)$/.test(body) ? body : "#ffffff";
+  }
+
+  function findShellGutters(): void {
+    shellGutters = [];
+    // Only in app-shell mode, and only when the framing is being kept: in the
+    // other mode the slice is cropped to the pane and the gutters are not in
+    // the picture at all.
+    if (!innerScroller || stickyMode !== "keep") return;
+    const pane = innerScroller.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    for (const side of ["left", "right"] as const) {
+      let best: HTMLElement | null = null;
+      let bestArea = 0;
+      for (const el of document.body?.querySelectorAll("*") ?? []) {
+        if (!(el instanceof HTMLElement)) continue;
+        // An ancestor of the pane spans both, and hiding its descendants would
+        // hide the pane along with them.
+        if (el.contains(innerScroller)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.height < vh * 0.7 || r.width < 40 || r.width > vw * 0.5) continue;
+        // Wholly to one side of the pane, not overlapping it.
+        if (side === "left" ? r.right > pane.left + 1 : r.left < pane.right - 1) continue;
+        const area = r.width * r.height;
+        // Strictly greater, so among the nested wrappers that share a box the
+        // outermost — first in document order — is the one kept.
+        if (area > bestArea) {
+          bestArea = area;
+          best = el;
+        }
+      }
+      if (!best) continue;
+      const r = best.getBoundingClientRect();
+      shellGutters.push({
+        el: best,
+        background: paintedBackgroundAt(
+          r.left + r.width / 2,
+          Math.min(vh - 1, Math.max(0, r.top + r.height * 0.55)),
+        ),
+        originalBackground: inlineStyle(best, "background-color"),
+      });
+    }
+  }
+
+  function applyGutterVisibility(isFirstSlice: boolean): void {
+    if (shellGutters.length === 0) return;
+    for (const g of shellGutters) {
+      if (isFirstSlice) {
+        g.el.removeAttribute(GUTTER_ATTR);
+        restoreStyle(g.el, "background-color", g.originalBackground);
+      } else {
+        g.el.setAttribute(GUTTER_ATTR, "");
+        g.el.style.setProperty("background-color", g.background, "important");
+      }
+    }
+    let style = document.getElementById(GUTTER_STYLE_ID) as HTMLStyleElement | null;
+    if (!style) {
+      style = document.createElement("style");
+      style.id = GUTTER_STYLE_ID;
+      document.documentElement.appendChild(style);
+    }
+    style.textContent = `[${GUTTER_ATTR}] *{visibility:hidden!important;opacity:0!important}`;
+  }
+
+  function restoreShellGutters(): void {
+    for (const g of shellGutters) {
+      g.el.removeAttribute(GUTTER_ATTR);
+      restoreStyle(g.el, "background-color", g.originalBackground);
+    }
+    shellGutters = [];
+    document.getElementById(GUTTER_STYLE_ID)?.remove();
+  }
+
+  // Note: this runs between slices, not only at the end — reclassifyPinnedElements
+  // resets and re-sweeps before every one. So it must not touch the shell
+  // gutters, which are a property of the layout rather than of a sweep, and
+  // are released once by handleRestore when the capture is over.
   function restorePinnedElements(): void {
     stopPinnedGuard();
     removeHideRules();
@@ -723,7 +849,14 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     // like chatgpt.com: the window never scrolls there, but the bars pinned
     // over the scrolling container get re-photographed into every slice.
     let metrics: { viewportWidthCss: number; viewportHeightCss: number; totalHeightCss: number; dpr: number };
-    let innerScrollRect: { x: number; y: number; width: number; height: number; headerCss: number } | null = null;
+    let innerScrollRect: {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+      headerCss: number;
+      windowWidthCss: number;
+    } | null = null;
     const dpr = window.devicePixelRatio || 1;
     if (innerScroller) {
       totalHeightCss = innerScroller.scrollHeight;
@@ -742,8 +875,15 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         width: rect.width,
         height: rect.height,
         headerCss: rect.top,
+        // The window the scroller sits in, which is wider than the scroller
+        // whenever the app shell has a sidebar. metrics.viewportWidthCss is
+        // the scroller's width here — it has to be, it is what a slice gets
+        // cropped to — so the full width has to travel separately for the
+        // caller to be able to keep the columns beside the pane.
+        windowWidthCss: window.innerWidth,
       };
       metrics = { viewportWidthCss: rect.width, viewportHeightCss: innerScroller.clientHeight, totalHeightCss, dpr };
+      findShellGutters();
       classifyPinnedElements();
       applyPinnedVisibility(true, totalHeightCss <= innerScroller.clientHeight);
     } else {
@@ -828,6 +968,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
   function handleRestore() {
     restorePinnedElements();
+    restoreShellGutters();
     if (innerScroller) {
       innerScroller.scrollTop = 0;
       innerScroller = null;

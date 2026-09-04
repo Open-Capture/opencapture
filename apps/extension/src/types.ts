@@ -46,7 +46,7 @@ export interface PrepResponse {
    * a global header, typically, which is not part of what scrolls and would
    * otherwise be cropped out of the capture entirely.
    */
-  innerScrollRect: (SelectedRect & { headerCss: number }) | null;
+  innerScrollRect: (SelectedRect & { headerCss: number; windowWidthCss: number }) | null;
 }
 
 export interface ScrollToResponse {

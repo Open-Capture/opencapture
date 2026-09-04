@@ -211,21 +211,43 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
       // the scrolling element is exactly that framing — including the bits of
       // it that are ordinary static markup rather than pinned elements, which
       // nothing else here would ever hide.
-      const first = sliceIndex === 1 && sticky === "keep";
+      const keepFraming = sticky === "keep";
+      const first = sliceIndex === 1 && keepFraming;
       const cropTopCss = first ? 0 : innerRect.y;
       const cropHeightCss = first ? innerRect.headerCss + innerRect.height : innerRect.height;
       placeAtCss = first ? 0 : actualScrollCss + innerRect.headerCss;
 
-      const xDev = Math.round(innerRect.x * scaleForCrop);
+      // Horizontally the same rule as vertically, for the same reason. An app
+      // shell frames its scrolling pane on the sides as well as the top —
+      // ChatGPT's conversation list is a static full-height column beside the
+      // pane, not a pinned element, so nothing in the sticky handling ever
+      // sees it and cropping to the pane simply cut it out of the picture. On
+      // a 1400px window the capture came back 1140px wide with the sidebar
+      // gone, in both modes, which is what "the sidebar never shows" was.
+      //
+      // So keep the whole window when the framing is wanted, and crop to the
+      // pane when it is not. The columns beside the pane hold still while it
+      // scrolls, so painting them into every slice reproduces them down the
+      // capture as one continuous column — the same thing a full-height rail
+      // on an ordinary page already does in this mode.
+      const cropLeftCss = keepFraming ? 0 : innerRect.x;
+      const cropWidthCss = keepFraming ? innerRect.windowWidthCss : innerRect.width;
+
+      const xDev = Math.round(cropLeftCss * scaleForCrop);
       const yDev = Math.round(cropTopCss * scaleForCrop);
-      const widthDev = Math.round(innerRect.width * scaleForCrop);
+      const widthDev = Math.round(cropWidthCss * scaleForCrop);
       const heightDev = Math.round(cropHeightCss * scaleForCrop);
       pngBytes = shotCore.cropAndEncode(pngBytes, xDev, yDev, widthDev, heightDev, metrics.dpr) as Uint8Array;
     }
     if (!session) {
-      // In inner-scroll mode the slice was just cropped to the scroller's own
-      // rect, so the width to compare against is that rect's, not the window's.
-      const widthCss = innerRect ? innerRect.width : metrics.viewportWidthCss;
+      // In inner-scroll mode the slice was just cropped, so the width to
+      // compare against is whatever it was cropped to — the scroller's rect,
+      // or the whole window when its framing is being kept.
+      const widthCss = innerRect
+        ? sticky === "keep"
+          ? innerRect.windowWidthCss
+          : innerRect.width
+        : metrics.viewportWidthCss;
       scale = measuredScale(pngBytes, widthCss, metrics.dpr);
       scaleForCrop = scale;
       session = new shotCore.CaptureSession(scale);
