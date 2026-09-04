@@ -131,12 +131,20 @@ export function classifyPinned(opts: {
  * of the page rather than inside it — from qualifying.
  */
 function isSideRail(box: Box, view: Box): boolean {
-  const tallEnough = box.height > view.height * 0.35;
+  // Nearly the full height of the band, not merely tall.
+  //
+  // A navigation rail runs the height of the window — that is what makes
+  // hiding it after the first slice leave a blank column, and what this
+  // exemption is for. At a third of the height the test also caught things
+  // that are not rails at all: Wikipedia's appearance panel is 476 of 900,
+  // narrow, and pinned to the right edge, so it was exempted and repeated
+  // down every slice of the capture.
+  const fullHeight = box.height > view.height * 0.7;
   const narrowEnough = box.width < view.width * 0.35;
   const margin = view.width * 0.15;
   const hugsLeft = box.left - view.left < margin;
   const hugsRight = view.left + view.width - (box.left + box.width) < margin;
-  return tallEnough && narrowEnough && (hugsLeft || hugsRight);
+  return fullHeight && narrowEnough && (hugsLeft || hugsRight);
 }
 
 /**

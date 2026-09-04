@@ -20,10 +20,18 @@ const classify = (box: Box, mode: StickyMode, inFlow: boolean, signature = "", v
   classifyPinned({ box, view, signature, mode, inFlow, isOverlayHost: false });
 
 describe("classifyPinned: keep (the default)", () => {
-  it("leaves a sidebar in place on every slice", () => {
-    // Hiding it after the first slice leaves a blank column down the rest of
-    // the capture, which is what the sidebar complaint was about.
-    expect(classify(SIDEBAR, "keep", true)).toBeNull();
+  it("shows a partial-height sticky column once, at the top", () => {
+    // 545 of 1506. Only a rail that runs the height of the window is left in
+    // place on every slice; anything shorter is shown once, which is what this
+    // one does on the real page and what it is expected to do.
+    expect(classify(SIDEBAR, "keep", true)).toBe("top");
+  });
+
+  it("leaves a full-height navigation rail in place on every slice", () => {
+    // Hiding one of these after the first slice leaves a blank column down the
+    // rest of the capture, which is the complaint the exemption exists for.
+    const rail: Box = { left: 0, top: 52, width: 260, height: 1440 };
+    expect(classify(rail, "keep", true)).toBeNull();
   });
 
   it("shows the messaging dock once, even though it is the same shape as the sidebar", () => {
@@ -33,9 +41,11 @@ describe("classifyPinned: keep (the default)", () => {
   });
 
   it("does not need a name to tell them apart", () => {
-    // Both signatures empty: this is the case hashed class names create.
-    expect(classify(SIDEBAR, "keep", true)).toBeNull();
-    expect(classify(DOCK, "keep", false)).not.toBeNull();
+    // Both signatures empty: this is the case hashed class names create. The
+    // page's own column is shown once; the dock floating over it is not
+    // treated as part of the page.
+    expect(classify(SIDEBAR, "keep", true)).toBe("top");
+    expect(classify(DOCK, "keep", false)).toBe("bottom");
   });
 
   it("still shows a named chat widget once, wherever it sits", () => {
@@ -134,8 +144,30 @@ describe("classifyPinned: containers standing by for an overlay", () => {
 
   it("does not treat the page's own sticky furniture as one", () => {
     const rail: Box = { left: 109, top: 76, width: 222, height: 545 };
+    // Shown once rather than dropped: it is the page, not an overlay.
     expect(
       classifyPinned({ box: rail, view, signature: "", mode: "keep", inFlow: true, isOverlayHost: false }),
-    ).toBeNull();
+    ).toBe("top");
+  });
+});
+
+describe("classifyPinned: a panel pinned to the side is not a rail", () => {
+  // Measured on Wikipedia's main page: its appearance panel, which expands
+  // once the page has been scrolled. Tall, narrow and against the right edge —
+  // the same shape as a navigation rail, and repeated down every slice of a
+  // capture because it was exempted as one.
+  const view: Box = { top: 0, left: 0, width: 1400, height: 900 };
+  const appearancePanel: Box = { left: 1160, top: 40, width: 196, height: 476 };
+
+  it("shows it once instead of leaving it on every slice", () => {
+    expect(
+      classifyPinned({ box: appearancePanel, view, signature: "", mode: "keep", inFlow: true, isOverlayHost: false }),
+    ).toBe("top");
+  });
+
+  it("still drops it when floating things are not wanted", () => {
+    expect(
+      classifyPinned({ box: appearancePanel, view, signature: "", mode: "remove", inFlow: true, isOverlayHost: false }),
+    ).toBe("always");
   });
 });
