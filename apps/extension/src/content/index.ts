@@ -486,7 +486,16 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       const pinnedByPosition = style.position === "fixed" || style.position === "sticky";
       const staysWhileInnerScrolls =
         innerScroller !== null && style.position !== "static" && !innerScroller.contains(el);
-      if (!pinnedByPosition && !staysWhileInnerScrolls) continue;
+      // "Remove them" means the page with nothing framing it, and on a
+      // three-column layout the side columns are that framing even though
+      // nothing pins them. LinkedIn's right rail — news, puzzles, a promoted
+      // ad — is ordinary in-flow markup as tall as the feed, so neither test
+      // above sees it and the option left it in the picture every time.
+      //
+      // Only in that mode. In the other one these columns are the page's own
+      // content and stay exactly where they are.
+      const removableSideColumn = stickyMode === "remove" && isSideColumn(el, view);
+      if (!pinnedByPosition && !staysWhileInnerScrolls && !removableSideColumn) continue;
 
       // What it paints, not what it measures — see `paintedRect`.
       const rect = paintedRect(el);
@@ -514,6 +523,33 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       pinnedElements.push({ el, kind, targets: hideTargetsFor(el), hidden: false });
       el.setAttribute(PINNED_ATTR, kind);
     }
+  }
+
+  /**
+   * A column of page furniture down one side, pinned or not.
+   *
+   * Judged on shape alone, because nothing else is reliable: these carry
+   * hashed class names like everything else, and they are not positioned, so
+   * there is no `fixed`/`sticky` to key off.
+   *
+   * The edge test allows for a centred layout — LinkedIn's rail stops ~136px
+   * short of a 1400px window because the whole page is centred, so requiring
+   * it to touch the edge would miss it. The width test is what keeps the main
+   * content out: a reading column is half the window or more, and a wrapper
+   * around the whole page is wider still.
+   */
+  function isSideColumn(el: HTMLElement, view: CaptureRect): boolean {
+    const r = el.getBoundingClientRect();
+    if (r.width < 100 || r.width > view.width * 0.35) return false;
+    if (r.height < view.height * 0.4) return false;
+    const margin = view.width * 0.2;
+    const hugsLeft = r.left - view.left < margin;
+    const hugsRight = view.left + view.width - (r.left + r.width) < margin;
+    if (!hugsLeft && !hugsRight) return false;
+    // Only the outermost one. Every wrapper inside a rail has the rail's
+    // shape, and hiding the rail hides them with it.
+    const parent = el.parentElement;
+    return !(parent && isSideColumn(parent, view));
   }
 
   /**

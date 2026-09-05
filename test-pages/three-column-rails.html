@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Three columns, centred, window-scrolling</title>
+<!--
+  The LinkedIn feed's shape: a centred three-column layout on a normally
+  scrolling page. Neither rail is fixed or sticky — they are ordinary in-flow
+  markup as tall as the feed — and the rails stop short of the window edge
+  because the whole layout is centred.
+-->
+<style>
+  html, body { margin: 0; background: rgb(244, 242, 238); }
+  #wrap { width: 1128px; margin: 0 auto; display: flex; gap: 24px; padding-top: 96px; }
+  #left  { flex: 0 0 225px; background: rgb(0, 200, 0); }
+  #feed  { flex: 0 0 555px; }
+  #right { flex: 0 0 300px; background: rgb(255, 0, 0); }
+  .card { height: 260px; margin-bottom: 16px; background: #fff; border: 1px solid #ddd; }
+</style>
+<div id="wrap">
+  <div id="left"></div>
+  <div id="feed">
+    <div class="card"></div><div class="card"></div><div class="card"></div>
+    <div class="card"></div><div class="card"></div><div class="card"></div>
+    <div class="card"></div><div class="card"></div><div class="card"></div>
+    <div class="card"></div><div class="card"></div><div class="card"></div>
+  </div>
+  <div id="right"></div>
+</div>
