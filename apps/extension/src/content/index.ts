@@ -542,14 +542,28 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     const r = el.getBoundingClientRect();
     if (r.width < 100 || r.width > view.width * 0.35) return false;
     if (r.height < view.height * 0.4) return false;
-    const margin = view.width * 0.2;
-    const hugsLeft = r.left - view.left < margin;
-    const hugsRight = view.left + view.width - (r.left + r.width) < margin;
-    if (!hugsLeft && !hugsRight) return false;
-    // Only the outermost one. Every wrapper inside a rail has the rail's
-    // shape, and hiding the rail hides them with it.
+
+    // Measured against the column it sits in, not against the window.
+    //
+    // Sites cap how wide their layout gets, so on a large monitor the rails
+    // stop a long way short of the window's edges — LinkedIn's centres at
+    // 1128px, which leaves 700px of margin either side at 2560 wide. Asking
+    // how close a column is to the *window* edge therefore finds the rails on
+    // a laptop and misses them on a desktop, which is a difference no one
+    // reporting this could be expected to mention.
+    //
+    // Against its own parent the question is the one actually being asked: is
+    // this the outside column of a row, or the middle of it?
     const parent = el.parentElement;
-    return !(parent && isSideColumn(parent, view));
+    if (!parent) return false;
+    const p = parent.getBoundingClientRect();
+    // A row with something else in it. This is also what stops each wrapper
+    // inside a rail from matching: those are as wide as the rail itself.
+    if (p.width < r.width * 1.5) return false;
+    const margin = p.width * 0.15;
+    const hugsLeft = r.left - p.left < margin;
+    const hugsRight = p.left + p.width - (r.left + r.width) < margin;
+    return hugsLeft || hugsRight;
   }
 
   /**

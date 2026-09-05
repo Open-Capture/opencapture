@@ -1,5 +1,22 @@
+import { execSync } from "node:child_process";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
+
+// A build's own name, shown in the popup.
+//
+// Every release candidate carries the same manifest version — 1.0.0 — so a
+// tester who has just reloaded has no way to tell rc.4 from rc.7, and several
+// rounds of "this is still broken" turned out to be a build without the fix
+// in it. `git describe` names the commit against the nearest tag, which is
+// exactly the question being asked: is what I am running newer than the fix?
+function buildLabel(): string {
+  if (process.env.OPENCAPTURE_BUILD) return process.env.OPENCAPTURE_BUILD;
+  try {
+    return execSync("git describe --tags --always --dirty", { encoding: "utf8" }).trim();
+  } catch {
+    return "unknown";
+  }
+}
 
 // Multi-entry build: popup.html/editor.html/account.html/history.html (Vite's native
 // HTML-entry handling), plus raw TS entries (background service worker,
@@ -27,6 +44,7 @@ export default defineConfig({
   root: resolve(__dirname),
   define: {
     __OPENCAPTURE_E2E__: JSON.stringify(process.env.OPENCAPTURE_E2E === "1"),
+    __OPENCAPTURE_BUILD__: JSON.stringify(buildLabel()),
   },
   build: {
     outDir: targetBrowser === "firefox" ? "dist-firefox" : "dist",

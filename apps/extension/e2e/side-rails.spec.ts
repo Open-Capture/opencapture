@@ -73,3 +73,24 @@ test("and keeps them when floating menus are kept", async ({ context, serviceWor
   console.log("RAILS keep: right=" + JSON.stringify(right));
   expect(right.rows).toBeGreaterThan(1000);
 });
+
+test("and finds them on a wide monitor, where a capped layout sits far from the window edge", async ({
+  context,
+  serviceWorker,
+}) => {
+  // LinkedIn caps its layout at 1128px, so at this width the rails stop ~640px
+  // short of the window's edges. A rule that asked how close they were to the
+  // window would find them on a laptop and miss them here.
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 2400, height: 900 });
+  await page.goto(`${BASE_URL}/three-column-rails.html`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.bringToFront();
+
+  const result = await capture(page, serviceWorker, "remove");
+  const right = await hasColour(page, result.imagesBase64[0], [255, 0, 0]);
+  const left = await hasColour(page, result.imagesBase64[0], [0, 200, 0]);
+  console.log("RAILS wide: right=" + JSON.stringify(right) + " left=" + JSON.stringify(left));
+  expect(right.rows).toBe(0);
+  expect(left.rows).toBe(0);
+});

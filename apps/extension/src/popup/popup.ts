@@ -391,3 +391,12 @@ $("openHistory").addEventListener("click", () => {
     label.textContent = "Account";
   }
 })();
+
+// Stamped by vite at build time — `git describe` against the nearest tag, so
+// it reads like "v1.0.0-rc.6-3-g04943ae": three commits past rc.6. See
+// vite.config.ts for why this exists.
+declare const __OPENCAPTURE_BUILD__: string;
+{
+  const el = document.getElementById("buildLabel");
+  if (el) el.textContent = __OPENCAPTURE_BUILD__;
+}
