@@ -55,6 +55,13 @@ jobs:
           npm run build
           npm run build:firefox
         working-directory: apps/extension
+        env:
+          # The tag's own name, shown in the popup so a tester can tell which
+          # build they reloaded. The build falls back to `git describe`, which
+          # cannot answer here: actions/checkout fetches no tags by default, so
+          # it would produce a bare commit sha and none of the "is the fix in
+          # this one?" value.
+          OPENCAPTURE_BUILD: ${{ github.ref_name }}
 
       # Zip the *contents*, not the directory: both browsers reject a package
       # whose manifest.json sits one level down.
