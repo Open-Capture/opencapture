@@ -563,7 +563,31 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     const margin = p.width * 0.15;
     const hugsLeft = r.left - p.left < margin;
     const hugsRight = p.left + p.width - (r.left + r.width) < margin;
-    return hugsLeft || hugsRight;
+    if (!hugsLeft && !hugsRight) return false;
+
+    // Narrower than what it sits beside.
+    //
+    // This is the difference between a rail and a column of the page itself,
+    // and without it the rule cannot tell them apart: both are outside columns
+    // of a row, both are tall, and on a wide window both are narrow next to
+    // the viewport. Wikipedia's main page is two columns of equal width, and
+    // hiding them because each hugs one side of the row blanked half the
+    // article — the same shape as LinkedIn's rail beside its feed, and the
+    // opposite intent.
+    //
+    // Peers are content. A rail is the odd one out: LinkedIn's is 300 against
+    // a 555 feed, ChatGPT's 260 against a 1140 pane, while Wikipedia's columns
+    // are the same width as each other.
+    let widestSibling = 0;
+    for (const sibling of parent.children) {
+      if (sibling === el || !(sibling instanceof HTMLElement)) continue;
+      const sr = sibling.getBoundingClientRect();
+      // Ignore thin decoration stacked above or below the columns.
+      if (sr.height < r.height * 0.3) continue;
+      widestSibling = Math.max(widestSibling, sr.width);
+    }
+    if (widestSibling === 0) return false;
+    return r.width < widestSibling * 0.7;
   }
 
   /**

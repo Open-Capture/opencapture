@@ -1,0 +1,27 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Two equal content columns</title>
+<!--
+  Wikipedia's main page: two columns of equal width making up the whole row.
+  On a wide window each is narrow next to the viewport, tall, and hugs one side
+  of its row — the same shape as a rail beside a feed, and the opposite intent.
+  Removing them blanked half the page.
+-->
+<style>
+  html, body { margin: 0; background: #fff; }
+  #row { width: 1600px; margin: 0 auto; display: flex; gap: 24px; padding-top: 40px; }
+  #colA, #colB { flex: 1 1 0; }
+  .box { height: 300px; margin-bottom: 16px; }
+  #colA .box { background: rgb(0, 128, 255); }
+  #colB .box { background: rgb(255, 128, 0); }
+</style>
+<div id="row">
+  <div id="colA">
+    <div class="box"></div><div class="box"></div><div class="box"></div>
+    <div class="box"></div><div class="box"></div><div class="box"></div>
+  </div>
+  <div id="colB">
+    <div class="box"></div><div class="box"></div><div class="box"></div>
+    <div class="box"></div><div class="box"></div><div class="box"></div>
+  </div>
+</div>

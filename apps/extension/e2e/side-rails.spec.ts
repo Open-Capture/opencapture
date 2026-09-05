@@ -94,3 +94,24 @@ test("and finds them on a wide monitor, where a capped layout sits far from the 
   expect(right.rows).toBe(0);
   expect(left.rows).toBe(0);
 });
+
+test("but two columns of equal width are the page, and both survive removal", async ({
+  context,
+  serviceWorker,
+}) => {
+  // Wikipedia's main page. Each column hugs one side of the row and is narrow
+  // next to a wide window — a rail's shape exactly. What separates them is
+  // that they are peers: a rail is narrower than what it sits beside.
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 2560, height: 900 });
+  await page.goto(`${BASE_URL}/two-column-content.html`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.bringToFront();
+
+  const result = await capture(page, serviceWorker, "remove");
+  const a = await hasColour(page, result.imagesBase64[0], [0, 128, 255]);
+  const b = await hasColour(page, result.imagesBase64[0], [255, 128, 0]);
+  console.log("TWO-COL remove: a=" + JSON.stringify(a) + " b=" + JSON.stringify(b));
+  expect(a.rows).toBeGreaterThan(1000);
+  expect(b.rows).toBeGreaterThan(1000);
+});
