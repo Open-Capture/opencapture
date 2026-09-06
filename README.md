@@ -90,10 +90,10 @@ Published and feature-complete: full-page, visible-area and selected-region
 capture, crop/annotate/watermark, and PNG/PDF export all work today, on all
 three stores.
 
-To run a local build instead — for development, or for Firefox on Android —
+To run a local build instead — for development, or for Android —
 see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md),
 [docs/FIREFOX_TESTING.md](docs/FIREFOX_TESTING.md) and
-[docs/FIREFOX_ANDROID_TESTING.md](docs/FIREFOX_ANDROID_TESTING.md).
+[docs/MOBILE_TESTING.md](docs/MOBILE_TESTING.md).
 
 ## Build from source
 
@@ -116,7 +116,7 @@ unpacked** → select `dist/`. In Firefox: `about:debugging#/runtime/this-firefo
 Full walkthroughs, including the shared-mount build gotcha and what to
 manually click through, are in [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md),
 [docs/FIREFOX_TESTING.md](docs/FIREFOX_TESTING.md),
-[docs/FIREFOX_ANDROID_TESTING.md](docs/FIREFOX_ANDROID_TESTING.md), and
+[docs/MOBILE_TESTING.md](docs/MOBILE_TESTING.md), and
 [docs/TESTING_GUIDE.md](docs/TESTING_GUIDE.md).
 
 ## Architecture

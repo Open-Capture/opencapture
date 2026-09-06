@@ -1,11 +1,31 @@
-# Testing the Firefox-for-Android build
+# Testing on mobile
 
-Same build as desktop Firefox (`npm run build:firefox`, outputs to
-`dist-firefox/`) — Android isn't a separate build target, only a separate
-*run* target, since the compiled JS is identical and only
-`browser_specific_settings.gecko_android` in the manifest differs.
+Two browsers ship extensions on Android — Firefox and Edge — and this
+project treats them as one target, because it is one. Nothing below is
+forked per engine: the pointer/touch handling, the coarse-pointer hit
+sizes, the narrow-viewport popup clamp and the editor's canvas-limit
+guard all live in shared code with no browser conditional, so whatever is
+true for one mobile browser is true for the other. Test on whichever is in
+front of you; note which one in the result.
 
-## Install (temporary, over ADB)
+**Firefox for Android** is the one we ship to today, via
+`browser_specific_settings.gecko_android` in `manifest.firefox.json`.
+Mozilla treats that key's absence as "desktop-only," so its presence is a
+deliberate compatibility claim on our part — one that, as of this writing,
+has never been exercised on a device.
+
+**Edge for Android** is not a claim we can make or withdraw: the Chromium
+manifest has no `gecko_android` equivalent, only `minimum_chrome_version`.
+What limits us there is Microsoft's, not ours — Edge on Android runs
+extensions in a sandboxed WebView runtime and serves a curated subset of
+the Add-ons catalogue rather than all of it, so an extension appears on
+mobile only once approved for it. OpenCapture is not on that list today,
+so there is no live exposure; that curation has been loosening, though,
+and the day it reaches us there is no manifest switch to decline with.
+Treating mobile as Firefox-only is therefore a bet on Microsoft's release
+notes, which is why this file is no longer named for Firefox.
+
+## Install — Firefox (temporary, over ADB)
 
 Requires `adb` and a connected/emulated Android device with Firefox
 installed (Nightly recommended for the newest WebExtensions API parity;
@@ -25,14 +45,27 @@ Beta/Release also work).
 This uninstalls when the `web-ext run` process is killed or the device
 disconnects; re-run for each session.
 
+## Install — Edge
+
+There is no sideloading path: Edge for Android installs extensions only
+from its own curated mobile catalogue (**⋯** → **Extensions**). Until
+OpenCapture is approved for that catalogue there is nothing to install,
+and no way to test on Edge Android at all — which is worth stating plainly
+rather than leaving a reader to discover it. If that changes, everything
+under **What to check** applies unchanged.
+
 ## What to check
 
-Everything in `FIREFOX_TESTING.md`'s desktop checklist still applies. Beyond
-that, Android-specific things that can't be proven from the Chrome e2e suite
-or from a desktop Firefox pass:
+Everything in `FIREFOX_TESTING.md`'s desktop checklist still applies.
+Beyond that, mobile-specific things that can't be proven from the Chrome
+e2e suite or from a desktop pass. These are engine-independent except
+where one is named:
 
 - **Popup renders without clipping.** Firefox Android shows the extension
-  popup as a full-width panel, not an anchored 380px box — confirm nothing
+  popup as a full-width panel rather than an anchored 380px box; Edge
+  presents its own mobile surface. Either way the body is clamped by a
+  plain `max-width: 100vw` media query between 200px and 379px (see
+  `popup.html` for why the lower bound is not optional) — confirm nothing
   is cut off or squeezed.
 - **Selected-area capture works entirely by touch**: drag out a selection
   with a finger, drag a resize handle without it "letting go" mid-drag
@@ -48,9 +81,12 @@ or from a desktop Firefox pass:
   while actively dragging a tool.
 - **Sign-in's tab-based OAuth handoff** (`auth.opencapture.app`) — tap
   through a real sign-in method and confirm the session lands back in the
-  extension. This is the least-proven part of this milestone: nothing here
-  changed sign-in code, and Android's tab-opening/content-script-matching
-  behavior for the OIDC callback hasn't been verified on-device.
+  extension. This is the least-proven part of the mobile work: nothing in
+  it changed sign-in code, and mobile tab-opening/content-script-matching
+  behavior for the OIDC callback hasn't been verified on-device. Edge's
+  WebView-based extension runtime is a further unknown here specifically,
+  since a tab handoff is exactly the kind of thing a sandboxed runtime
+  treats differently.
 - **Full-page and visible-tab capture actually produce an image** —
   `scripting.executeScript`, `tabs.captureVisibleTab`, and `downloads` API
   parity on Android isn't something that can be confirmed from
@@ -68,9 +104,13 @@ or from a desktop Firefox pass:
   silently refuses the draw it says so and points at the popup's save
   (`src/editor/canvas-limit.ts`) — so what needs confirming here is that
   the guard *fires* rather than showing a blank canvas, and that the saved
-  file is intact either way. This is the one path where an Android-only
+  file is intact either way. This is the one path where a mobile-only
   limit could otherwise cost the user their capture without saying
-  anything.
+  anything. Note the guard has to catch two different failure shapes,
+  measured on desktop: Chromium keeps the canvas sized and silently
+  no-ops the draw, Firefox throws `NS_ERROR_FAILURE` out of
+  `getImageData`. Both engines are covered, but that is also why a pass on
+  one does not settle the other.
 - History thumbnails load and delete correctly.
 - No console errors — inspect via `about:debugging` on a desktop Firefox
   pointed at the connected Android device (**Setup** → enable USB
@@ -83,4 +123,5 @@ or from a desktop Firefox pass:
   System Access API), already handled by the existing feature-detect.
 - No automated e2e coverage at all, not even the manual-but-repeatable kind
   desktop Firefox gets — Playwright cannot drive real or emulated Firefox
-  for Android. Every check above is manual, every session.
+  for Android, and Edge for Android is not automatable at all. Every check
+  above is manual, every session.
