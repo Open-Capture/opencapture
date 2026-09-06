@@ -164,6 +164,14 @@ pub fn place_slices(dpr: f64, observations: &[SliceObservation]) -> Result<Stitc
 /// also bounds the editor's on-screen `<canvas>` (a real DOM element,
 /// genuinely subject to these limits), not just the in-memory RGBA
 /// buffers this module computes for.
+///
+/// Desktop Chrome's, and fixed at compile time — nothing probes the
+/// running device. A phone's ceiling is typically lower, so on mobile a
+/// segment sized to fit here can still be one the device's canvas
+/// refuses. That only reaches the editor (capture, stitching, PNG
+/// encoding and PDF assembly are all canvas-free), which detects the
+/// refusal and says so rather than showing a blank page — see the
+/// extension's `editor/canvas-limit.ts`.
 pub const MAX_CANVAS_DIMENSION_PX: u32 = 30_000;
 /// Segment-area budget: bounds how large a single in-memory RGBA buffer
 /// `stitch::build_segments` will ever materialize (`area * 4` bytes) and

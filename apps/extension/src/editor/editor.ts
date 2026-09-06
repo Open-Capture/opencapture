@@ -15,6 +15,7 @@ import { pickDirectory } from "../chrome/pick-directory";
 import { saveOutput } from "../chrome/save";
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
 import { clearWatermarkLogoDataUrl, getWatermarkLogoDataUrl, setWatermarkLogoDataUrl } from "../chrome/watermark-logo-store";
+import { canvasHeldImage } from "./canvas-limit";
 import { isDoubleTap, type TapState } from "./double-tap";
 import { drawFrame, framePixelInsets, type FramePreset } from "./frame";
 import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from "../../vendor-private/watermark-premium/src/watermark";
@@ -1646,6 +1647,16 @@ document.getElementById("splitNoticeClose")!.addEventListener("click", () => {
   document.getElementById("splitNotice")!.classList.remove("visible");
 });
 
+/**
+ * The persistent notice bar above the canvas. Used for the things a
+ * caption can't carry, because setStatus() is overwritten by the very
+ * next tool click and these need to stay put until dismissed.
+ */
+function showNotice(text: string): void {
+  document.getElementById("splitNoticeText")!.textContent = text;
+  document.getElementById("splitNotice")!.classList.add("visible");
+}
+
 for (const input of [cropOutW, cropOutH]) {
   input.addEventListener("input", () => {
     // Re-shape what is already on screen, rather than only affecting the
@@ -2141,6 +2152,19 @@ async function loadImage(): Promise<void> {
   ctx.drawImage(bitmap, 0, 0);
   finishLoading();
   syncPreviewCanvas();
+  // Past a certain size the canvas stops accepting draws instead of
+  // failing — see canvas-limit.ts for why, and why that limit is a
+  // device property this build cannot know in advance. Every tool here
+  // draws into this same canvas, so if the capture itself didn't land
+  // there is nothing to annotate; say so and stop, rather than leave a
+  // blank canvas and a full toolbar that quietly does nothing.
+  if (!canvasHeldImage(ctx, bitmap.width, bitmap.height)) {
+    setStatus("Too large to edit on this device.");
+    showNotice(
+      `This ${bitmap.width}×${bitmap.height} capture is larger than this device can display, so it can't be annotated here. The capture itself is complete — use “Save as PNG” or “Export as PDF” from the popup to keep it.`,
+    );
+    return;
+  }
   setStatus(`${bitmap.width}×${bitmap.height}`);
   selectTool("crop");
   // A page large enough to exceed shot-core's per-image pixel cap
@@ -2152,9 +2176,9 @@ async function loadImage(): Promise<void> {
   // this says so — a persistent banner rather than the status caption
   // above, since that gets overwritten by the very next tool click.
   if (imageCount && imageCount > 1) {
-    document.getElementById("splitNoticeText")!.textContent =
-      `Showing part 1 of ${imageCount} — this page was too large for one image and was split. Use “Export as PDF” from the popup for the complete page.`;
-    document.getElementById("splitNotice")!.classList.add("visible");
+    showNotice(
+      `Showing part 1 of ${imageCount} — this page was too large for one image and was split. Use “Export as PDF” from the popup for the complete page.`,
+    );
   }
 }
 
