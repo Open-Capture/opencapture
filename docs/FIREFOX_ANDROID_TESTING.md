@@ -55,6 +55,22 @@ or from a desktop Firefox pass:
   `scripting.executeScript`, `tabs.captureVisibleTab`, and `downloads` API
   parity on Android isn't something that can be confirmed from
   documentation alone.
+- **A very long page** — a long Wikipedia article, or a feed scrolled far
+  enough to run to several tens of thousands of pixels. Check *both*
+  halves separately, because they fail independently: the **saved PNG/PDF**
+  (produced entirely in Rust/wasm, no canvas involved, so device graphics
+  limits don't apply — but the stitch does hold every decoded slice in
+  memory at once, which a phone may simply refuse), and the **editor**
+  (a real DOM `<canvas>`, which *is* subject to the device's limits).
+  Shot-core's `MAX_CANVAS_DIMENSION_PX` / `MAX_CANVAS_AREA_PX` are desktop
+  Chrome's measured ceilings, compiled in and never probed at runtime, and
+  a phone's are typically lower. The editor is guarded — if the canvas
+  silently refuses the draw it says so and points at the popup's save
+  (`src/editor/canvas-limit.ts`) — so what needs confirming here is that
+  the guard *fires* rather than showing a blank canvas, and that the saved
+  file is intact either way. This is the one path where an Android-only
+  limit could otherwise cost the user their capture without saying
+  anything.
 - History thumbnails load and delete correctly.
 - No console errors — inspect via `about:debugging` on a desktop Firefox
   pointed at the connected Android device (**Setup** → enable USB
