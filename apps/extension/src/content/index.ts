@@ -877,10 +877,88 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       style.id = GUTTER_STYLE_ID;
       document.documentElement.appendChild(style);
     }
-    style.textContent = `[${GUTTER_ATTR}] *{visibility:hidden!important;opacity:0!important}`;
+
+    // By rule as well as by attribute, for the reason writeHideRules exists:
+    // applying this and taking the screenshot are up to half a second apart,
+    // and an attribute set on a node the page has since thrown away protects
+    // nothing. A rule matches whatever is there at paint time, including a
+    // column built a millisecond ago.
+    //
+    // Ids only. A pinned bar falls back to matching on its classes; a gutter
+    // must not, because an app shell's class names are shared boilerplate
+    // (`flex h-full`) and a wrong match here does not leave a bar showing, it
+    // blanks a column of the page. Without an id the re-find below is what
+    // covers a rebuild.
+    const rules = [`[${GUTTER_ATTR}] *{visibility:hidden!important;opacity:0!important}`];
+    if (!isFirstSlice) {
+      for (const g of shellGutters) {
+        const selector = g.el.id ? selectorFor(g.el) : null;
+        if (!selector) continue;
+        rules.push(`${selector}{background-color:${g.background}!important}`);
+        rules.push(`${selector} *{visibility:hidden!important;opacity:0!important}`);
+      }
+    }
+    style.textContent = rules.join("");
+    // Only while something is meant to be hidden: on the first slice the
+    // column is shown as it is, and a rebuild of it changes nothing.
+    if (isFirstSlice) stopGutterGuard();
+    else startGutterGuard();
+  }
+
+  /**
+   * Find the gutters again from scratch, before a slice is photographed.
+   *
+   * The stored element is what goes stale. A column re-rendered by a framework
+   * is a *different node* with none of our attributes on it — the same thing
+   * selectorFor and writeHideRules were written for, which the gutters were
+   * left out of on the grounds that a layout does not change mid-capture. The
+   * node does, even when the layout does not: chatgpt.com's conversation list
+   * re-renders while signed in because it is live data, and a capture of a
+   * long thread runs for twenty-odd slices. The discarded node keeps hiding it
+   * no longer needs while its replacement is photographed in full, which is
+   * the sidebar repeating down the whole capture.
+   *
+   * Restoring first matters: it keeps the colour sampled for a surviving
+   * column the page's own rather than the one we forced onto it for the last
+   * slice, which would otherwise be recorded as its "original" and left behind
+   * when the capture ends.
+   */
+  function refindShellGutters(): void {
+    if (!innerScroller || stickyMode !== "keep") return;
+    restoreShellGutters();
+    findShellGutters();
+  }
+
+  /**
+   * Notice the moment a gutter is thrown away, rather than at the next slice.
+   *
+   * Hiding a column and photographing it are up to half a second apart — the
+   * screenshot quota sits between them — and nothing of ours runs in between.
+   * A column with an id is covered by the rule above; one without has only
+   * this. Watching for the node leaving the document costs a predicate on two
+   * elements per mutation, and the re-find only runs when one has actually
+   * gone.
+   */
+  let gutterGuard: MutationObserver | null = null;
+
+  function startGutterGuard(): void {
+    stopGutterGuard();
+    if (typeof MutationObserver !== "function" || shellGutters.length === 0) return;
+    gutterGuard = new MutationObserver(() => {
+      if (shellGutters.every((g) => g.el.isConnected)) return;
+      refindShellGutters();
+      applyGutterVisibility(sliceFlags.first);
+    });
+    gutterGuard.observe(document.documentElement, { childList: true, subtree: true });
+  }
+
+  function stopGutterGuard(): void {
+    gutterGuard?.disconnect();
+    gutterGuard = null;
   }
 
   function restoreShellGutters(): void {
+    stopGutterGuard();
     for (const g of shellGutters) {
       g.el.removeAttribute(GUTTER_ATTR);
       restoreStyle(g.el, "background-color", g.originalBackground);
@@ -891,8 +969,9 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
 
   // Note: this runs between slices, not only at the end — reclassifyPinnedElements
   // resets and re-sweeps before every one. So it must not touch the shell
-  // gutters, which are a property of the layout rather than of a sweep, and
-  // are released once by handleRestore when the capture is over.
+  // gutters, which are released by handleRestore when the capture is over;
+  // refindShellGutters is what re-establishes them between slices, and it
+  // restores them itself first.
   function restorePinnedElements(): void {
     stopPinnedGuard();
     removeHideRules();
@@ -998,6 +1077,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     // scroll-position 0 misses exactly the bars that go on to repeat. The
     // sweep is ~1-2ms, cheap enough to repeat per slice.
     reclassifyPinnedElements();
+    refindShellGutters();
 
     const isFirstSlice = targetCss <= 0;
     const isLastSlice = actualScrollCss + viewportHeight >= totalHeightCss - 1;
@@ -1036,6 +1116,7 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     // The sweep's real cost was never the walk; it was the hit-testing done
     // while measuring, which is now budgeted (see HIT_TEST_BUDGET_PER_SWEEP).
     reclassifyPinnedElements();
+    refindShellGutters();
     applyPinnedVisibility(sliceFlags.first, sliceFlags.last);
     return { ok: true as const, pinned: pinnedElements.length };
   }
