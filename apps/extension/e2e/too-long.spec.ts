@@ -125,6 +125,34 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   console.log("TOO LONG downloads: " + JSON.stringify(saved));
   expect(saved.every((name) => name.endsWith(".png"))).toBe(true);
   expect(saved.length).toBe(report.output_image_count);
+  await popup3.close();
+
+  // And the PDF answer, which is the recommended one, says where a PDF of a
+  // page this long is actually edited — the editor here has just been ruled
+  // out for being unable to hold it.
+  await serviceWorker.evaluate(async () => {
+    const stored = await chrome.storage.local.get("lastCaptureUi");
+    await chrome.storage.local.set({ lastCaptureUi: { ...stored["lastCaptureUi"], formatChosen: false } });
+  });
+  const popup4 = await context.newPage();
+  await popup4.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup4.waitForSelector("#formatChoice:not([hidden])");
+  await popup4.click("#choosePdf");
+  await popup4.waitForSelector("#pdfHandoff:not([hidden])", { timeout: 60_000 });
+  expect(await popup4.locator("#pdfHandoffLead").textContent()).toContain("opencapture.pdf");
+  const note = await popup4.locator("#openPdfEditNote").textContent();
+  expect(note).toContain("app.openpdfedit.com");
+  // It says which file to pick, because the site cannot be handed one.
+  expect(note).toContain("opencapture.pdf");
+  const [handoffTab] = await Promise.all([
+    context.waitForEvent("page"),
+    popup4.click("#openPdfEdit"),
+  ]);
+  expect(handoffTab.url()).toContain("app.openpdfedit.com");
+  await handoffTab.close();
+  await expect(popup4.locator("#pdfHandoff")).toBeHidden();
+  const pdfSaved = await serviceWorker.evaluate(() => globalThis.__downloads);
+  expect(pdfSaved.some((name) => name.endsWith(".pdf"))).toBe(true);
 });
 
 test("one image the editor still cannot hold whole is trimmed, and says so", async ({

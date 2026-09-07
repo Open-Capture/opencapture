@@ -14,7 +14,7 @@ import {
   recordPromptResponded,
   shouldShowRatingPrompt,
 } from "../chrome/rating-prompt";
-import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
+import { getSavePrefs, resolveFilename, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
 import { ext } from "../platform/webext";
 import type { CaptureReport, PopupRequest, PopupResponse } from "../types";
@@ -37,6 +37,9 @@ const formatChoiceLeadEl = $("formatChoiceLead");
 const choosePdfNoteEl = $("choosePdfNote");
 const choosePngNoteEl = $("choosePngNote");
 const chooseEditorNoteEl = $("chooseEditorNote");
+const pdfHandoffEl = $("pdfHandoff");
+const pdfHandoffLeadEl = $("pdfHandoffLead");
+const openPdfEditNoteEl = $("openPdfEditNote");
 const allButtons = document.querySelectorAll<HTMLButtonElement>("button");
 const prefFilenameEl = $("prefFilename") as HTMLInputElement;
 const customFolderNameEl = $("customFolderName");
@@ -227,7 +230,29 @@ async function takeFormatChoice(request: PopupRequest, busyMessage: string): Pro
   const ui = await getLastCaptureUi();
   if (ui) await setLastCaptureUi({ ...ui, formatChosen: true });
   hideFormatChoice();
-  await runCapture(request, busyMessage);
+  const ok = await runCapture(request, busyMessage);
+  if (ok && request.action === "exportPdf") await showPdfHandoff();
+}
+
+/**
+ * Where a PDF of a page this long actually gets edited.
+ *
+ * Offered only after the PDF answer to a too-long capture, which is the one
+ * case where this extension's own editor is not an option — it was just
+ * turned down for being unable to hold the page. Leaving the user with a
+ * file and no idea what opens it is the gap this closes.
+ *
+ * It opens the site rather than the file. app.openpdfedit.com takes a PDF
+ * only through a file picker its own page opens — it has no drop zone, no
+ * file_handlers, and no URL intake (checked against the deployed build) —
+ * and nothing outside a page can fill a native picker. So the panel says
+ * which file to choose instead of pretending it will arrive on its own.
+ */
+async function showPdfHandoff(): Promise<void> {
+  const filename = resolveFilename(await getSavePrefs(), "", "pdf");
+  pdfHandoffLeadEl.textContent = `Saved as ${filename}.`;
+  openPdfEditNoteEl.textContent = `Opens app.openpdfedit.com, where you pick ${filename}. Nothing is uploaded — it edits on your own machine.`;
+  pdfHandoffEl.hidden = false;
 }
 
 async function restoreLastCaptureUi(): Promise<void> {
@@ -382,14 +407,17 @@ ext.runtime.onMessage.addListener((message: unknown) => {
   setStatusText(`${captureBusyMessage} ${m.done + 1} of ${m.total}`);
 });
 
-async function runCapture(request: PopupRequest, busyMessage: string): Promise<void> {
+/** Resolves true when the request came back without an error. */
+async function runCapture(request: PopupRequest, busyMessage: string): Promise<boolean> {
   captureBusyMessage = busyMessage.replace(/…$/, "");
   // Zero-width to start: the bar appears the moment work begins, rather than
   // popping into existence at the first slice.
   showCaptureProgress(0);
   setBusy(true, busyMessage);
+  let ok = false;
   try {
     const response = await send(request);
+    ok = response.ok;
     await showCaptureResult(response);
   } catch (err) {
     setStatusText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
@@ -400,6 +428,7 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<v
     showCaptureProgress(null);
     setBusy(false);
   }
+  return ok;
 }
 
 $("captureFullPage").addEventListener("click", () => runCapture({ action: "captureFullPage" }, "Capturing full page…"));
@@ -419,6 +448,13 @@ $("captureSelectedArea").addEventListener("click", () => {
   // last-capture-ui.ts), neither of which needs anyone listening here.
   void send({ action: "captureSelectedArea" }).catch(() => {});
   window.close();
+});
+$("openPdfEdit").addEventListener("click", () => {
+  ext.tabs.create({ url: "https://app.openpdfedit.com/" });
+  pdfHandoffEl.hidden = true;
+});
+$("pdfHandoffDismiss").addEventListener("click", () => {
+  pdfHandoffEl.hidden = true;
 });
 $("choosePdf").addEventListener("click", () => takeFormatChoice({ action: "exportPdf" }, "Exporting PDF…"));
 $("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, "Saving PNG…"));
