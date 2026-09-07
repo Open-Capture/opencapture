@@ -323,6 +323,25 @@
             </button>
           </div>
         </div>
+        <!-- Offered once a long capture has been kept as a PDF. The editor
+             in this extension cannot take a page that size, so the next step
+             is a different product — said here rather than left for the user
+             to work out. -->
+        <div id="pdfHandoff" hidden>
+          <p id="pdfHandoffLead" class="choice-lead"></p>
+          <div class="choice-list">
+            <button id="openPdfEdit" type="button" class="choice">
+              <span class="oa-icon oa-icon-14 icon-arrow-up-right"></span>
+              <span class="choice-body">
+                <span class="choice-title">Edit it in OpenPdfEdit</span>
+                <span class="choice-note" id="openPdfEditNote"></span>
+              </span>
+            </button>
+            <button id="pdfHandoffDismiss" type="button" class="btn btn-secondary btn-sm btn-full">
+              Not now
+            </button>
+          </div>
+        </div>
         <div id="resultActions">
           <button id="exportPdf" class="btn btn-secondary btn-sm" disabled>
             <span class="oa-icon oa-icon-14 icon-file-down"></span>

@@ -63,6 +63,11 @@ if (process.env.OPENCAPTURE_E2E === "1") {
   const manifestPath = join(distDir, "manifest.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   manifest.host_permissions = ["<all_urls>"];
+  // And drop the optional hosts, which <all_urls> now covers. Chrome and
+  // Firefox both warn on load that an optional permission already granted by
+  // a required one "will be omitted" — true, harmless, and alarming to read
+  // when the build is sitting unpacked in someone's browser.
+  delete manifest.optional_host_permissions;
   manifest.name = `${manifest.name} (E2E TEST BUILD)`;
   writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
   console.log("copy-static: OPENCAPTURE_E2E=1 — added <all_urls> host_permissions for automated testing");
