@@ -88,16 +88,19 @@ export type PopupRequest =
   | { action: "captureVisible" }
   | { action: "captureSelectedArea" }
   | { action: "exportPdf" }
+  | { action: "savePngs" }
   | { action: "openEditor" };
 
 export interface CaptureResult {
   ok: true;
   report: CaptureReport;
   pngDataUrls: string[];
-  // True when the capture produced exactly one image and was routed to the
-  // editor for crop/annotate/format review instead of being downloaded
-  // immediately. False for the (rare, very-long-page) multi-image PNG case,
-  // which still auto-downloads every part — see background/index.ts.
+  // True when the capture was routed to the editor for crop/annotate/format
+  // review. False when it was too long for that (see capture-size.ts's
+  // needsFormatChoice), in which case nothing has been written or opened at
+  // all and the popup asks how the user wants to keep it — the one decision
+  // this extension does not make on their behalf, because PNG, PDF and the
+  // editor each lose something different.
   openedEditor: boolean;
 }
 

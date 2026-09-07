@@ -15,6 +15,7 @@ import { pickDirectory } from "../chrome/pick-directory";
 import { saveOutput } from "../chrome/save";
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
 import { clearWatermarkLogoDataUrl, getWatermarkLogoDataUrl, setWatermarkLogoDataUrl } from "../chrome/watermark-logo-store";
+import { editableHeightFor } from "../chrome/capture-size";
 import { canvasHeldImage } from "./canvas-limit";
 import { isDoubleTap, type TapState } from "./double-tap";
 import { drawFrame, framePixelInsets, type FramePreset } from "./frame";
@@ -2128,7 +2129,7 @@ async function loadImage(): Promise<void> {
   const earlyHeight = Number(early["editorImageHeight"]) || 0;
   if (earlyWidth > 0 && earlyHeight > 0) {
     canvas.width = earlyWidth;
-    canvas.height = earlyHeight;
+    canvas.height = editableHeightFor(earlyWidth, earlyHeight);
     syncPreviewCanvas();
     canvasLoadingTextEl.textContent = `Loading ${earlyWidth} × ${earlyHeight} capture…`;
   }
@@ -2147,8 +2148,17 @@ async function loadImage(): Promise<void> {
   currentDpr = dpr ?? 1;
   const blob = new Blob([bytes as BlobPart], { type: "image/png" });
   const bitmap = await createImageBitmap(blob);
+  // Only as much of it as this can stay an editor over — see
+  // capture-size.ts. Every committed shape re-rasterises the whole canvas
+  // (the comment above requestEditorImageBytes has the detail), so past a
+  // few tens of megapixels each click stalls for long enough to feel
+  // broken. The rest of the capture is not lost and not being hidden: the
+  // popup asked before opening this, and said this option shows the top of
+  // the page. Drawing the bitmap into a shorter canvas clips it, which is
+  // exactly what is wanted.
+  const shownHeight = editableHeightFor(bitmap.width, bitmap.height);
   canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
+  canvas.height = shownHeight;
   ctx.drawImage(bitmap, 0, 0);
   finishLoading();
   syncPreviewCanvas();
@@ -2158,14 +2168,14 @@ async function loadImage(): Promise<void> {
   // draws into this same canvas, so if the capture itself didn't land
   // there is nothing to annotate; say so and stop, rather than leave a
   // blank canvas and a full toolbar that quietly does nothing.
-  if (!canvasHeldImage(ctx, bitmap.width, bitmap.height)) {
+  if (!canvasHeldImage(ctx, bitmap.width, shownHeight)) {
     setStatus("Too large to edit on this device.");
     showNotice(
       `This ${bitmap.width}×${bitmap.height} capture is larger than this device can display, so it can't be annotated here. The capture itself is complete — use “Save as PNG” or “Export as PDF” from the popup to keep it.`,
     );
     return;
   }
-  setStatus(`${bitmap.width}×${bitmap.height}`);
+  setStatus(`${bitmap.width}×${shownHeight}`);
   selectTool("crop");
   // A page large enough to exceed shot-core's per-image pixel cap
   // (plan.rs's MAX_CANVAS_AREA_PX) splits into several output PNGs — this
@@ -2175,9 +2185,22 @@ async function loadImage(): Promise<void> {
   // whole thing reads as data loss, not a deliberate tradeoff, unless
   // this says so — a persistent banner rather than the status caption
   // above, since that gets overwritten by the very next tool click.
-  if (imageCount && imageCount > 1) {
+  //
+  // Two ways to be looking at less than the whole capture, and they can both
+  // be true at once, so they are said in one banner rather than two that
+  // overwrite each other.
+  const rows = new Intl.NumberFormat();
+  const split = imageCount !== undefined && imageCount > 1;
+  const trimmed = shownHeight < bitmap.height;
+  if (split || trimmed) {
+    const what = split
+      ? `Showing part 1 of ${imageCount}`
+      : `Showing the first ${rows.format(shownHeight)} rows of ${rows.format(bitmap.height)}`;
+    const why = split
+      ? "this page was too large for one image and was split"
+      : "this page is too long to annotate in one piece";
     showNotice(
-      `Showing part 1 of ${imageCount} — this page was too large for one image and was split. Use “Export as PDF” from the popup for the complete page.`,
+      `${what} — ${why}. Nothing was dropped: “Export as PDF” from the popup keeps the whole page in one file, and app.openpdfedit.com can edit it.`,
     );
   }
 }

@@ -1,0 +1,30 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>A page past what the editor will take</title>
+<!--
+  Long enough that a capture of it exceeds capture-size.ts's editable budget
+  at the e2e viewport width (1200 x 45,743,460 / 1200 = 38,120 rows, so
+  40,000 clears it). The bands are there so the stitcher has something to
+  measure and a human looking at the output can see where they are.
+-->
+<style>
+  html, body { margin: 0; }
+  #page { background: repeating-linear-gradient(#fff 0 40px, #e6e6e6 40px 80px); }
+  .marker { position: absolute; left: 0; width: 120px; height: 40px; background: rgb(255, 0, 0); }
+</style>
+<div id="page"></div>
+<script>
+  // ?h= sets the length, because the two cases worth capturing are different
+  // lengths: past 30000 rows shot-core splits the output into several PNGs,
+  // and below that a wide enough page is still one PNG the editor will only
+  // take part of.
+  const height = Number(new URLSearchParams(location.search).get("h") ?? 40000);
+  const page = document.getElementById("page");
+  page.style.height = `${height}px`;
+  for (let y = 0; y < height; y += 4000) {
+    const m = document.createElement("div");
+    m.className = "marker";
+    m.style.top = `${y}px`;
+    page.appendChild(m);
+  }
+</script>

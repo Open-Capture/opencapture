@@ -19,6 +19,14 @@ const STORAGE_KEY = "lastCaptureUi";
 export interface LastCaptureUi {
   report: CaptureReport;
   openedEditor: boolean;
+  /**
+   * Set once the user has said how they want a too-long capture kept (see
+   * capture-size.ts). Without it the popup would ask again on every reopen,
+   * including after the answer had already been carried out — the popup is
+   * torn down and rebuilt each time, so this is the only place that memory
+   * can live.
+   */
+  formatChosen?: boolean;
 }
 
 export async function setLastCaptureUi(ui: LastCaptureUi): Promise<void> {

@@ -1,7 +1,8 @@
 import { LAST_CAPTURE_BLOB_KEY, getBlob } from "../chrome/blob-store";
 import { copyPngBytesToClipboard } from "../chrome/copy-image";
 import { getSavedDirectoryHandle } from "../chrome/dir-handle-store";
-import { type LastCaptureUi, getLastCaptureUi } from "../chrome/last-capture-ui";
+import { editableHeightFor, needsFormatChoice } from "../chrome/capture-size";
+import { type LastCaptureUi, getLastCaptureUi, setLastCaptureUi } from "../chrome/last-capture-ui";
 import { client as openappsClient, ready as openappsReady } from "../chrome/openapps-session";
 import { pickDirectory } from "../chrome/pick-directory";
 import {
@@ -16,7 +17,7 @@ import {
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
 import { ext } from "../platform/webext";
-import type { PopupRequest, PopupResponse } from "../types";
+import type { CaptureReport, PopupRequest, PopupResponse } from "../types";
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -30,6 +31,12 @@ const previewEl = $("preview") as HTMLImageElement;
 const exportPdfBtn = $("exportPdf") as HTMLButtonElement;
 const copyBtn = $("copyToClipboard") as HTMLButtonElement;
 const openEditorBtn = $("openEditor") as HTMLButtonElement;
+const resultActionsEl = $("resultActions");
+const formatChoiceEl = $("formatChoice");
+const formatChoiceLeadEl = $("formatChoiceLead");
+const choosePdfNoteEl = $("choosePdfNote");
+const choosePngNoteEl = $("choosePngNote");
+const chooseEditorNoteEl = $("chooseEditorNote");
 const allButtons = document.querySelectorAll<HTMLButtonElement>("button");
 const prefFilenameEl = $("prefFilename") as HTMLInputElement;
 const customFolderNameEl = $("customFolderName");
@@ -157,9 +164,70 @@ refreshCustomFolder();
 // duplicated into that record, since a capture's PNG can be far too large
 // for chrome.storage.local's 10MB default quota.
 function captureStatusText(ui: LastCaptureUi): string {
-  return ui.openedEditor
-    ? "Opened in editor — crop, annotate, then choose PNG or PDF to save."
-    : `Done — downloaded ${ui.report.output_image_count} PNG file(s) (page too long for one image; use "Export as PDF" for a single file).`;
+  if (ui.openedEditor) return "Opened in editor — crop, annotate, then choose PNG or PDF to save.";
+  if (isChoicePending(ui)) return "Captured. Nothing saved yet — choose how to keep it.";
+  return "Done.";
+}
+
+const count = new Intl.NumberFormat();
+
+/** Whether this capture is still waiting on the user to say how to keep it. */
+function isChoicePending(ui: LastCaptureUi): boolean {
+  return !ui.openedEditor && !ui.formatChosen && needsFormatChoice(ui.report);
+}
+
+/**
+ * Offer the three ways to keep a capture too long to finish automatically.
+ *
+ * Each option says what it costs rather than only what it is. That is the
+ * point of asking: a capture this size cannot be kept whole, editable, and
+ * in one file all at once, and which of those to give up is not a decision
+ * this extension can make from the pixel count.
+ */
+function showFormatChoice(report: CaptureReport): void {
+  const width = report.output_width_px;
+  const height = report.output_height_px;
+  const parts = report.output_image_count;
+  formatChoiceLeadEl.textContent = `This capture is ${count.format(width)} × ${count.format(height)} pixels — too long to keep whole and editable at once. Choose how to keep it:`;
+  choosePdfNoteEl.textContent =
+    "One file, the whole page, nothing dropped. Edit it at app.openpdfedit.com.";
+  choosePngNoteEl.textContent =
+    parts > 1
+      ? `${parts} separate images — the page is past what one PNG holds. Editing isn't possible.`
+      : "One image, the whole page. Editing isn't possible at this size.";
+  // Two different limits, and quoting the wrong one is a promise the editor
+  // will not keep. A split capture hands the editor part 1 — whose height is
+  // shot-core's business, not this file's — so it says "part 1" rather than
+  // a row count it would have to derive from plan.rs's split rule. An
+  // unsplit one is cut by the editable budget, which is known exactly here.
+  chooseEditorNoteEl.textContent =
+    parts > 1
+      ? `Annotate part 1 of ${parts} only. The rest is kept, but not shown there.`
+      : `Annotate the first ${count.format(editableHeightFor(width, height))} rows of ${count.format(height)}. The rest is kept, but not shown there.`;
+  formatChoiceEl.hidden = false;
+  // Not both: the row of small actions underneath offers two of these three
+  // again, unlabelled and without the cost attached, which is exactly the
+  // sight-unseen click this panel exists to replace.
+  resultActionsEl.hidden = true;
+}
+
+function hideFormatChoice(): void {
+  formatChoiceEl.hidden = true;
+  resultActionsEl.hidden = false;
+}
+
+/**
+ * Carry out one of the three, and stop asking.
+ *
+ * The answer is recorded rather than kept in this popup, which does not
+ * survive its own tab losing focus — without that, every reopen would put
+ * the same question again to someone who has already answered it.
+ */
+async function takeFormatChoice(request: PopupRequest, busyMessage: string): Promise<void> {
+  const ui = await getLastCaptureUi();
+  if (ui) await setLastCaptureUi({ ...ui, formatChosen: true });
+  hideFormatChoice();
+  await runCapture(request, busyMessage);
 }
 
 async function restoreLastCaptureUi(): Promise<void> {
@@ -169,16 +237,22 @@ async function restoreLastCaptureUi(): Promise<void> {
   reportEl.style.display = "block";
   reportEl.textContent = JSON.stringify(ui.report, null, 2);
 
+  exportPdfBtn.disabled = false;
+  copyBtn.disabled = false;
+  openEditorBtn.disabled = false;
+  // Before the preview, deliberately. The capture this asks about is the
+  // large kind by definition, and reading tens of megabytes of PNG out of
+  // the store to show a thumbnail of it takes long enough to be visible —
+  // during which the popup would be sitting there with no sign that it is
+  // waiting on an answer. The question does not depend on the picture.
+  if (isChoicePending(ui)) showFormatChoice(ui.report);
+  setStatusText(captureStatusText(ui));
+
   const bytes = await getBlob(LAST_CAPTURE_BLOB_KEY);
   if (bytes) {
     previewEl.style.display = "block";
     previewEl.src = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "image/png" }));
   }
-
-  exportPdfBtn.disabled = false;
-  copyBtn.disabled = false;
-  openEditorBtn.disabled = false;
-  setStatusText(captureStatusText(ui));
 }
 
 restoreLastCaptureUi();
@@ -272,7 +346,9 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
     // by the time this response reaches here, if it reaches here at all —
     // this popup instance might not even be the one that was open when the
     // capture finished, if the editor tab opening tore the original one down.
-    setStatusText(captureStatusText({ report: response.report, openedEditor: response.openedEditor }));
+    const ui: LastCaptureUi = { report: response.report, openedEditor: response.openedEditor };
+    if (isChoicePending(ui)) showFormatChoice(response.report);
+    setStatusText(captureStatusText(ui));
   } else {
     setStatusText("Done.");
   }
@@ -344,6 +420,9 @@ $("captureSelectedArea").addEventListener("click", () => {
   void send({ action: "captureSelectedArea" }).catch(() => {});
   window.close();
 });
+$("choosePdf").addEventListener("click", () => takeFormatChoice({ action: "exportPdf" }, "Exporting PDF…"));
+$("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, "Saving PNG…"));
+$("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "openEditor" }, "Opening editor…"));
 exportPdfBtn.addEventListener("click", () => runCapture({ action: "exportPdf" }, "Exporting PDF…"));
 openEditorBtn.addEventListener("click", () => runCapture({ action: "openEditor" }, "Opening editor…"));
 
