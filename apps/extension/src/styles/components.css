@@ -143,4 +143,42 @@
 .status.is-error{color:var(--danger-fg)}
 .status.is-success{color:var(--success-fg)}
 
+/* The three-way choice offered when a capture is too long to finish on the
+   user's behalf (see chrome/capture-size.ts). Built from this file's own
+   vocabulary rather than the newer oa- prefixed components: one surface, one
+   convention, and this popup is entirely the older one. */
+.choice-lead{margin:0 0 var(--space-3);font:var(--type-ui);color:var(--text-body)}
+.choice-list{display:flex;flex-direction:column;gap:var(--space-2)}
+.choice{
+  display:flex;
+  gap:var(--space-3);
+  align-items:flex-start;
+  width:100%;
+  padding:var(--space-3);
+  text-align:left;
+  background:var(--bg-subtle);
+  border:var(--border-width) solid var(--border-hairline);
+  border-radius:var(--radius-md);
+  cursor:pointer;
+  transition:var(--transition-control);
+}
+.choice:hover:not(:disabled){background:var(--surface-hover)}
+.choice:disabled{cursor:default;opacity:0.6}
+.choice .oa-icon{margin-top:2px;color:var(--text-muted)}
+.choice-body{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
+.choice-title{font:var(--type-ui);color:var(--text-body)}
+.choice-note{font:var(--type-caption);color:var(--text-muted)}
+/* The recommendation, said once and quietly. A tinted chip is the only thing
+   an accent is allowed to be here — never a filled button or a background. */
+.choice-tag{
+  margin-left:var(--space-1);
+  padding:1px var(--space-2);
+  border-radius:var(--radius-sm);
+  font:var(--type-eyebrow);
+  letter-spacing:var(--tracking-caps);
+  text-transform:uppercase;
+  color:var(--text-brand);
+  background:color-mix(in oklab, var(--brand) 16%, transparent);
+}
+
 .oa-mono{font:var(--type-mono);color:var(--text-muted)}

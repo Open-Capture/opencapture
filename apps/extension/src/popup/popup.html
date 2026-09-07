@@ -121,6 +121,13 @@
         display: flex;
         gap: var(--space-2);
       }
+      /* Same reason as .btn[hidden] in components.css: an author-stylesheet
+         display beats the [hidden] attribute's user-agent display:none, so
+         without this the actions stay on screen underneath the format
+         choice that is meant to replace them. */
+      #resultActions[hidden] {
+        display: none;
+      }
       #resultActions .btn {
         flex: 1;
       }
@@ -283,6 +290,38 @@
              read as a hang. -->
         <div id="captureProgress" hidden>
           <div id="captureProgressBar"></div>
+        </div>
+        <!-- Shown instead of the actions below when a capture came out too
+             long to finish on the user's behalf (capture-size.ts's
+             needsFormatChoice). Each option states what it costs, because
+             that is the whole reason this is a question: PNG cannot be
+             edited, PDF has to be edited elsewhere, and the editor can only
+             take the top of the page. -->
+        <div id="formatChoice" hidden>
+          <p id="formatChoiceLead" class="choice-lead"></p>
+          <div class="choice-list">
+            <button id="choosePdf" type="button" class="choice">
+              <span class="oa-icon oa-icon-14 icon-file-down"></span>
+              <span class="choice-body">
+                <span class="choice-title">Export as PDF <span class="choice-tag">Recommended</span></span>
+                <span class="choice-note" id="choosePdfNote"></span>
+              </span>
+            </button>
+            <button id="choosePng" type="button" class="choice">
+              <span class="oa-icon oa-icon-14 icon-image"></span>
+              <span class="choice-body">
+                <span class="choice-title">Save as PNG</span>
+                <span class="choice-note" id="choosePngNote"></span>
+              </span>
+            </button>
+            <button id="chooseEditor" type="button" class="choice">
+              <span class="oa-icon oa-icon-14 icon-pen-line"></span>
+              <span class="choice-body">
+                <span class="choice-title">Open the editor</span>
+                <span class="choice-note" id="chooseEditorNote"></span>
+              </span>
+            </button>
+          </div>
         </div>
         <div id="resultActions">
           <button id="exportPdf" class="btn btn-secondary btn-sm" disabled>

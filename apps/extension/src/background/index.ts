@@ -1,5 +1,6 @@
 import { EDITOR_IMAGE_BLOB_KEY, EDITOR_IMAGE_PORT_NAME, deleteBlob, getBlob, putBlob } from "../chrome/blob-store";
 import { HISTORY_LIST_PORT_NAME, addHistoryEntry, clearHistory, deleteHistoryEntry, getHistoryEntry, listHistoryEntries } from "../chrome/capture-history";
+import { needsFormatChoice } from "../chrome/capture-size";
 import { setLastCaptureUi } from "../chrome/last-capture-ui";
 import { client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
 import { bumpUsageCount } from "../chrome/rating-prompt";
@@ -15,6 +16,7 @@ import {
   getLastCaptureDpr,
   getLastCaptureFirstImage,
   getLastCaptureImageCount,
+  getLastCaptureImages,
   testScrollTargets,
 } from "./orchestrator";
 
@@ -229,19 +231,28 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       const tab = await getActiveTab();
       const { report, images } = await captureFullPage(tab.id!, tab.windowId);
       let openedEditor = false;
-      if (images.length === 1) {
-        // Single-image case (the common one — a page has to exceed ~16000px
-        // stitched height before it splits): route through the editor so
-        // the user can crop and pick PNG/PDF before anything is written to
-        // disk, instead of downloading sight-unseen.
+      if (needsFormatChoice(report)) {
+        // Deliberately does nothing else: no file written, no editor opened.
+        //
+        // A capture this long has no right answer. N separate PNGs cannot be
+        // edited or read as one page; a PDF keeps every pixel in one file but
+        // has to be edited somewhere else; the editor can only take the top of
+        // it. Each of those loses something the others keep, and which loss is
+        // acceptable is the user's business, so the popup asks (see
+        // popup.ts's format-choice panel) instead of this picking for them —
+        // it used to pick both, downloading a pile of PNGs sight-unseen or
+        // opening an editor that would only ever show part of the page.
+        //
+        // Nothing is lost by waiting: rememberLastCapture has already put
+        // every output image in the store, so all three answers remain
+        // available afterwards, from whichever popup is open when the user
+        // decides — including one opened much later, in a different session.
+      } else {
+        // Route through the editor so the user can crop and pick PNG/PDF
+        // before anything is written to disk, instead of downloading
+        // sight-unseen.
         await openEditorWithBytes(images[0]!, report.dpr, 1, { url: tab.url ?? "", capturedAt: Date.now() });
         openedEditor = true;
-      } else {
-        // Very long pages that split across multiple output PNGs: cropping
-        // across split boundaries isn't well-defined, so these still
-        // download immediately as before. Use "Export as PDF" afterward
-        // for a single merged file instead of N separate PNGs.
-        await Promise.all(images.map((img, i) => saveOutput(img, `-page-${i + 1}-of-${images.length}`, "png", "image/png")));
       }
       await setLastCaptureUi({ report, openedEditor });
       await rememberInHistory(tab, report, images[0]!);
@@ -281,6 +292,18 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
         pngDataUrls: outcome.images.map((img) => bytesToDataUrl(img, "image/png")),
         openedEditor: true,
       };
+    }
+    case "savePngs": {
+      // Every part, named so their order survives being sorted by name in a
+      // folder. A capture that did not split keeps the plain name — the
+      // "-page-1-of-1" a naive version of this produces is noise.
+      const images = await getLastCaptureImages();
+      await Promise.all(
+        images.map((img, i) =>
+          saveOutput(img, images.length === 1 ? "" : `-page-${i + 1}-of-${images.length}`, "png", "image/png"),
+        ),
+      );
+      return { ok: true };
     }
     case "exportPdf": {
       const pdfBytes = await exportLastCaptureAsPdf();
@@ -429,6 +452,13 @@ if (__OPENCAPTURE_E2E__) {
     // branching without a second tab whose Playwright-driven activation
     // fights the popup's real activeTab target. See capture.spec.ts.
     captureVisibleViaHandleRequest: () => handleRequest({ action: "captureVisible" }),
+    // Same reasoning for the full-page branch, which is where the decision
+    // this exists to test actually lives: whether a capture is finished for
+    // the user or handed back to them to decide (see needsFormatChoice).
+    // The direct captureFullPage hook above cannot see any of that — it
+    // calls the orchestrator, which downloads nothing, opens nothing and
+    // records nothing for the popup either way.
+    captureFullPageViaHandleRequest: () => handleRequest({ action: "captureFullPage" }),
     // Exercises blob-store.ts (IndexedDB) directly with a payload larger
     // than chrome.runtime.sendMessage's ~64MiB cap — the exact limit that
     // broke the old pngBytes-in-message clipboard/editor handoff. Proves

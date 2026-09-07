@@ -340,17 +340,31 @@ export async function captureSelectedArea(tabId: number, windowId: number): Prom
 // since.
 export async function exportLastCaptureAsPdf(): Promise<Uint8Array> {
   const meta = await getLastCaptureMeta();
+  const images = await getLastCaptureImages();
+  const shotCore = await loadShotCore();
+  return shotCore.imagesToPdf(images, meta.dpr) as Uint8Array;
+}
+
+/**
+ * Every output image of the last capture, in order.
+ *
+ * A capture too long for one PNG is held as several, and both things that
+ * can be done with the whole of it — the PDF above, and saving the PNGs —
+ * need all of them. Read back from the store rather than kept in memory for
+ * the same reason as the PDF: the worker that ran the capture may be long
+ * evicted by the time the user decides what to do with it.
+ */
+export async function getLastCaptureImages(): Promise<Uint8Array[]> {
+  const meta = await getLastCaptureMeta();
   const firstImage = await getBlob(LAST_CAPTURE_BLOB_KEY);
   if (!firstImage) throw new Error("No capture to export yet — capture a page first.");
   const restImages = await Promise.all(
     Array.from({ length: meta.imageCount - 1 }, (_, i) => getBlob(extraLastCaptureBlobKey(i + 1))),
   );
-  const images = [firstImage, ...restImages.map((img, i) => {
+  return [firstImage, ...restImages.map((img, i) => {
     if (!img) throw new Error(`No capture to export yet — output image ${i + 1} is missing.`);
     return img;
   })];
-  const shotCore = await loadShotCore();
-  return shotCore.imagesToPdf(images, meta.dpr) as Uint8Array;
 }
 
 export async function getLastCaptureFirstImage(): Promise<Uint8Array> {
