@@ -459,7 +459,14 @@ $("pdfHandoffDismiss").addEventListener("click", () => {
 $("choosePdf").addEventListener("click", () => takeFormatChoice({ action: "exportPdf" }, "Exporting PDF…"));
 $("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, "Saving PNG…"));
 $("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "openEditor" }, "Opening editor…"));
-exportPdfBtn.addEventListener("click", () => runCapture({ action: "exportPdf" }, "Exporting PDF…"));
+// The same follow-up as the format panel's PDF answer, because it is the
+// same file and the same question. Wiring it only to the panel meant anyone
+// who reached for this button — the ordinary way to get a PDF — was told
+// nothing at all, which read as the offer being broken rather than absent.
+exportPdfBtn.addEventListener("click", async () => {
+  const ok = await runCapture({ action: "exportPdf" }, "Exporting PDF…");
+  if (ok) await showPdfHandoff();
+});
 openEditorBtn.addEventListener("click", () => runCapture({ action: "openEditor" }, "Opening editor…"));
 
 // Deliberately NOT routed through background/index.ts's message handler —
