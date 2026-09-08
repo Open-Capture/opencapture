@@ -168,6 +168,10 @@
 .choice-body{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
 .choice-title{font:var(--type-ui);color:var(--text-body)}
 .choice-note{font:var(--type-caption);color:var(--text-muted)}
+/* The OpenPdfEdit tickbox, when it has followed the PDF option into the list:
+   indented to that option's own text so it reads as part of it rather than as
+   a fourth choice. */
+.choice-list .field-inline{padding-left:calc(var(--space-3) * 2 + 16px)}
 /* The recommendation, said once and quietly. A tinted chip is the only thing
    an accent is allowed to be here — never a filled button or a background. */
 .choice-tag{
