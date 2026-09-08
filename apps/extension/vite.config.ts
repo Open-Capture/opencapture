@@ -67,6 +67,7 @@ export default defineConfig({
         background: resolve(__dirname, "src/background/index.ts"),
         content: resolve(__dirname, "src/content/index.ts"),
         "openapps-callback": resolve(__dirname, "src/openapps-callback/index.ts"),
+        "pdf-handoff": resolve(__dirname, "src/pdf-handoff/index.ts"),
       },
       output: {
         entryFileNames: "[name].js",

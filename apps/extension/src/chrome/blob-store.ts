@@ -32,6 +32,14 @@ export const EDITOR_IMAGE_PORT_NAME = "editorImage";
 // button can read it directly — see chrome/copy-image.ts for why the copy
 // itself has to happen in the popup's own document, not a message-passed
 // background/offscreen round-trip.
+// The PDF an export just produced, waiting for the app.openpdfedit.com tab to
+// ask for it. Written only when the user chose to carry it over, read once by
+// the delivery content script and deleted on read — a capture's PDF is large,
+// and holding one indefinitely for a tab that may never open is storage spent
+// on nothing. See chrome/pdf-handoff.ts.
+export const PDF_HANDOFF_BLOB_KEY = "pdfHandoff";
+export const PDF_HANDOFF_PORT_NAME = "opencapture-pdf-handoff";
+
 export const LAST_CAPTURE_BLOB_KEY = "lastCaptureImage";
 
 // Output images beyond the first, only populated when a very tall page

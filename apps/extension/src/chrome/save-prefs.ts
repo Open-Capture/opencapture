@@ -30,6 +30,15 @@ export interface SavePrefs {
    * setting the folder.
    */
   askWhereToSave: boolean;
+  /**
+   * Carry an exported PDF straight into OpenPdfEdit rather than leaving it in
+   * a folder.
+   *
+   * Off by default and ticked deliberately: acting on it means opening a tab
+   * and holding a permission on another site, neither of which should happen
+   * to someone who only wanted a file. See background/pdf-handoff.ts.
+   */
+  openInPdfEdit: boolean;
 }
 
 // Default on for Firefox. There, the Save dialog is not one way of choosing a
@@ -39,7 +48,12 @@ export interface SavePrefs {
 // with no visible way to change that. Chromium keeps it off, since Browse…
 // already gives a folder that sticks, and being asked every time is worse than
 // being asked once.
-const DEFAULT_PREFS: SavePrefs = { folder: "", filename: "opencapture", askWhereToSave: isFirefox };
+const DEFAULT_PREFS: SavePrefs = {
+  folder: "",
+  filename: "opencapture",
+  askWhereToSave: isFirefox,
+  openInPdfEdit: false,
+};
 const STORAGE_KEY = "savePrefs";
 
 export async function getSavePrefs(): Promise<SavePrefs> {
@@ -48,8 +62,18 @@ export async function getSavePrefs(): Promise<SavePrefs> {
   return { ...DEFAULT_PREFS, ...saved };
 }
 
-export async function setSavePrefs(prefs: SavePrefs): Promise<void> {
-  await ext.storage.local.set({ [STORAGE_KEY]: prefs });
+/**
+ * Merges rather than replaces.
+ *
+ * Both call sites build their object from the fields their own panel shows —
+ * the popup's and the editor's save panels are not the same set — so a whole
+ * -object write silently drops whatever the other one owns. That was harmless
+ * while every field was on both panels and stopped being harmless the moment
+ * one was not.
+ */
+export async function setSavePrefs(prefs: Partial<SavePrefs>): Promise<void> {
+  const current = await getSavePrefs();
+  await ext.storage.local.set({ [STORAGE_KEY]: { ...current, ...prefs } });
 }
 
 // Strips characters illegal in Windows/macOS/Linux filenames from a single

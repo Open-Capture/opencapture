@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const arg = process.argv[2] ?? "dist";
 const dist = isAbsolute(arg) ? arg : join(dirname(fileURLToPath(import.meta.url)), "..", arg);
-const entries = ["content.js", "openapps-callback.js"];
+const entries = ["content.js", "openapps-callback.js", "pdf-handoff.js"];
 const SEAL_MARK = "/*sealed*/";
 // Top-level module syntax, not the word "import" in a string or a dynamic
 // import() call.

@@ -31,7 +31,8 @@
   ],
   "optional_host_permissions": [
     "https://auth.opencapture.app/*",
-    "https://gateway.opencapture.app/*"
+    "https://gateway.opencapture.app/*",
+    "https://app.openpdfedit.com/*"
   ],
   "browser_specific_settings": {
     "gecko": {
