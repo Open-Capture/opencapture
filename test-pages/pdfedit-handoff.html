@@ -1,0 +1,50 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>Stands in for app.openpdfedit.com taking delivery</title>
+<!--
+  Mirrors openpdfedit's own lib/handoff.ts: announce readiness on a timer,
+  take delivery of a document, ignore anything from another window or origin.
+  The extension's pdf-handoff.js content script is the real thing under test —
+  this is the far end it has to satisfy, at a URL the e2e run can serve.
+-->
+<h1>handoff target</h1>
+<pre id="log">waiting…</pre>
+<script>
+  const READY = "openpdfedit:handoff-ready";
+  const FILE = "openpdfedit:handoff-file";
+  window.__received = null;
+
+  function bytesOf(value) {
+    if (value instanceof Uint8Array) return value;
+    if (value instanceof ArrayBuffer) return new Uint8Array(value);
+    if (typeof value === "string") {
+      const binary = atob(value);
+      const out = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+      return out;
+    }
+    if (value && typeof value.length === "number") return Uint8Array.from(value);
+    return null;
+  }
+
+  const timer = setInterval(announce, 250);
+  function announce() {
+    window.postMessage({ type: READY }, window.location.origin);
+  }
+  window.addEventListener("message", (event) => {
+    if (event.source !== window || event.origin !== window.location.origin) return;
+    const data = event.data;
+    if (!data || data.type !== FILE) return;
+    const bytes = bytesOf(data.bytes);
+    if (!bytes || bytes.length === 0) return;
+    clearInterval(timer);
+    window.__received = {
+      name: data.name,
+      size: bytes.length,
+      header: String.fromCharCode(...bytes.subarray(0, 5)),
+      shape: data.bytes instanceof Uint8Array ? "Uint8Array" : typeof data.bytes,
+    };
+    document.getElementById("log").textContent = JSON.stringify(window.__received);
+  });
+  announce();
+</script>

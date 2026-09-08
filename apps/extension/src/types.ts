@@ -87,8 +87,12 @@ export type PopupRequest =
   | { action: "captureFullPage" }
   | { action: "captureVisible" }
   | { action: "captureSelectedArea" }
-  | { action: "exportPdf" }
+  // `handoff` chains the export straight into OpenPdfEdit, so the one click
+  // that asked for a PDF also carries it there — the alternative being a
+  // second gesture for something the user already said yes to.
+  | { action: "exportPdf"; handoff?: boolean }
   | { action: "savePngs" }
+  | { action: "openPdfEdit" }
   | { action: "openEditor" };
 
 export interface CaptureResult {

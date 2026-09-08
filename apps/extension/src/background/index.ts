@@ -1,11 +1,21 @@
-import { EDITOR_IMAGE_BLOB_KEY, EDITOR_IMAGE_PORT_NAME, deleteBlob, getBlob, putBlob } from "../chrome/blob-store";
+import {
+  EDITOR_IMAGE_BLOB_KEY,
+  EDITOR_IMAGE_PORT_NAME,
+  PDF_HANDOFF_BLOB_KEY,
+  PDF_HANDOFF_PORT_NAME,
+  deleteBlob,
+  getBlob,
+  putBlob,
+} from "../chrome/blob-store";
 import { HISTORY_LIST_PORT_NAME, addHistoryEntry, clearHistory, deleteHistoryEntry, getHistoryEntry, listHistoryEntries } from "../chrome/capture-history";
 import { needsFormatChoice } from "../chrome/capture-size";
 import { setLastCaptureUi } from "../chrome/last-capture-ui";
 import { client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
 import { bumpUsageCount } from "../chrome/rating-prompt";
 import { saveOutput } from "../chrome/save";
+import { getSavePrefs, resolveFilename } from "../chrome/save-prefs";
 import { registerCallbackScript } from "../chrome/auth-permission";
+import { PDF_EDIT_HANDOFF_URL, registerHandoffScript } from "../chrome/pdf-handoff";
 import { ext } from "../platform/webext";
 import type { PopupRequest, PopupResponse } from "../types";
 import {
@@ -140,6 +150,31 @@ ext.runtime.onConnect.addListener((port) => {
   })();
 });
 
+// The PDF an export set aside for app.openpdfedit.com, handed to the content
+// script that will post it into that page. Chunked and base64 for the same
+// two reasons as the editor image port above, and deleted on read: whoever
+// asked has it now, and a second tab opened later should get the "nothing
+// pending" answer rather than a stale document from an hour ago.
+ext.runtime.onConnect.addListener((port) => {
+  if (port.name !== PDF_HANDOFF_PORT_NAME) return;
+  (async () => {
+    const [bytes, stored] = await Promise.all([
+      getBlob(PDF_HANDOFF_BLOB_KEY),
+      ext.storage.session.get("pdfHandoffName"),
+    ]);
+    await deleteBlob(PDF_HANDOFF_BLOB_KEY);
+    if (bytes) {
+      const name = stored["pdfHandoffName"];
+      if (typeof name === "string") port.postMessage({ name });
+      for (let offset = 0; offset < bytes.length; offset += EDITOR_IMAGE_CHUNK_SIZE) {
+        const chunk = bytes.subarray(offset, offset + EDITOR_IMAGE_CHUNK_SIZE);
+        port.postMessage({ chunk: bytesToBase64(chunk) });
+      }
+    }
+    port.postMessage({ done: true });
+  })();
+});
+
 // Streams the whole history log to history.html: one entryStart/chunk*/
 // entryDone sequence per capture (newest first, so the page can render
 // entries as they arrive instead of waiting for all 50), then a final
@@ -174,8 +209,10 @@ ext.runtime.onConnect.addListener((port) => {
 // persists dynamic registrations, but re-asserting on startup covers a profile
 // that lost them, and onAdded covers the grant happening in another context.
 void registerCallbackScript();
+void registerHandoffScript();
 ext.permissions.onAdded.addListener(() => {
   void registerCallbackScript();
+  void registerHandoffScript();
 });
 
 ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
@@ -223,6 +260,22 @@ async function rememberInHistory(tab: chrome.tabs.Tab, report: { output_width_px
   } catch (err) {
     console.warn("[opencapture] failed to save capture to history", err);
   }
+}
+
+/**
+ * Set a PDF aside for the delivery script, then open the tab that will ask
+ * for it.
+ *
+ * Both halves belong here rather than in the popup: opening a tab activates
+ * it, which tears the popup down, and anything the popup still had to do
+ * after that would not happen. The tab carries the marker that tells
+ * openpdfedit a document is coming; the content script registered for that
+ * site does the rest (chrome/pdf-handoff.ts).
+ */
+async function handOffToPdfEdit(pdfBytes: Uint8Array): Promise<void> {
+  await putBlob(PDF_HANDOFF_BLOB_KEY, pdfBytes);
+  await ext.storage.session.set({ pdfHandoffName: resolveFilename(await getSavePrefs(), "", "pdf") });
+  await ext.tabs.create({ url: PDF_EDIT_HANDOFF_URL });
 }
 
 async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
@@ -308,6 +361,15 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
     case "exportPdf": {
       const pdfBytes = await exportLastCaptureAsPdf();
       await saveOutput(pdfBytes, "", "pdf", "application/pdf");
+      if (request.handoff) await handOffToPdfEdit(pdfBytes);
+      return { ok: true };
+    }
+    case "openPdfEdit": {
+      // Rebuilt rather than reused: this answers the offer made after an
+      // export that did not carry anything over, so there is nothing set
+      // aside to reuse. It is the same PDF either way — built from the same
+      // stored images by the same code.
+      await handOffToPdfEdit(await exportLastCaptureAsPdf());
       return { ok: true };
     }
     case "openEditor": {
@@ -459,6 +521,10 @@ if (__OPENCAPTURE_E2E__) {
     // calls the orchestrator, which downloads nothing, opens nothing and
     // records nothing for the popup either way.
     captureFullPageViaHandleRequest: () => handleRequest({ action: "captureFullPage" }),
+    // The PDF-to-OpenPdfEdit chain, through the same handler the popup uses.
+    // The tab it opens is the real site, so a test stubs tabs.create and
+    // exercises the delivery against a local stand-in for it.
+    exportPdfWithHandoff: () => handleRequest({ action: "exportPdf", handoff: true }),
     // Exercises blob-store.ts (IndexedDB) directly with a payload larger
     // than chrome.runtime.sendMessage's ~64MiB cap — the exact limit that
     // broke the old pngBytes-in-message clipboard/editor handoff. Proves

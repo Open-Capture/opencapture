@@ -342,6 +342,15 @@
             </button>
           </div>
         </div>
+        <!-- Sits between the format panel and the actions on purpose: it
+             reads as part of the PDF answer when the panel is up, and as a
+             setting on the PDF button when it is not. Ticking it asks for
+             access to app.openpdfedit.com, which is why it is off until
+             someone asks for it. -->
+        <label id="pdfEditRow" class="field-inline">
+          <input id="prefOpenInPdfEdit" type="checkbox" />
+          <span>Open the PDF in OpenPdfEdit</span>
+        </label>
         <div id="resultActions">
           <button id="exportPdf" class="btn btn-secondary btn-sm" disabled>
             <span class="oa-icon oa-icon-14 icon-file-down"></span>

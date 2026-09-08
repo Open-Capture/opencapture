@@ -14,6 +14,7 @@ import {
   recordPromptResponded,
   shouldShowRatingPrompt,
 } from "../chrome/rating-prompt";
+import { dropPdfEditAccess, hasPdfEditAccess, requestPdfEditAccess } from "../chrome/pdf-handoff";
 import { getSavePrefs, resolveFilename, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
 import { ext } from "../platform/webext";
@@ -40,6 +41,7 @@ const chooseEditorNoteEl = $("chooseEditorNote");
 const pdfHandoffEl = $("pdfHandoff");
 const pdfHandoffLeadEl = $("pdfHandoffLead");
 const openPdfEditNoteEl = $("openPdfEditNote");
+const prefOpenInPdfEditEl = $("prefOpenInPdfEdit") as HTMLInputElement;
 const allButtons = document.querySelectorAll<HTMLButtonElement>("button");
 const prefFilenameEl = $("prefFilename") as HTMLInputElement;
 const customFolderNameEl = $("customFolderName");
@@ -80,6 +82,43 @@ async function loadCapturePrefs(): Promise<void> {
 prefStickyEl.addEventListener("change", () => {
   void setCapturePrefs({ sticky: prefStickyEl.value as StickyMode });
 });
+
+/**
+ * The tickbox, and the access it depends on.
+ *
+ * A revoked permission has to turn the setting off rather than leave it
+ * looking on: permissions are managed in the browser's own extension page,
+ * where nothing knows this checkbox exists, and a tick that quietly does
+ * nothing is worse than one that was never offered.
+ */
+async function loadPdfEditPref(): Promise<void> {
+  const prefs = await getSavePrefs();
+  const allowed = prefs.openInPdfEdit && (await hasPdfEditAccess());
+  prefOpenInPdfEditEl.checked = allowed;
+  if (prefs.openInPdfEdit && !allowed) await setSavePrefs({ openInPdfEdit: false });
+}
+
+prefOpenInPdfEditEl.addEventListener("change", async () => {
+  if (!prefOpenInPdfEditEl.checked) {
+    await setSavePrefs({ openInPdfEdit: false });
+    // Handed back, rather than kept against the next time it might be wanted.
+    // Nothing here should hold access to another site it has been told to
+    // stop using.
+    await dropPdfEditAccess();
+    return;
+  }
+  // FIRST await in this handler, and it has to be: Firefox spends the user
+  // gesture on the first one and then resolves request() false without ever
+  // prompting. Same trap as ensureAuthAccess in auth-permission.ts.
+  const granted = await requestPdfEditAccess();
+  prefOpenInPdfEditEl.checked = granted;
+  await setSavePrefs({ openInPdfEdit: granted });
+  if (!granted) {
+    setStatusText("OpenPdfEdit needs access to app.openpdfedit.com to receive the file.", true);
+  }
+});
+
+loadPdfEditPref();
 
 async function persistSavePrefs(): Promise<void> {
   await setSavePrefs({
@@ -231,7 +270,7 @@ async function takeFormatChoice(request: PopupRequest, busyMessage: string): Pro
   if (ui) await setLastCaptureUi({ ...ui, formatChosen: true });
   hideFormatChoice();
   const ok = await runCapture(request, busyMessage);
-  if (ok && request.action === "exportPdf") await showPdfHandoff();
+  if (ok && request.action === "exportPdf" && !request.handoff) await showPdfHandoff();
 }
 
 /**
@@ -251,7 +290,7 @@ async function takeFormatChoice(request: PopupRequest, busyMessage: string): Pro
 async function showPdfHandoff(): Promise<void> {
   const filename = resolveFilename(await getSavePrefs(), "", "pdf");
   pdfHandoffLeadEl.textContent = `Saved as ${filename}.`;
-  openPdfEditNoteEl.textContent = `Opens app.openpdfedit.com, where you pick ${filename}. Nothing is uploaded — it edits on your own machine.`;
+  openPdfEditNoteEl.textContent = `Opens app.openpdfedit.com with ${filename} already in it. Nothing is uploaded — it edits on your own machine.`;
   pdfHandoffEl.hidden = false;
 }
 
@@ -449,14 +488,28 @@ $("captureSelectedArea").addEventListener("click", () => {
   void send({ action: "captureSelectedArea" }).catch(() => {});
   window.close();
 });
-$("openPdfEdit").addEventListener("click", () => {
-  ext.tabs.create({ url: "https://app.openpdfedit.com/" });
+$("openPdfEdit").addEventListener("click", async () => {
+  // FIRST await, for the gesture — see the tickbox handler above.
+  const granted = await requestPdfEditAccess();
   pdfHandoffEl.hidden = true;
+  if (!granted) {
+    // Still worth opening: the file is saved, and picking it by hand is the
+    // thing this was trying to save them, not the thing it replaced.
+    ext.tabs.create({ url: "https://app.openpdfedit.com/" });
+    setStatusText(`Opened OpenPdfEdit — choose ${resolveFilename(await getSavePrefs(), "", "pdf")} there.`);
+    return;
+  }
+  await runCapture({ action: "openPdfEdit" }, "Opening OpenPdfEdit…");
 });
 $("pdfHandoffDismiss").addEventListener("click", () => {
   pdfHandoffEl.hidden = true;
 });
-$("choosePdf").addEventListener("click", () => takeFormatChoice({ action: "exportPdf" }, "Exporting PDF…"));
+$("choosePdf").addEventListener("click", () =>
+  takeFormatChoice(
+    { action: "exportPdf", handoff: prefOpenInPdfEditEl.checked },
+    prefOpenInPdfEditEl.checked ? "Exporting PDF and opening OpenPdfEdit…" : "Exporting PDF…",
+  ),
+);
 $("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, "Saving PNG…"));
 $("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "openEditor" }, "Opening editor…"));
 // The same follow-up as the format panel's PDF answer, because it is the
@@ -464,8 +517,14 @@ $("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "op
 // who reached for this button — the ordinary way to get a PDF — was told
 // nothing at all, which read as the offer being broken rather than absent.
 exportPdfBtn.addEventListener("click", async () => {
-  const ok = await runCapture({ action: "exportPdf" }, "Exporting PDF…");
-  if (ok) await showPdfHandoff();
+  const handoff = prefOpenInPdfEditEl.checked;
+  const ok = await runCapture(
+    { action: "exportPdf", handoff },
+    handoff ? "Exporting PDF and opening OpenPdfEdit…" : "Exporting PDF…",
+  );
+  // Nothing to offer when it has already gone: the tab is opening as this
+  // runs, and this popup is about to be torn down by it.
+  if (ok && !handoff) await showPdfHandoff();
 });
 openEditorBtn.addEventListener("click", () => runCapture({ action: "openEditor" }, "Opening editor…"));
 
