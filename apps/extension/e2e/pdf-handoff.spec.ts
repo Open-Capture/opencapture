@@ -122,13 +122,11 @@ test("the OpenPdfEdit tickbox appears with the PDF button and nowhere else", asy
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await popup.waitForSelector("#exportPdf:not([disabled])");
   await expect(popup.locator("#pdfEditRow")).toBeVisible();
-  const order = await popup.evaluate(() => {
-    const actions = document.getElementById("resultActions")!;
-    const row = document.getElementById("pdfEditRow")!;
-    // 4 === DOCUMENT_POSITION_FOLLOWING: the row comes after the actions.
-    return actions.compareDocumentPosition(row) & 4 ? "after" : "before";
-  });
-  expect(order).toBe("after");
+  expect(
+    await popup.evaluate(
+      () => document.getElementById("pdfEditRow")!.previousElementSibling?.id,
+    ),
+  ).toBe("resultActions");
 
   // And it goes away again while something is running, rather than sitting
   // under a progress bar offering to open a file that does not exist yet.

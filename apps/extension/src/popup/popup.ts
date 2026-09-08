@@ -252,11 +252,21 @@ function showFormatChoice(report: CaptureReport): void {
   // again, unlabelled and without the cost attached, which is exactly the
   // sight-unseen click this panel exists to replace.
   resultActionsEl.hidden = true;
+  // The tickbox follows the PDF option into the list, rather than sitting
+  // under all three where it reads as a setting on the whole panel. It is
+  // moved rather than duplicated: two checkboxes for one preference is two
+  // things to keep in step, and they would disagree the first time one of
+  // them was missed.
+  $("choosePdf").insertAdjacentElement("afterend", pdfEditRowEl);
+  syncPdfEditRow();
 }
 
 function hideFormatChoice(): void {
   formatChoiceEl.hidden = true;
   resultActionsEl.hidden = false;
+  // Back under the actions, beneath the PDF button it belongs to there.
+  resultActionsEl.insertAdjacentElement("afterend", pdfEditRowEl);
+  syncPdfEditRow();
 }
 
 /**

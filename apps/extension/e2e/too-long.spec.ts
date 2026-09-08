@@ -69,6 +69,13 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
   await popup.waitForSelector("#formatChoice:not([hidden])", { timeout: 60_000 });
   await expect(popup.locator("#resultActions")).toBeHidden();
+  // The OpenPdfEdit tickbox belongs to the PDF answer, so it follows that
+  // option into the list rather than sitting under all three, where it reads
+  // as a setting on the whole panel.
+  await expect(popup.locator("#pdfEditRow")).toBeVisible();
+  expect(
+    await popup.evaluate(() => document.getElementById("pdfEditRow")!.previousElementSibling?.id),
+  ).toBe("choosePdf");
   const lead = await popup.locator("#formatChoiceLead").textContent();
   expect(lead).toContain("too long to keep whole and editable at once");
   expect(await popup.locator("#choosePdfNote").textContent()).toContain("app.openpdfedit.com");
