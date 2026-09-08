@@ -306,13 +306,20 @@
         <div id="formatChoice" hidden>
           <p id="formatChoiceLead" class="choice-lead"></p>
           <div class="choice-list">
-            <button id="choosePdf" type="button" class="choice">
-              <span class="oa-icon oa-icon-14 icon-file-down"></span>
-              <span class="choice-body">
-                <span class="choice-title">Export as PDF <span class="choice-tag">Recommended</span></span>
-                <span class="choice-note" id="choosePdfNote"></span>
-              </span>
-            </button>
+            <!-- The PDF option carries its own setting, so the box belongs to
+                 a wrapper rather than to the button: a <label> and its
+                 checkbox cannot live inside a <button>, and nesting them
+                 would hand the checkbox's clicks to the export. popup.ts
+                 moves #pdfEditRow in here while this panel is up. -->
+            <div class="choice-group">
+              <button id="choosePdf" type="button" class="choice">
+                <span class="oa-icon oa-icon-14 icon-file-down"></span>
+                <span class="choice-body">
+                  <span class="choice-title">Export as PDF <span class="choice-tag">Recommended</span></span>
+                  <span class="choice-note" id="choosePdfNote"></span>
+                </span>
+              </button>
+            </div>
             <button id="choosePng" type="button" class="choice">
               <span class="oa-icon oa-icon-14 icon-image"></span>
               <span class="choice-body">

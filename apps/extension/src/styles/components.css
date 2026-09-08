@@ -168,10 +168,27 @@
 .choice-body{display:flex;flex-direction:column;gap:var(--space-1);min-width:0}
 .choice-title{font:var(--type-ui);color:var(--text-body)}
 .choice-note{font:var(--type-caption);color:var(--text-muted)}
-/* The OpenPdfEdit tickbox, when it has followed the PDF option into the list:
-   indented to that option's own text so it reads as part of it rather than as
-   a fourth choice. */
-.choice-list .field-inline{padding-left:calc(var(--space-3) * 2 + 16px)}
+/* An option that carries a setting of its own. The box moves out here so the
+   two can sit inside it: a checkbox cannot be nested in the <button> without
+   giving the button its clicks, and a setting shown outside the box it
+   belongs to reads as applying to the whole list. */
+.choice-group{
+  display:flex;
+  flex-direction:column;
+  gap:var(--space-2);
+  width:100%;
+  padding:var(--space-3);
+  background:var(--bg-subtle);
+  border:var(--border-width) solid var(--border-hairline);
+  border-radius:var(--radius-md);
+  transition:var(--transition-control);
+}
+.choice-group:hover{background:var(--surface-hover)}
+/* The button inside has no box of its own — the group is the box now. */
+.choice-group>.choice{padding:0;background:none;border:0;border-radius:0}
+.choice-group>.choice:hover{background:none}
+/* The tickbox, indented past the icon to line up with the option's own text. */
+.choice-group>.field-inline{padding-left:calc(16px + var(--space-3))}
 /* The recommendation, said once and quietly. A tinted chip is the only thing
    an accent is allowed to be here — never a filled button or a background. */
 .choice-tag{
