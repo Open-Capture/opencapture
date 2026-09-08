@@ -74,8 +74,15 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   // as a setting on the whole panel.
   await expect(popup.locator("#pdfEditRow")).toBeVisible();
   expect(
-    await popup.evaluate(() => document.getElementById("pdfEditRow")!.previousElementSibling?.id),
-  ).toBe("choosePdf");
+    await popup.evaluate(() => {
+      const row = document.getElementById("pdfEditRow")!;
+      return {
+        after: row.previousElementSibling?.id,
+        // Inside the PDF option's own box, not merely next to it.
+        inside: row.parentElement?.className,
+      };
+    }),
+  ).toEqual({ after: "choosePdf", inside: "choice-group" });
   const lead = await popup.locator("#formatChoiceLead").textContent();
   expect(lead).toContain("too long to keep whole and editable at once");
   expect(await popup.locator("#choosePdfNote").textContent()).toContain("app.openpdfedit.com");
