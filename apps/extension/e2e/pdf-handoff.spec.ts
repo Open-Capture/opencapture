@@ -90,3 +90,50 @@ test("an exported PDF is set aside and delivered into the page that asks for it"
   await second.waitForTimeout(3000);
   expect(await second.evaluate(() => globalThis.__received)).toBeNull();
 });
+
+test("the OpenPdfEdit tickbox appears with the PDF button and nowhere else", async ({
+  context,
+  serviceWorker,
+  extensionId,
+}) => {
+  test.setTimeout(120_000);
+
+  // Nothing captured yet: there is no PDF for it to have an opinion about.
+  const fresh = await context.newPage();
+  await fresh.goto(`chrome-extension://${extensionId}/popup.html`);
+  await fresh.waitForSelector("#exportPdf");
+  await expect(fresh.locator("#pdfEditRow")).toBeHidden();
+  await expect(fresh.locator("#exportPdf")).toBeDisabled();
+  await fresh.close();
+
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.bringToFront();
+  await serviceWorker.evaluate(async () => {
+    // @ts-expect-error test-only global
+    await globalThis.__test.captureVisibleViaHandleRequest();
+  });
+
+  // With a capture in hand it appears — directly beneath the button it is a
+  // setting for, not floating somewhere else in the card.
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.waitForSelector("#exportPdf:not([disabled])");
+  await expect(popup.locator("#pdfEditRow")).toBeVisible();
+  const order = await popup.evaluate(() => {
+    const actions = document.getElementById("resultActions")!;
+    const row = document.getElementById("pdfEditRow")!;
+    // 4 === DOCUMENT_POSITION_FOLLOWING: the row comes after the actions.
+    return actions.compareDocumentPosition(row) & 4 ? "after" : "before";
+  });
+  expect(order).toBe("after");
+
+  // And it goes away again while something is running, rather than sitting
+  // under a progress bar offering to open a file that does not exist yet.
+  await popup.evaluate(() => {
+    document.getElementById("exportPdf")!.click();
+  });
+  await expect(popup.locator("#pdfEditRow")).toBeHidden();
+});
