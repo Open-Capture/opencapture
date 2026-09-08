@@ -75,6 +75,12 @@
         color: var(--text-body);
         cursor: pointer;
       }
+      /* An author-stylesheet display beats the [hidden] attribute's
+         user-agent display:none — the same trap .btn[hidden] exists for in
+         components.css. Without this the row shows while hidden is true. */
+      .field-inline[hidden] {
+        display: none;
+      }
       .field-inline input {
         accent-color: var(--brand);
         margin: 0;
@@ -342,15 +348,6 @@
             </button>
           </div>
         </div>
-        <!-- Sits between the format panel and the actions on purpose: it
-             reads as part of the PDF answer when the panel is up, and as a
-             setting on the PDF button when it is not. Ticking it asks for
-             access to app.openpdfedit.com, which is why it is off until
-             someone asks for it. -->
-        <label id="pdfEditRow" class="field-inline">
-          <input id="prefOpenInPdfEdit" type="checkbox" />
-          <span>Open the PDF in OpenPdfEdit</span>
-        </label>
         <div id="resultActions">
           <button id="exportPdf" class="btn btn-secondary btn-sm" disabled>
             <span class="oa-icon oa-icon-14 icon-file-down"></span>
@@ -365,6 +362,16 @@
             Annotate
           </button>
         </div>
+        <!-- Directly under the actions, so it reads as a setting on the PDF
+             button above it — which is the only thing it affects. Hidden
+             until that button can actually be used: before a capture, and
+             while one is running, there is no PDF for it to have an opinion
+             about. Ticking it asks for access to app.openpdfedit.com, which
+             is why it is off until someone asks for it. -->
+        <label id="pdfEditRow" class="field-inline" hidden>
+          <input id="prefOpenInPdfEdit" type="checkbox" />
+          <span>Open the PDF in OpenPdfEdit</span>
+        </label>
         <img id="preview" alt="capture preview" />
         <pre id="report"></pre>
       </div>

@@ -42,6 +42,7 @@ const pdfHandoffEl = $("pdfHandoff");
 const pdfHandoffLeadEl = $("pdfHandoffLead");
 const openPdfEditNoteEl = $("openPdfEditNote");
 const prefOpenInPdfEditEl = $("prefOpenInPdfEdit") as HTMLInputElement;
+const pdfEditRowEl = $("pdfEditRow");
 const allButtons = document.querySelectorAll<HTMLButtonElement>("button");
 const prefFilenameEl = $("prefFilename") as HTMLInputElement;
 const customFolderNameEl = $("customFolderName");
@@ -309,6 +310,7 @@ async function restoreLastCaptureUi(): Promise<void> {
   // the store to show a thumbnail of it takes long enough to be visible —
   // during which the popup would be sitting there with no sign that it is
   // waiting on an answer. The question does not depend on the picture.
+  syncPdfEditRow();
   if (isChoicePending(ui)) showFormatChoice(ui.report);
   setStatusText(captureStatusText(ui));
 
@@ -381,6 +383,20 @@ function setBusy(busy: boolean, busyMessage?: string): void {
     copyBtn.disabled = false;
     openEditorBtn.disabled = false;
   }
+  syncPdfEditRow(busy);
+}
+
+/**
+ * The tickbox belongs to the PDF button and appears with it.
+ *
+ * It used to sit in the card unconditionally, which put it under "No capture
+ * yet", under the progress bar of a capture still running, and under the
+ * result of a save that had nothing to do with PDFs — a setting offering an
+ * opinion about a file that did not exist. Tied to the one button it affects,
+ * there is nowhere left for it to turn up uninvited.
+ */
+function syncPdfEditRow(busy = false): void {
+  pdfEditRowEl.hidden = busy || exportPdfBtn.disabled;
 }
 
 async function send(request: PopupRequest): Promise<PopupResponse> {
