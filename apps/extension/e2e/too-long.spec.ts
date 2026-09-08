@@ -155,6 +155,34 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   expect(pdfSaved.some((name) => name.endsWith(".pdf"))).toBe(true);
 });
 
+test("the ordinary PDF button offers the same follow-up as the panel's", async ({
+  context,
+  serviceWorker,
+  extensionId,
+}) => {
+  test.setTimeout(120_000);
+
+  // An everyday capture — no choice panel involved. This is the path most
+  // PDFs are exported by, and it used to say nothing about what opens one.
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+  await page.waitForLoadState("domcontentloaded");
+  await page.bringToFront();
+  await serviceWorker.evaluate(async () => {
+    // @ts-expect-error test-only global
+    await globalThis.__test.captureVisibleViaHandleRequest();
+  });
+
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await popup.waitForSelector("#exportPdf:not([disabled])");
+  await popup.click("#exportPdf");
+  await popup.waitForSelector("#pdfHandoff:not([hidden])", { timeout: 60_000 });
+  expect(await popup.locator("#pdfHandoffLead").textContent()).toContain(".pdf");
+  expect(await popup.locator("#openPdfEditNote").textContent()).toContain("app.openpdfedit.com");
+});
+
 test("one image the editor still cannot hold whole is trimmed, and says so", async ({
   context,
   serviceWorker,
