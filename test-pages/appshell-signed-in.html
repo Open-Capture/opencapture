@@ -1,0 +1,79 @@
+<!doctype html>
+<meta charset="utf-8" />
+<title>App shell in its signed-in shape</title>
+<!--
+  chatgpt.com as it is for someone signed in, which is the shape APP-38 was
+  reported against and the one a signed-out capture cannot reach: the column
+  beside the scrolling pane holds a conversation list that is itself
+  scrollable, re-renders on its own, and sits under a header that spans the
+  window rather than only the pane.
+
+  Everything here is a property the signed-out page does not have. The marker
+  counts how many times the column's content is painted; once is correct.
+-->
+<style>
+  html, body { margin: 0; height: 100%; overflow: hidden; font: 14px/1.5 system-ui, sans-serif; }
+  #shell { display: flex; height: 100vh; }
+  #rail { width: 260px; flex: 0 0 260px; height: 100vh; background: rgb(20, 30, 40); color: #fff;
+          display: flex; flex-direction: column; }
+  #railHead { padding: 12px 16px; border-bottom: 1px solid #2b3a49; }
+  #marker { height: 48px; margin: 12px 16px; background: rgb(255, 0, 0); }
+  /* The conversation list: its own scroll container, inside the column. */
+  #convos { flex: 1 1 auto; overflow-y: auto; padding: 8px 0; }
+  #convos div { padding: 7px 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #railFoot { padding: 12px 16px; border-top: 1px solid #2b3a49; }
+  #main { flex: 1 1 auto; display: flex; flex-direction: column; height: 100vh; }
+  #header { height: 56px; flex: 0 0 56px; border-bottom: 1px solid #ddd; display: flex;
+            align-items: center; padding: 0 20px; background: #fff; }
+  #pane { flex: 1 1 auto; overflow-y: auto; background: #fff; }
+  .row { height: 140px; margin: 20px; background: rgb(0, 0, 255); color: #fff;
+         font: 16px/140px system-ui, sans-serif; text-align: center; }
+</style>
+<div id="shell">
+  <nav id="rail">
+    <div id="railHead">New chat</div>
+    <div id="marker"></div>
+    <div id="convos"></div>
+    <div id="railFoot">Account</div>
+  </nav>
+  <div id="main">
+    <div id="header">ChatGPT</div>
+    <div id="pane"></div>
+  </div>
+</div>
+<script>
+  // ?overlay puts the column on top of the pane instead of beside it — the
+  // "slideover" state the element is named for, where the pane spans the
+  // whole window and nothing is wholly to one side of it.
+  if (new URLSearchParams(location.search).has("overlay")) {
+    const rail = document.getElementById("rail");
+    rail.style.position = "fixed";
+    rail.style.left = "0";
+    rail.style.top = "0";
+    rail.style.zIndex = "40";
+    document.getElementById("main").style.width = "100vw";
+  }
+  const pane = document.getElementById("pane");
+  for (let i = 1; i <= 15; i++) {
+    const d = document.createElement("div");
+    d.className = "row";
+    d.textContent = String(i);
+    pane.appendChild(d);
+  }
+  // The list re-renders on its own, the way live data does — every item is a
+  // fresh node each time, so anything pinned to the old ones is lost.
+  const convos = document.getElementById("convos");
+  let tick = 0;
+  function renderConvos() {
+    const items = [];
+    for (let i = 0; i < 24; i++) {
+      const d = document.createElement("div");
+      d.textContent = `Conversation ${i + 1} · ${tick}`;
+      items.push(d);
+    }
+    convos.replaceChildren(...items);
+    tick++;
+  }
+  renderConvos();
+  setInterval(renderConvos, 400);
+</script>
