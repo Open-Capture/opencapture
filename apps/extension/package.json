@@ -16,7 +16,8 @@
     "verify:locales": "npm run build && node scripts/verify-locales.mjs",
     "e2e": "playwright test",
     "android:run": "npm run build:firefox && web-ext run --source-dir=dist-firefox -t firefox-android",
-    "publish:firefox": "npm run build:firefox && web-ext sign --source-dir=dist-firefox --artifacts-dir=web-ext-artifacts --channel=listed --api-key=\"$WEB_EXT_API_KEY\" --api-secret=\"$WEB_EXT_API_SECRET\""
+    "publish:firefox": "npm run build:firefox && web-ext sign --source-dir=dist-firefox --artifacts-dir=web-ext-artifacts --channel=listed --api-key=\"$WEB_EXT_API_KEY\" --api-secret=\"$WEB_EXT_API_SECRET\"",
+    "e2e:firefox": "node e2e-firefox/text-tool.mjs dist-firefox"
   },
   "dependencies": {
     "@openapps/sdk": "file:./vendor/sdk",

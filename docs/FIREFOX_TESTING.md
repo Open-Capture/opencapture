@@ -51,8 +51,23 @@ from Chrome's e2e suite:
   depends on Firefox 115+; note `browser_specific_settings.gecko.strict_min_version`
   in the manifest if testing on an older Firefox).
 
+## Automated coverage
+
+`npm run e2e:firefox` drives the real `dist-firefox/editor.html` in both
+Playwright's Firefox and Chromium and compares them. It stubs only the
+extension APIs the editor needs at boot (storage.session for the capture
+dimensions, the runtime.connect port that streams the PNG), so the editor code
+under test is the shipped bundle.
+
+It does **not** run inside a `moz-extension://` page, and that gap is not
+academic: APP-37 was a text-tool failure that reproduced only there. The
+editor's floating text `<input>` was created, blurred by the browser and removed
+by its own blur handler within 1 ms — `preventDefault()` on the cancelable
+`pointerdown` did not stop focus moving to `<body>` — while the same bundle
+served over `http://` kept focus and worked. To reproduce that class of bug,
+load the extension with `web-ext run` and exercise the page for real.
+
 ## Known, deliberate differences from Chrome
 
 - No custom save-folder picker (see above) — Downloads-folder saving via
   the Filename field still works.
-- No automated e2e coverage for this build — every check above is manual.
