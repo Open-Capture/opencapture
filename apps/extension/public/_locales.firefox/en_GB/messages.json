@@ -1,0 +1,8 @@
+{
+  "name": {
+    "message": "Full Page Screenshot, Screen Capture | OpenCapture"
+  },
+  "description": {
+    "message": "Take a full page screenshot to PDF or PNG. OpenCapture does a scrolling capture of an entire webpage, stitches it into one image, then lets you crop, annotate and blur before you export. Free, local and open source."
+  }
+}

@@ -22,7 +22,12 @@ import { fileURLToPath } from "node:url";
 
 const extDir = dirname(dirname(fileURLToPath(import.meta.url)));
 const repoRoot = dirname(dirname(extDir));
-const localesDir = join(extDir, "public", "_locales");
+// AMO's own catalogue, not the Chromium one. Both exist because the two
+// stores cap the title differently, and this is the half written to AMO's 50
+// characters by hand — fitName below still runs, but on names already inside
+// the cap it has nothing to do. Reading the Chromium catalogue here would
+// publish machine-shortened titles over the ones somebody wrote.
+const localesDir = join(extDir, "public", "_locales.firefox");
 const listingDir = join(repoRoot, "store-listing");
 
 const API_ROOT = process.env.AMO_API_ROOT || "https://addons.mozilla.org";
