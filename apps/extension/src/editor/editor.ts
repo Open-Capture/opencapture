@@ -1123,6 +1123,26 @@ function startTextInput(
   input.focus();
   if (existing) input.select();
 
+  // Keeping that focus is not something preventDefault() can be trusted to do.
+  // On an extension page (moz-extension://) in Firefox the browser still moves
+  // focus to <body> during this very pointerdown, even though the event is
+  // cancelable and preventDefault() ran — measured on Firefox 155 as INPUT
+  // ADDED, blur, and removal all inside 1 ms, ending with
+  // document.activeElement === BODY. The blur handler below then removes the
+  // input, so the text tool looked like it did nothing at all. The same build
+  // served over http:// keeps focus, which is why this never showed up in the
+  // Chromium e2e suite or in manual http testing.
+  //
+  // So don't depend on the cancel: re-assert focus once the event has finished
+  // dispatching, and ignore any blur that arrives before focus has stuck. A
+  // blur after that point is a real one — the user clicked away — and still
+  // commits, which is what keeps click-elsewhere-to-commit working.
+  let focusSettled = false;
+  setTimeout(() => {
+    if (input.isConnected && document.activeElement !== input) input.focus();
+    focusSettled = true;
+  }, 0);
+
   let settled = false;
   function commit(): void {
     if (settled) return;
@@ -1150,7 +1170,12 @@ function startTextInput(
     if (e.key === "Enter") commit();
     if (e.key === "Escape") cancel();
   });
-  input.addEventListener("blur", commit);
+  // Guarded by focusSettled: a blur that fires before focus has stuck is the
+  // browser taking it away, not the user leaving, and committing on it would
+  // delete the input the same millisecond it appeared.
+  input.addEventListener("blur", () => {
+    if (focusSettled) commit();
+  });
 }
 
 // --- watermark panel ---------------------------------------------------
