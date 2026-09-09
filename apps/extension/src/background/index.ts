@@ -150,7 +150,7 @@ ext.runtime.onConnect.addListener((port) => {
   })();
 });
 
-// The PDF an export set aside for app.openpdfedit.com, handed to the content
+// The PDF an export set aside for openpdfedit.com/app, handed to the content
 // script that will post it into that page. Chunked and base64 for the same
 // two reasons as the editor image port above, and deleted on read: whoever
 // asked has it now, and a second tab opened later should get the "nothing
@@ -276,6 +276,56 @@ async function handOffToPdfEdit(pdfBytes: Uint8Array): Promise<void> {
   await putBlob(PDF_HANDOFF_BLOB_KEY, pdfBytes);
   await ext.storage.session.set({ pdfHandoffName: resolveFilename(await getSavePrefs(), "", "pdf") });
   await ext.tabs.create({ url: PDF_EDIT_HANDOFF_URL });
+  watchPdfHandoff();
+}
+
+/**
+ * How long the delivery script gets to come and collect the document before
+ * this decides nobody is coming. Generous: it covers opening a tab, a cold
+ * page load and the page's own mount, and the cost of being wrong is one
+ * dismissable warning, not a lost file.
+ */
+const PDF_HANDOFF_GRACE_MS = 12_000;
+
+/**
+ * Say so when the handoff does not happen.
+ *
+ * The port handler above deletes the blob the moment the delivery script
+ * collects it, so a blob still sitting there after the grace period means the
+ * script never ran — and there is no other way to find that out, because the
+ * failure is the *absence* of an injection. Nothing throws, nothing logs, the
+ * tab opens and looks fine, and the document simply never arrives.
+ *
+ * That silence is what let an OpenPdfEdit URL change break this feature
+ * unnoticed: `app.openpdfedit.com` began redirecting to `openpdfedit.com/app/`,
+ * the grant and the match pattern named the origin the tab no longer landed
+ * on, and the only symptom anyone could report was "it did nothing". This
+ * catches every cause of that shape — a redirect, a revoked permission, the
+ * site down, the page's protocol changing — rather than just the one.
+ *
+ * A badge, because opening a tab tears the popup down: there is no popup left
+ * to write into at this point, and the badge is still there whenever they next
+ * look. The popup clears it and explains on open.
+ */
+function watchPdfHandoff(): void {
+  // A plain timer, not an alarm: alarms need their own permission, and under
+  // MV3 this worker stays alive through the tab creation that just happened.
+  // If it is evicted anyway the warning is lost, which is exactly today's
+  // behaviour and no worse.
+  setTimeout(() => {
+    void (async () => {
+      const undelivered = await getBlob(PDF_HANDOFF_BLOB_KEY);
+      if (!undelivered) return; // collected — the handoff worked
+      await deleteBlob(PDF_HANDOFF_BLOB_KEY);
+      await ext.storage.session.set({ pdfHandoffFailed: true });
+      try {
+        await ext.action.setBadgeBackgroundColor({ color: "#ff4d4d" });
+        await ext.action.setBadgeText({ text: "!" });
+      } catch {
+        // Badge is a courtesy; the popup still explains on open.
+      }
+    })();
+  }, PDF_HANDOFF_GRACE_MS);
 }
 
 async function handleRequest(request: PopupRequest): Promise<PopupResponse> {

@@ -14,7 +14,7 @@ import {
   recordPromptResponded,
   shouldShowRatingPrompt,
 } from "../chrome/rating-prompt";
-import { dropPdfEditAccess, hasPdfEditAccess, requestPdfEditAccess } from "../chrome/pdf-handoff";
+import { dropPdfEditAccess, hasPdfEditAccess, PDF_EDIT_APP_URL, requestPdfEditAccess } from "../chrome/pdf-handoff";
 import { getSavePrefs, resolveFilename, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
 import { ext } from "../platform/webext";
@@ -115,11 +115,37 @@ prefOpenInPdfEditEl.addEventListener("change", async () => {
   prefOpenInPdfEditEl.checked = granted;
   await setSavePrefs({ openInPdfEdit: granted });
   if (!granted) {
-    setStatusText("OpenPdfEdit needs access to app.openpdfedit.com to receive the file.", true);
+    setStatusText("OpenPdfEdit needs access to openpdfedit.com to receive the file.", true);
   }
 });
 
 loadPdfEditPref();
+
+/**
+ * Report a handoff that never landed, and take the badge back down.
+ *
+ * background/index.ts raises this when the PDF it set aside for OpenPdfEdit
+ * was still sitting there after the grace period — i.e. the delivery script
+ * never came for it. Before this, that failed silently: a tab opened, no
+ * document arrived, and nothing anywhere said why.
+ */
+async function reportPdfHandoffFailure(): Promise<void> {
+  const stored = await ext.storage.session.get("pdfHandoffFailed");
+  if (!stored["pdfHandoffFailed"]) return;
+  await ext.storage.session.remove("pdfHandoffFailed");
+  try {
+    await ext.action.setBadgeText({ text: "" });
+  } catch {
+    // Nothing to do; the message below is the part that matters.
+  }
+  const name = resolveFilename(await getSavePrefs(), "", "pdf");
+  setStatusText(
+    `Couldn't hand ${name} to OpenPdfEdit. The PDF is saved \u2014 open openpdfedit.com/app and pick it there.`,
+    true,
+  );
+}
+
+reportPdfHandoffFailure();
 
 async function persistSavePrefs(): Promise<void> {
   await setSavePrefs({
@@ -233,7 +259,7 @@ function showFormatChoice(report: CaptureReport): void {
   const parts = report.output_image_count;
   formatChoiceLeadEl.textContent = `This capture is ${count.format(width)} × ${count.format(height)} pixels — too long to keep whole and editable at once. Choose how to keep it:`;
   choosePdfNoteEl.textContent =
-    "One file, the whole page, nothing dropped. Edit it at app.openpdfedit.com.";
+    "One file, the whole page, nothing dropped. Edit it at openpdfedit.com/app.";
   choosePngNoteEl.textContent =
     parts > 1
       ? `${parts} separate images — the page is past what one PNG holds. Editing isn't possible.`
@@ -292,7 +318,7 @@ async function takeFormatChoice(request: PopupRequest, busyMessage: string): Pro
  * turned down for being unable to hold the page. Leaving the user with a
  * file and no idea what opens it is the gap this closes.
  *
- * It opens the site rather than the file. app.openpdfedit.com takes a PDF
+ * It opens the site rather than the file. openpdfedit.com/app takes a PDF
  * only through a file picker its own page opens — it has no drop zone, no
  * file_handlers, and no URL intake (checked against the deployed build) —
  * and nothing outside a page can fill a native picker. So the panel says
@@ -301,7 +327,7 @@ async function takeFormatChoice(request: PopupRequest, busyMessage: string): Pro
 async function showPdfHandoff(): Promise<void> {
   const filename = resolveFilename(await getSavePrefs(), "", "pdf");
   pdfHandoffLeadEl.textContent = `Saved as ${filename}.`;
-  openPdfEditNoteEl.textContent = `Opens app.openpdfedit.com with ${filename} already in it. Nothing is uploaded — it edits on your own machine.`;
+  openPdfEditNoteEl.textContent = `Opens openpdfedit.com/app with ${filename} already in it. Nothing is uploaded — it edits on your own machine.`;
   pdfHandoffEl.hidden = false;
 }
 
@@ -521,7 +547,7 @@ $("openPdfEdit").addEventListener("click", async () => {
   if (!granted) {
     // Still worth opening: the file is saved, and picking it by hand is the
     // thing this was trying to save them, not the thing it replaced.
-    ext.tabs.create({ url: "https://app.openpdfedit.com/" });
+    ext.tabs.create({ url: PDF_EDIT_APP_URL });
     setStatusText(`Opened OpenPdfEdit — choose ${resolveFilename(await getSavePrefs(), "", "pdf")} there.`);
     return;
   }

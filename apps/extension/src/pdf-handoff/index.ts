@@ -1,4 +1,4 @@
-// Delivers an exported PDF into an app.openpdfedit.com tab.
+// Delivers an exported PDF into an openpdfedit.com/app tab.
 //
 // Import-free and IIFE-sealed like content/index.ts — see that file's module
 // doc and scripts/seal-content-scripts.mjs. A content script is a classic

@@ -46,7 +46,7 @@ test("an exported PDF is set aside and delivered into the page that asks for it"
   const urls = await serviceWorker.evaluate(() => globalThis.__tabUrls);
   console.log("HANDOFF tab: " + JSON.stringify(urls));
   expect(urls).toHaveLength(1);
-  expect(urls[0]).toBe("https://app.openpdfedit.com/?handoff=opencapture");
+  expect(urls[0]).toBe("https://openpdfedit.com/app/?handoff=opencapture");
 
   // The far end: a page speaking openpdfedit's protocol, with the real
   // content script injected into it exactly as the registration would.

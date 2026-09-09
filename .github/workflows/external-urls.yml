@@ -1,0 +1,44 @@
+name: External URLs
+
+# The other end of the PDF handoff is a different product on a different
+# domain, and this extension is hardcoded against it — it has to be, since
+# `optional_host_permissions` and a content script's `matches` are static
+# manifest entries with no dynamic form.
+#
+# The failure mode that needs catching is not a bad commit. It is the other end
+# moving while nothing here changes: OpenPdfEdit went to `openpdfedit.com/app/`,
+# `app.openpdfedit.com` started 301-ing, and the handoff broke with no commit
+# behind it. `ci.yml` is push/pull_request only, so it never ran and never went
+# red — the break was found by hand a day later.
+#
+# Hence a schedule. This is the only job here that can fail because of
+# something outside the repository.
+on:
+  schedule:
+    # 07:00 UTC daily — early enough that a break found overnight is on the
+    # board before anyone starts testing against it.
+    - cron: "0 7 * * *"
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "apps/extension/src/chrome/pdf-handoff.ts"
+      - "apps/extension/public/manifest*.json"
+      - "apps/extension/scripts/check-external-urls.mjs"
+      - ".github/workflows/external-urls.yml"
+
+jobs:
+  check:
+    name: hardcoded external URLs still resolve
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # No install: the check uses only the Node standard library, so a
+      # scheduled job that exists to notice an outage cannot itself be broken
+      # by a dependency being unavailable.
+      - name: Check handoff URLs and permission patterns
+        working-directory: apps/extension
+        run: node scripts/check-external-urls.mjs

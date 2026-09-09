@@ -32,7 +32,7 @@ export const EDITOR_IMAGE_PORT_NAME = "editorImage";
 // button can read it directly — see chrome/copy-image.ts for why the copy
 // itself has to happen in the popup's own document, not a message-passed
 // background/offscreen round-trip.
-// The PDF an export just produced, waiting for the app.openpdfedit.com tab to
+// The PDF an export just produced, waiting for the openpdfedit.com/app tab to
 // ask for it. Written only when the user chose to carry it over, read once by
 // the delivery content script and deleted on read — a capture's PDF is large,
 // and holding one indefinitely for a tab that may never open is storage spent
