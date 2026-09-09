@@ -1,0 +1,8 @@
+{
+  "name": {
+    "message": "Skärmdump av hela sidan till PDF | OpenCapture"
+  },
+  "description": {
+    "message": "Ta en skärmdump av hela sidan till PDF eller PNG. OpenCapture fångar en hel webbsida genom att rulla, fogar samman den till en bild och låter dig beskära, kommentera och sudda innan export. Gratis, lokalt och öppen källkod."
+  }
+}

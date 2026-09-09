@@ -1,8 +1,8 @@
 {
   "name": {
-    "message": "Skärmdump av hela sidan - Skärmdumpsverktyg & redigerare | OpenCapture"
+    "message": "Skärmdump av hela sidan till PDF - Gratis, rullande skärmdump | OpenCapture"
   },
   "description": {
-    "message": "Fånga en hel webbsida som en bild, beskär, kommentera, sudda ut och exportera till PNG eller PDF. Gratis, lokalt, öppen källkod."
+    "message": "Skärmdump av hela sidan till PDF eller PNG. Fånga en hel webbsida som en bild, beskär, kommentera och sudda. Gratis och lokalt."
   }
 }

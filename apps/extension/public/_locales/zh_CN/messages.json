@@ -1,8 +1,8 @@
 {
   "name": {
-    "message": "整页截图 - 网页长截图、截图工具与编辑器，导出 PDF | OpenCapture"
+    "message": "整页截图转PDF - 免费滚动长截图工具 · 网页截图编辑器 | OpenCapture"
   },
   "description": {
-    "message": "把整个网页截成一张完整图片，支持裁剪、标注、隐私打码，导出 PNG 或 PDF。本地处理，无需注册，免费开源。"
+    "message": "整页截图转 PDF 或 PNG。把整个网页拼成一张完整的图，可裁剪、标注、打码。免费、纯本地、开源。"
   }
 }

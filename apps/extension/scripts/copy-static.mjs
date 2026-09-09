@@ -49,6 +49,22 @@ if (targetBrowser === "firefox") {
   rmSync(firefoxManifestPath, { force: true }); // not used in a Chrome build
 }
 
+// The message catalogues get the same treatment, and for a harder reason than
+// the manifest: `name` and `description` are what each store shows as the
+// listing title and blurb, and the two stores cap them differently — AMO at 50
+// characters, the Chrome Web Store far higher. One catalogue cannot satisfy
+// both, so there are two, written to each cap rather than machine-trimmed.
+// publicDir copies both into every build; keep the one this target needs.
+const firefoxLocalesPath = join(distDir, "_locales.firefox");
+if (targetBrowser === "firefox") {
+  const localesPath = join(distDir, "_locales");
+  rmSync(localesPath, { recursive: true, force: true }); // the Chromium catalogue
+  renameSync(firefoxLocalesPath, localesPath);
+  console.log("copy-static: installed _locales.firefox as _locales");
+} else {
+  rmSync(firefoxLocalesPath, { recursive: true, force: true }); // not used in a Chrome build
+}
+
 // Capture itself still needs no standing host access — activeTab only (see
 // docs/architecture.md's "trust badge" rationale) — but
 // `chrome.scripting.executeScript`/`captureVisibleTab` under activeTab
