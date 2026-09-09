@@ -30,7 +30,7 @@
   "optional_host_permissions": [
     "https://auth.opencapture.app/*",
     "https://gateway.opencapture.app/*",
-    "https://app.openpdfedit.com/*"
+    "https://openpdfedit.com/app/*"
   ],
   "minimum_chrome_version": "116",
   "content_security_policy": {

@@ -2225,7 +2225,7 @@ async function loadImage(): Promise<void> {
       ? "this page was too large for one image and was split"
       : "this page is too long to annotate in one piece";
     showNotice(
-      `${what} — ${why}. Nothing was dropped: “Export as PDF” from the popup keeps the whole page in one file, and app.openpdfedit.com can edit it.`,
+      `${what} — ${why}. Nothing was dropped: “Export as PDF” from the popup keeps the whole page in one file, and openpdfedit.com/app can edit it.`,
     );
   }
 }

@@ -85,7 +85,7 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   ).toEqual({ after: "choosePdf", inside: "choice-group" });
   const lead = await popup.locator("#formatChoiceLead").textContent();
   expect(lead).toContain("too long to keep whole and editable at once");
-  expect(await popup.locator("#choosePdfNote").textContent()).toContain("app.openpdfedit.com");
+  expect(await popup.locator("#choosePdfNote").textContent()).toContain("openpdfedit.com/app");
   expect(await popup.locator("#choosePngNote").textContent()).toContain("Editing isn't possible");
   const editable = Math.floor(MAX_EDITABLE_AREA_PX / report.output_width_px);
   // This capture split, so the editor gets part 1 — and the panel says so
@@ -111,7 +111,7 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   expect(shown.height).toBeLessThan(report.output_height_px);
   expect(shown.height).toBeLessThanOrEqual(editable);
   const notice = await editorPage.locator("#splitNoticeText").textContent();
-  expect(notice).toContain("app.openpdfedit.com");
+  expect(notice).toContain("openpdfedit.com/app");
   await editorPage.close();
 
   // And the answer is remembered, so reopening does not ask again.
@@ -155,14 +155,14 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   await popup4.waitForSelector("#pdfHandoff:not([hidden])", { timeout: 60_000 });
   expect(await popup4.locator("#pdfHandoffLead").textContent()).toContain("opencapture.pdf");
   const note = await popup4.locator("#openPdfEditNote").textContent();
-  expect(note).toContain("app.openpdfedit.com");
+  expect(note).toContain("openpdfedit.com/app");
   // It says which file to pick, because the site cannot be handed one.
   expect(note).toContain("opencapture.pdf");
   const [handoffTab] = await Promise.all([
     context.waitForEvent("page"),
     popup4.click("#openPdfEdit"),
   ]);
-  expect(handoffTab.url()).toContain("app.openpdfedit.com");
+  expect(handoffTab.url()).toContain("openpdfedit.com/app/");
   await handoffTab.close();
   await expect(popup4.locator("#pdfHandoff")).toBeHidden();
   const pdfSaved = await serviceWorker.evaluate(() => globalThis.__downloads);
@@ -194,7 +194,7 @@ test("the ordinary PDF button offers the same follow-up as the panel's", async (
   await popup.click("#exportPdf");
   await popup.waitForSelector("#pdfHandoff:not([hidden])", { timeout: 60_000 });
   expect(await popup.locator("#pdfHandoffLead").textContent()).toContain(".pdf");
-  expect(await popup.locator("#openPdfEditNote").textContent()).toContain("app.openpdfedit.com");
+  expect(await popup.locator("#openPdfEditNote").textContent()).toContain("openpdfedit.com/app");
 });
 
 test("one image the editor still cannot hold whole is trimmed, and says so", async ({
@@ -255,5 +255,5 @@ test("one image the editor still cannot hold whole is trimmed, and says so", asy
 
   const notice = await editorPage.locator("#splitNoticeText").textContent();
   expect(notice).toContain("too long to annotate in one piece");
-  expect(notice).toContain("app.openpdfedit.com");
+  expect(notice).toContain("openpdfedit.com/app");
 });

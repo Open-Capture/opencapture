@@ -1,4 +1,4 @@
-// Handing an exported PDF to app.openpdfedit.com.
+// Handing an exported PDF to openpdfedit.com/app.
 //
 // A capture too long for this extension's own editor is kept as a PDF, and
 // the app that can edit one is a separate web app. Getting the file there is
@@ -20,10 +20,29 @@
 // whatever the manifest's host_permissions say.
 import { ext } from "../platform/webext";
 
-export const PDF_EDIT_ORIGIN = "https://app.openpdfedit.com/*";
+// OpenPdfEdit moved from its own subdomain to a path on the main site, and
+// `app.openpdfedit.com` now 301s to `openpdfedit.com/app/`. A redirect crosses
+// an origin, so the old value broke this feature in a way nothing reported:
+// the permission was granted for a host the tab no longer ends up on, the
+// delivery script's match pattern never fired, and the page sat waiting for a
+// document that was never delivered. Ticking "open in OpenPdfEdit" appeared to
+// do nothing at all. Open the destination directly — never a URL that
+// redirects, because the grant and the match have to name where the tab
+// *lands*.
+export const PDF_EDIT_ORIGIN = "https://openpdfedit.com/app/*";
+
+/** Where the editor actually lives, for a plain "open the site" with no file. */
+export const PDF_EDIT_APP_URL = "https://openpdfedit.com/app/";
 
 /** Named in the URL so the page knows a document is coming, and from whom. */
-export const PDF_EDIT_HANDOFF_URL = "https://app.openpdfedit.com/?handoff=opencapture";
+export const PDF_EDIT_HANDOFF_URL = "https://openpdfedit.com/app/?handoff=opencapture";
+
+/**
+ * The subdomain this used to use. Anyone who ticked the box before the move
+ * still holds it, and it is now good for nothing but a redirect, so it is
+ * handed back rather than left sitting in the permission list.
+ */
+const LEGACY_PDF_EDIT_ORIGIN = "https://app.openpdfedit.com/*";
 
 const HANDOFF_SCRIPT_ID = "openpdfedit-handoff";
 
@@ -59,14 +78,31 @@ export async function dropPdfEditAccess(): Promise<void> {
 }
 
 /**
+ * Hand back the pre-move subdomain grant if it is still held. Nothing depends
+ * on it any more; leaving it would show the user a permission for a host this
+ * extension never opens.
+ */
+export async function dropLegacyPdfEditAccess(): Promise<void> {
+  try {
+    if (await ext.permissions.contains({ origins: [LEGACY_PDF_EDIT_ORIGIN] })) {
+      await ext.permissions.remove({ origins: [LEGACY_PDF_EDIT_ORIGIN] });
+    }
+  } catch {
+    // Best effort. A permission left behind costs the user nothing they can
+    // see, and must not stop the new one being registered.
+  }
+}
+
+/**
  * Register the delivery script. Idempotent — this runs on startup and again
  * on permissions.onAdded, and re-registering a live id throws.
  *
- * Registered for the whole site rather than the handoff URL, because match
- * patterns cannot address a query string. The script itself does nothing at
- * all unless the page it landed on is expecting a document.
+ * Registered for the app's whole path rather than the handoff URL itself,
+ * because match patterns cannot address a query string. The script does
+ * nothing at all unless the page it landed on is expecting a document.
  */
 export async function registerHandoffScript(): Promise<void> {
+  await dropLegacyPdfEditAccess();
   if (!(await hasPdfEditAccess())) return;
   try {
     const existing = await ext.scripting.getRegisteredContentScripts({ ids: [HANDOFF_SCRIPT_ID] });
