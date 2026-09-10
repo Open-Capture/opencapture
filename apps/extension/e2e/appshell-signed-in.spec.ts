@@ -15,6 +15,13 @@ const BASE_URL = "http://localhost:8934";
 for (const [label, query] of [
   ["beside the pane", ""],
   ["laid over the pane", "?overlay"],
+  // Two pixels of overlap, which is what sub-pixel layout arithmetic
+  // produces on a real page: measured on chatgpt.com the sidebar's right
+  // edge and the pane's left edge are the same number, so the old 1px
+  // tolerance passed by exactly one pixel. Zoom, a scrollbar or a
+  // fractional DPR moves it, and then no gutter is found at all and the
+  // column is photographed into every slice.
+  ["overlapping the pane by a hair", "?overlap=2"],
 ] as const) {
   test(`a signed-in shaped sidebar ${label} is captured once`, async ({ context, serviceWorker }) => {
     test.setTimeout(120_000);
