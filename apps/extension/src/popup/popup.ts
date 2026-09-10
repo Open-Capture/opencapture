@@ -17,6 +17,7 @@ import {
 import { dropPdfEditAccess, hasPdfEditAccess, PDF_EDIT_APP_URL, requestPdfEditAccess } from "../chrome/pdf-handoff";
 import { getSavePrefs, resolveFilename, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
+import { LOCALES, getLocale, initPageLocale, onLocaleChange, setLocale, t } from "../i18n";
 import { ext } from "../platform/webext";
 import type { CaptureReport, PopupRequest, PopupResponse } from "../types";
 
@@ -115,7 +116,7 @@ prefOpenInPdfEditEl.addEventListener("change", async () => {
   prefOpenInPdfEditEl.checked = granted;
   await setSavePrefs({ openInPdfEdit: granted });
   if (!granted) {
-    setStatusText("OpenPdfEdit needs access to openpdfedit.com to receive the file.", true);
+    setStatusText(t("OpenPdfEdit needs access to openpdfedit.com to receive the file."), true);
   }
 });
 
@@ -158,6 +159,7 @@ async function persistSavePrefs(): Promise<void> {
 prefFilenameEl.addEventListener("change", () => {
   void persistSavePrefs();
   void refreshCustomFolder();
+
 });
 prefAskWhereEl.addEventListener("change", () => {
   void persistSavePrefs();
@@ -191,14 +193,14 @@ async function refreshCustomFolder(): Promise<void> {
     // Saying "Your Downloads folder" under a ticked "ask every time" would be
     // a straight contradiction — the folder is chosen in the dialog now.
     customFolderNameEl.textContent = "Chosen in the Save dialog";
-    setSaveSummary("Ask each time");
+    setSaveSummary(t("Ask each time"));
     browseFolderBtn.disabled = true;
     return;
   }
   browseFolderBtn.disabled = false;
   const handle = await getSavedDirectoryHandle();
   customFolderNameEl.textContent = handle ? handle.name : "Your Downloads folder (default)";
-  setSaveSummary(handle ? handle.name : "Downloads");
+  setSaveSummary(handle ? handle.name : t("Downloads"));
 }
 
 // Single place that writes to #status, so error styling (a red status
@@ -212,12 +214,49 @@ function setStatusText(text: string, isError = false): void {
 browseFolderBtn.addEventListener("click", async () => {
   const result = await pickDirectory();
   if (result.ok) {
-    setStatusText(`Now saving to "${result.name}".`);
+    setStatusText(t('Now saving to "{name}".', { name: result.name }));
   } else if (!result.cancelled) {
-    setStatusText(`Couldn't set that folder: ${result.error}`, true);
+    setStatusText(t("Couldn't set that folder: {error}", { error: result.error }), true);
   }
   await refreshCustomFolder();
 });
+
+// --- language ----------------------------------------------------------
+//
+// The picker is built here rather than written into the markup: the option
+// labels are endonyms, and hand-writing eight <option> tags means eight
+// more places to forget when the locale list changes.
+const prefLanguageEl = $("prefLanguage") as HTMLSelectElement;
+
+function buildLanguagePicker(): void {
+  prefLanguageEl.replaceChildren(
+    ...LOCALES.map(({ code, name }) => {
+      const option = document.createElement("option");
+      option.value = code;
+      option.textContent = name;
+      // 日本語 stays 日本語 in every locale — see localizeDom's skip rule.
+      option.setAttribute("data-i18n-skip", "");
+      return option;
+    }),
+  );
+  prefLanguageEl.value = getLocale();
+}
+
+prefLanguageEl.addEventListener("change", () => {
+  setLocale(prefLanguageEl.value);
+});
+
+// initPageLocale retranslates everything the markup holds. These are the
+// strings this file computed and put on screen itself, whose English is
+// long gone by the time a DOM walk could look for it.
+onLocaleChange(() => {
+  prefLanguageEl.value = getLocale();
+  void refreshCustomFolder();
+  void restoreLastCaptureUi();
+});
+
+initPageLocale();
+buildLanguagePicker();
 
 refreshCustomFolder();
 
@@ -233,9 +272,9 @@ refreshCustomFolder();
 // duplicated into that record, since a capture's PNG can be far too large
 // for chrome.storage.local's 10MB default quota.
 function captureStatusText(ui: LastCaptureUi): string {
-  if (ui.openedEditor) return "Opened in editor — crop, annotate, then choose PNG or PDF to save.";
-  if (isChoicePending(ui)) return "Captured. Nothing saved yet — choose how to keep it.";
-  return "Done.";
+  if (ui.openedEditor) return t("Opened in editor — crop, annotate, then choose PNG or PDF to save.");
+  if (isChoicePending(ui)) return t("Captured. Nothing saved yet — choose how to keep it.");
+  return t("Done.");
 }
 
 const count = new Intl.NumberFormat();
@@ -257,9 +296,11 @@ function showFormatChoice(report: CaptureReport): void {
   const width = report.output_width_px;
   const height = report.output_height_px;
   const parts = report.output_image_count;
-  formatChoiceLeadEl.textContent = `This capture is ${count.format(width)} × ${count.format(height)} pixels — too long to keep whole and editable at once. Choose how to keep it:`;
-  choosePdfNoteEl.textContent =
-    "One file, the whole page, nothing dropped. Edit it at openpdfedit.com/app.";
+  formatChoiceLeadEl.textContent = t(
+    "This capture is {width} × {height} pixels — too long to keep whole and editable at once. Choose how to keep it:",
+    { width: count.format(width), height: count.format(height) },
+  );
+  choosePdfNoteEl.textContent = t("One file, the whole page, nothing dropped. Edit it at openpdfedit.com/app.");
   choosePngNoteEl.textContent =
     parts > 1
       ? `${parts} separate images — the page is past what one PNG holds. Editing isn't possible.`
@@ -326,8 +367,11 @@ async function takeFormatChoice(request: PopupRequest, busyMessage: string): Pro
  */
 async function showPdfHandoff(): Promise<void> {
   const filename = resolveFilename(await getSavePrefs(), "", "pdf");
-  pdfHandoffLeadEl.textContent = `Saved as ${filename}.`;
-  openPdfEditNoteEl.textContent = `Opens openpdfedit.com/app with ${filename} already in it. Nothing is uploaded — it edits on your own machine.`;
+  pdfHandoffLeadEl.textContent = t("Saved as {filename}.", { filename });
+  openPdfEditNoteEl.textContent = t(
+    "Opens openpdfedit.com/app with {filename} already in it. Nothing is uploaded — it edits on your own machine.",
+    { filename },
+  );
   pdfHandoffEl.hidden = false;
 }
 
@@ -441,14 +485,14 @@ async function send(request: PopupRequest): Promise<PopupResponse> {
 
 async function showCaptureResult(response: PopupResponse): Promise<void> {
   if (!response.ok) {
-    setStatusText(`Error: ${response.error}`, true);
+    setStatusText(t("Error: {error}", { error: response.error }), true);
     return;
   }
   if ("cancelled" in response) {
     // Deliberately doesn't touch reportEl/previewEl/persisted state — a
     // cancelled selection leaves whatever the previous capture's state
     // was fully intact, exactly like an error does.
-    setStatusText("Selection cancelled.");
+    setStatusText(t("Selection cancelled."));
     return;
   }
   if ("report" in response) {
@@ -466,7 +510,7 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
     if (isChoicePending(ui)) showFormatChoice(response.report);
     setStatusText(captureStatusText(ui));
   } else {
-    setStatusText("Done.");
+    setStatusText(t("Done."));
   }
 }
 
@@ -511,7 +555,7 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<b
     ok = response.ok;
     await showCaptureResult(response);
   } catch (err) {
-    setStatusText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
+    setStatusText(t("Error: {error}", { error: err instanceof Error ? err.message : String(err) }), true);
   } finally {
     // Stop listening for progress before the next click can start: a late
     // message from a finished capture would otherwise overwrite its result.
@@ -522,8 +566,8 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<b
   return ok;
 }
 
-$("captureFullPage").addEventListener("click", () => runCapture({ action: "captureFullPage" }, "Capturing full page…"));
-$("captureVisible").addEventListener("click", () => runCapture({ action: "captureVisible" }, "Capturing visible area…"));
+$("captureFullPage").addEventListener("click", () => runCapture({ action: "captureFullPage" }, t("Capturing full page…")));
+$("captureVisible").addEventListener("click", () => runCapture({ action: "captureVisible" }, t("Capturing visible area…")));
 $("captureSelectedArea").addEventListener("click", () => {
   // Sent, then this popup closes itself, rather than waiting to be dismissed.
   //
@@ -548,10 +592,10 @@ $("openPdfEdit").addEventListener("click", async () => {
     // Still worth opening: the file is saved, and picking it by hand is the
     // thing this was trying to save them, not the thing it replaced.
     ext.tabs.create({ url: PDF_EDIT_APP_URL });
-    setStatusText(`Opened OpenPdfEdit — choose ${resolveFilename(await getSavePrefs(), "", "pdf")} there.`);
+    setStatusText(t("Opened OpenPdfEdit — choose {filename} there.", { filename: resolveFilename(await getSavePrefs(), "", "pdf") }));
     return;
   }
-  await runCapture({ action: "openPdfEdit" }, "Opening OpenPdfEdit…");
+  await runCapture({ action: "openPdfEdit" }, t("Opening OpenPdfEdit…"));
 });
 $("pdfHandoffDismiss").addEventListener("click", () => {
   pdfHandoffEl.hidden = true;
@@ -559,11 +603,11 @@ $("pdfHandoffDismiss").addEventListener("click", () => {
 $("choosePdf").addEventListener("click", () =>
   takeFormatChoice(
     { action: "exportPdf", handoff: prefOpenInPdfEditEl.checked },
-    prefOpenInPdfEditEl.checked ? "Exporting PDF and opening OpenPdfEdit…" : "Exporting PDF…",
+    prefOpenInPdfEditEl.checked ? t("Exporting PDF and opening OpenPdfEdit…") : t("Exporting PDF…"),
   ),
 );
-$("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, "Saving PNG…"));
-$("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "openEditor" }, "Opening editor…"));
+$("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, t("Saving PNG…")));
+$("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "openEditor" }, t("Opening editor…")));
 // The same follow-up as the format panel's PDF answer, because it is the
 // same file and the same question. Wiring it only to the panel meant anyone
 // who reached for this button — the ordinary way to get a PDF — was told
@@ -572,13 +616,13 @@ exportPdfBtn.addEventListener("click", async () => {
   const handoff = prefOpenInPdfEditEl.checked;
   const ok = await runCapture(
     { action: "exportPdf", handoff },
-    handoff ? "Exporting PDF and opening OpenPdfEdit…" : "Exporting PDF…",
+    handoff ? t("Exporting PDF and opening OpenPdfEdit…") : t("Exporting PDF…"),
   );
   // Nothing to offer when it has already gone: the tab is opening as this
   // runs, and this popup is about to be torn down by it.
   if (ok && !handoff) await showPdfHandoff();
 });
-openEditorBtn.addEventListener("click", () => runCapture({ action: "openEditor" }, "Opening editor…"));
+openEditorBtn.addEventListener("click", () => runCapture({ action: "openEditor" }, t("Opening editor…")));
 
 // Deliberately NOT routed through background/index.ts's message handler —
 // the clipboard write has to happen in *this* document, the one that
@@ -590,9 +634,9 @@ copyBtn.addEventListener("click", async () => {
     const bytes = await getBlob(LAST_CAPTURE_BLOB_KEY);
     if (!bytes) throw new Error("No capture to copy yet — capture a page first.");
     await copyPngBytesToClipboard(bytes);
-    setStatusText("Copied to clipboard.");
+    setStatusText(t("Copied to clipboard."));
   } catch (err) {
-    setStatusText(`Error: ${err instanceof Error ? err.message : String(err)}`, true);
+    setStatusText(t("Error: {error}", { error: err instanceof Error ? err.message : String(err) }), true);
   } finally {
     setBusy(false);
   }

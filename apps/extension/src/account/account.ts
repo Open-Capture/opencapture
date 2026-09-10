@@ -7,6 +7,7 @@ import "@openapps/tokens/tokens.css";
 import { configure } from "@openapps/ui";
 import { OPENAPPS_BASE_URL, client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
 import { ensureAuthAccess } from "../chrome/auth-permission";
+import { initPageLocale, t } from "../i18n";
 import { ext } from "../platform/webext";
 
 // Shares the same chrome.storage.session-backed store as background.ts's
@@ -155,3 +156,7 @@ document.getElementById("closeAccount")!.addEventListener("click", async () => {
     window.close();
   }
 });
+
+// Translate the page. Last, so every element this file created exists by
+// the time the walk runs; see i18n/index.ts's localizeDom.
+initPageLocale();
