@@ -46,20 +46,39 @@
       #tagline {
         margin-top: calc(var(--space-4) * -1 + var(--space-1));
       }
-      #saveLocation {
+      .settings-group {
         border: var(--border-width) solid var(--border-hairline);
         border-radius: var(--radius-lg);
         margin: 0;
         padding: var(--space-3);
       }
-      #saveLocation legend {
+      /* Two groups in one disclosure, so they need a gap between them that
+         a single fieldset never did. */
+      #settingsPanel {
+        display: flex;
+        flex-direction: column;
+        gap: var(--space-3);
+      }
+      /* An author display beats the [hidden] attribute's user-agent
+         display:none, so without this the panel is "hidden" and still on
+         screen — the same trap .btn[hidden] and .field-inline[hidden] in
+         this file already exist for. Third time, hence the rule rather
+         than another one-off. */
+      #settingsPanel[hidden] {
+        display: none;
+      }
+      /* The lone control in its group spans the box, like the fields above. */
+      #languageGroup .field-control {
+        width: 100%;
+      }
+      .settings-group legend {
         padding: 0 var(--space-1) var(--space-1);
         font: var(--type-eyebrow);
         letter-spacing: var(--tracking-caps);
         text-transform: uppercase;
         color: var(--text-faint);
       }
-      #saveLocation .field + .field {
+      .settings-group .field + .field {
         margin-top: var(--space-3);
       }
       #customFolderRow {
@@ -242,13 +261,14 @@
            to do. Collapsed to one line, and moved below the actions, since a
            destination is something you set once and then forget. -->
       <div id="saveSummaryRow">
-        <button id="saveSummary" type="button" class="btn btn-secondary btn-sm btn-full" aria-expanded="false" aria-controls="saveLocation">
+        <button id="saveSummary" type="button" class="btn btn-secondary btn-sm btn-full" aria-expanded="false" aria-controls="settingsPanel">
           <span class="oa-icon oa-icon-14 icon-folder-open"></span>
           <span id="saveSummaryText">Downloads</span>
           <span class="oa-icon oa-icon-14 icon-chevron" aria-hidden="true"></span>
         </button>
       </div>
-      <fieldset id="saveLocation" hidden>
+      <div id="settingsPanel" hidden>
+      <fieldset id="saveLocation" class="settings-group">
         <legend>Save to</legend>
         <label class="field">
           <span class="field-label">Filename</span>
@@ -272,6 +292,27 @@
         </label>
       </fieldset>
 
+      <!-- Under the save settings rather than loose among the capture
+           preferences: language is set once and then forgotten, which is
+           what this disclosure is for. The options are built in popup.ts
+           and each carries data-i18n-skip, because 日本語 must read as
+           日本語 in every locale — a list of language names written in a
+           language you cannot read is no use to the one person who needs
+           the control. The skip is on the options rather than the select,
+           so the select's own tooltip is still translated. -->
+      <fieldset id="languageGroup" class="settings-group">
+        <legend>Language</legend>
+        <!-- No inner label: the legend already says it, and the group holds
+             exactly one control. The .field-control wrapper stays — it is
+             what carries the app's control styling, and without it the
+             select falls back to the browser's own. The select keeps an
+             accessible name of its own so it is still announced. -->
+        <span class="field-control">
+          <select id="prefLanguage" title="Interface language" aria-label="Interface language"></select>
+        </span>
+      </fieldset>
+      </div>
+
       <!-- One row, and two choices. Written for someone who has never heard
            the word "sticky": what they see is a menu that follows them down
            the page, so that is what it is called. -->
@@ -288,23 +329,6 @@
         </span>
       </label>
 
-      <!-- The language row sits with the other preferences rather than in a
-           header: it is set once and then forgotten, and a picker up beside
-           the capture buttons would compete with them for the eye every
-           time the popup opens.
-
-           The options are built in popup.ts and each carries
-           data-i18n-skip, because "日本語" must read as 日本語 in every
-           locale — a list of language names written in a language you
-           cannot read is no use to the one person who needs the control.
-           The skip goes on the options rather than the select, so the
-           select's own tooltip is still translated. -->
-      <label id="languageRow" class="field">
-        <span class="field-label">Language</span>
-        <span class="field-control">
-          <select id="prefLanguage" title="Interface language"></select>
-        </span>
-      </label>
 
       <div id="resultCard" class="card">
         <div id="status" class="status">No capture yet — choose an action above.</div>
