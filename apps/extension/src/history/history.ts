@@ -1,4 +1,5 @@
 import { HISTORY_LIST_PORT_NAME, type HistoryEntryMeta } from "../chrome/capture-history";
+import { initPageLocale, t } from "../i18n";
 import { ext } from "../platform/webext";
 
 const gridEl = document.getElementById("historyGrid")!;
@@ -57,7 +58,7 @@ function addTile(meta: HistoryEntryMeta, bytes: Uint8Array): void {
   const openBtn = document.createElement("button");
   openBtn.className = "history-tile-open";
   openBtn.type = "button";
-  openBtn.title = "Open in editor";
+  openBtn.title = t("Open in editor");
   const img = document.createElement("img");
   img.src = blobUrl;
   img.alt = meta.title || meta.url;
@@ -80,7 +81,7 @@ function addTile(meta: HistoryEntryMeta, bytes: Uint8Array): void {
   const deleteBtn = document.createElement("button");
   deleteBtn.className = "icon-btn history-tile-delete";
   deleteBtn.type = "button";
-  deleteBtn.title = "Delete";
+  deleteBtn.title = t("Delete");
   deleteBtn.appendChild(icon("trash-2"));
   deleteBtn.addEventListener("click", () => void deleteEntry(meta.id, tile, blobUrl));
 
@@ -110,7 +111,7 @@ async function deleteEntry(id: number, tile: HTMLElement, blobUrl: string): Prom
 }
 
 clearBtn.addEventListener("click", async () => {
-  if (!confirm("Delete all capture history? This can't be undone.")) return;
+  if (!confirm(t("Delete all capture history? This can't be undone."))) return;
   const response = (await ext.runtime.sendMessage({ type: "history:clear" })) as { ok: boolean; error?: string };
   if (!response.ok) {
     alert(response.error ?? "Couldn't clear history.");
@@ -176,3 +177,7 @@ closeBtn.addEventListener("click", async () => {
     }
   });
 })();
+
+// Translate the page. Last, so every element this file created exists by
+// the time the walk runs; see i18n/index.ts's localizeDom.
+initPageLocale();

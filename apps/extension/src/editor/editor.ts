@@ -8,6 +8,7 @@
 // build, since PDF page geometry is exactly the kind of pixel-correctness
 // code the project keeps in Rust — see wasm-loader below.
 import { EDITOR_IMAGE_PORT_NAME } from "../chrome/blob-store";
+import { initPageLocale, t } from "../i18n";
 import { copyPngBytesToClipboard } from "../chrome/copy-image";
 import { getSavedDirectoryHandle } from "../chrome/dir-handle-store";
 import { client as openappsClient, ready as openappsReady, store as openappsStore, OPENAPPS_BASE_URL, OPENAPPS_GATEWAY_URL } from "../chrome/openapps-session";
@@ -1398,7 +1399,7 @@ function renderWatermarkGate(state: WatermarkGateState): void {
       watermarkGateActionBtn.hidden = true;
       break;
     case "signed-out":
-      watermarkGateMessageEl.textContent = "The watermark tool is a Supporter feature. Sign in to unlock it — 1000 credits, one time.";
+      watermarkGateMessageEl.textContent = t("The watermark tool is a Supporter feature. Sign in to unlock it — 1000 credits, one time.");
       watermarkGateActionBtn.textContent = "Sign in";
       watermarkGateActionBtn.onclick = () => {
         closeWatermarkGate();
@@ -1406,7 +1407,7 @@ function renderWatermarkGate(state: WatermarkGateState): void {
       };
       break;
     case "locked":
-      watermarkGateMessageEl.textContent = "The watermark tool is a Supporter feature — 1000 credits, one time, unlocks it for good.";
+      watermarkGateMessageEl.textContent = t("The watermark tool is a Supporter feature — 1000 credits, one time, unlocks it for good.");
       watermarkGateActionBtn.textContent = "Unlock for 1000 credits";
       watermarkGateActionBtn.onclick = () => void handleUnlockClick();
       break;
@@ -2156,7 +2157,7 @@ async function loadImage(): Promise<void> {
     canvas.width = earlyWidth;
     canvas.height = editableHeightFor(earlyWidth, earlyHeight);
     syncPreviewCanvas();
-    canvasLoadingTextEl.textContent = `Loading ${earlyWidth} × ${earlyHeight} capture…`;
+    canvasLoadingTextEl.textContent = t("Loading {width} × {height} capture…", { width: earlyWidth, height: earlyHeight });
   }
 
   const bytes = await requestEditorImageBytes();
@@ -2167,7 +2168,7 @@ async function loadImage(): Promise<void> {
   captureTakenAt = (stored["editorCapturedAt"] as number | undefined) ?? Date.now();
   if (!bytes) {
     finishLoading();
-    setStatus("No captured image found — capture a page first, then click Annotate.");
+    setStatus(t("No captured image found — capture a page first, then click Annotate."));
     return;
   }
   currentDpr = dpr ?? 1;
@@ -2194,7 +2195,7 @@ async function loadImage(): Promise<void> {
   // there is nothing to annotate; say so and stop, rather than leave a
   // blank canvas and a full toolbar that quietly does nothing.
   if (!canvasHeldImage(ctx, bitmap.width, shownHeight)) {
-    setStatus("Too large to edit on this device.");
+    setStatus(t("Too large to edit on this device."));
     showNotice(
       `This ${bitmap.width}×${bitmap.height} capture is larger than this device can display, so it can't be annotated here. The capture itself is complete — use “Save as PNG” or “Export as PDF” from the popup to keep it.`,
     );
@@ -2236,3 +2237,7 @@ async function loadImage(): Promise<void> {
 window.addEventListener("resize", syncPreviewCanvas);
 
 loadImage();
+
+// Translate the page. Last, so every element this file created exists by
+// the time the walk runs; see i18n/index.ts's localizeDom.
+initPageLocale();
