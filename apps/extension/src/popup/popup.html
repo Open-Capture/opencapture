@@ -104,6 +104,22 @@
         accent-color: var(--brand);
         margin: 0;
       }
+      /* Each setting travels with its own glyph, so the row reads as a list
+         of what is inside rather than one run-on sentence. */
+      .summary-item {
+        display: inline-flex;
+        align-items: center;
+        gap: var(--space-1);
+        min-width: 0;
+        white-space: nowrap;
+      }
+      #settingsLabel::after {
+        content: ":";
+      }
+      /* The chevron keeps the right edge whatever is or is not shown. */
+      #saveSummary .icon-chevron {
+        margin-left: auto;
+      }
       #saveSummaryRow {
         display: flex;
       }
@@ -262,8 +278,19 @@
            destination is something you set once and then forget. -->
       <div id="saveSummaryRow">
         <button id="saveSummary" type="button" class="btn btn-secondary btn-sm btn-full" aria-expanded="false" aria-controls="settingsPanel">
-          <span class="oa-icon oa-icon-14 icon-folder-open"></span>
-          <span id="saveSummaryText">Downloads</span>
+          <span class="oa-icon oa-icon-14 icon-settings-2" aria-hidden="true"></span>
+          <span id="settingsLabel">Settings</span>
+          <span class="summary-item" id="saveSummaryItem">
+            <span class="oa-icon oa-icon-14 icon-folder-open" aria-hidden="true"></span>
+            <span id="saveSummaryText">Downloads</span>
+          </span>
+          <!-- Dropped first when the row runs out of room — see fitSummary in
+               popup.ts. The destination is the one people change; the language
+               is set once, and both are a click away inside. -->
+          <span class="summary-item" id="languageSummaryItem">
+            <span class="oa-icon oa-icon-14 icon-languages" aria-hidden="true"></span>
+            <span id="languageSummaryText">English</span>
+          </span>
           <span class="oa-icon oa-icon-14 icon-chevron" aria-hidden="true"></span>
         </button>
       </div>

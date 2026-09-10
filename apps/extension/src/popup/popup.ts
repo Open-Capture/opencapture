@@ -51,6 +51,8 @@ const browseFolderBtn = $("browseFolder") as HTMLButtonElement;
 const prefAskWhereEl = $("prefAskWhere") as HTMLInputElement;
 const saveSummaryBtn = $("saveSummary") as HTMLButtonElement;
 const saveSummaryTextEl = $("saveSummaryText");
+const languageSummaryTextEl = $("languageSummaryText");
+const languageSummaryItemEl = $("languageSummaryItem");
 const settingsPanelEl = $("settingsPanel");
 const rateUsBtn = $("rateUs") as HTMLButtonElement;
 
@@ -171,7 +173,35 @@ loadCapturePrefs();
 /** One line describing where the next capture lands, for the collapsed row. */
 function setSaveSummary(destination: string): void {
   const filename = prefFilenameEl.value.trim() || "opencapture";
-  saveSummaryTextEl.textContent = `${destination} · ${filename}.png`;
+  // Just the destination now. The filename it used to carry is one line
+  // down inside the panel, and dropping it is what makes room for the
+  // language beside it.
+  saveSummaryTextEl.textContent = destination;
+  fitSummary();
+}
+
+/**
+ * Show the language beside the destination only while both fit.
+ *
+ * The row is one line in a popup a little under 400px wide, and how much a
+ * translation needs of it is not knowable in advance — "Einstellungen" and
+ * "Configurações" are half again as long as "Settings" before either value
+ * is added. So it is measured rather than guessed: reveal the language,
+ * and if the row then wants more width than it has, take it away again.
+ * Nothing is lost when that happens — both settings are one click inside.
+ */
+function fitSummary(): void {
+  languageSummaryItemEl.hidden = false;
+  if (saveSummaryBtn.scrollWidth > saveSummaryBtn.clientWidth) {
+    languageSummaryItemEl.hidden = true;
+  }
+}
+
+function refreshLanguageSummary(): void {
+  const active = LOCALES.find((l) => l.code === getLocale());
+  // The endonym, not a translation of it — same rule as the picker.
+  languageSummaryTextEl.textContent = active?.name ?? getLocale();
+  fitSummary();
 }
 
 saveSummaryBtn.addEventListener("click", () => {
@@ -251,12 +281,14 @@ prefLanguageEl.addEventListener("change", () => {
 // long gone by the time a DOM walk could look for it.
 onLocaleChange(() => {
   prefLanguageEl.value = getLocale();
+  refreshLanguageSummary();
   void refreshCustomFolder();
   void restoreLastCaptureUi();
 });
 
 initPageLocale();
 buildLanguagePicker();
+refreshLanguageSummary();
 
 refreshCustomFolder();
 

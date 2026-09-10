@@ -170,6 +170,7 @@ const messages: Record<string, string> = {
   "You have {have} credits — unlocking Supporter costs {need}.": "Sie haben {have} Credits — die Freischaltung kostet {need}.",
   "Language": "Sprache",
   "Interface language": "Sprache der Oberfläche",
+  "Settings": "Einstellungen",
 };
 
 export default messages;
