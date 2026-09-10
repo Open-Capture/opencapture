@@ -108,3 +108,31 @@ test("the editor and history pages open translated too", async ({ context, exten
   await reset.selectOption("#prefLanguage", "en");
   await reset.close();
 });
+
+test("strings the editor writes itself are translated too", async ({ context, extensionId }) => {
+  test.setTimeout(120_000);
+  // APP-63: the editor's save panel wrote "Downloads" as a literal, so it
+  // stayed English in every language. localizeDom cannot catch that — the
+  // walk translates the markup, and this runs after it, over the top.
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  await openSettings(popup);
+
+  for (const [code, expected] of [
+    ["ja", "ダウンロード"],
+    ["zh-Hans", "下载"],
+    ["ko", "다운로드"],
+  ] as const) {
+    await popup.selectOption("#prefLanguage", code);
+    await popup.waitForTimeout(150);
+
+    const editor = await context.newPage();
+    await editor.goto(`chrome-extension://${extensionId}/editor.html`);
+    await editor.waitForLoadState("domcontentloaded");
+    await expect(editor.locator("#saveSettingsLabel")).toHaveText(expected);
+    await editor.close();
+  }
+
+  await popup.selectOption("#prefLanguage", "en");
+  await popup.close();
+});

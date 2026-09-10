@@ -1232,7 +1232,7 @@ function showWatermarkLogoPreview(dataUrl: string | null, name: string): void {
   watermarkLogoDataUrl = dataUrl;
   watermarkLogoPreviewEl.hidden = !dataUrl;
   watermarkLogoPreviewEl.src = dataUrl ?? "";
-  watermarkLogoNameEl.textContent = dataUrl ? name : "No logo chosen";
+  watermarkLogoNameEl.textContent = dataUrl ? name : t("No logo chosen");
   watermarkRemoveLogoBtn.hidden = !dataUrl;
   updateWatermarkAddEnabled();
   refreshWatermarkLogoBitmap();
@@ -1395,12 +1395,12 @@ function renderWatermarkGate(state: WatermarkGateState): void {
   watermarkGateActionBtn.disabled = false;
   switch (state.kind) {
     case "checking":
-      watermarkGateMessageEl.textContent = "Checking your account…";
+      watermarkGateMessageEl.textContent = t("Checking your account…");
       watermarkGateActionBtn.hidden = true;
       break;
     case "signed-out":
       watermarkGateMessageEl.textContent = t("The watermark tool is a Supporter feature. Sign in to unlock it — 1000 credits, one time.");
-      watermarkGateActionBtn.textContent = "Sign in";
+      watermarkGateActionBtn.textContent = t("Sign in");
       watermarkGateActionBtn.onclick = () => {
         closeWatermarkGate();
         openAccountTab();
@@ -1408,16 +1408,16 @@ function renderWatermarkGate(state: WatermarkGateState): void {
       break;
     case "locked":
       watermarkGateMessageEl.textContent = t("The watermark tool is a Supporter feature — 1000 credits, one time, unlocks it for good.");
-      watermarkGateActionBtn.textContent = "Unlock for 1000 credits";
+      watermarkGateActionBtn.textContent = t("Unlock for 1000 credits");
       watermarkGateActionBtn.onclick = () => void handleUnlockClick();
       break;
     case "unlocking":
-      watermarkGateMessageEl.textContent = "Unlocking…";
+      watermarkGateMessageEl.textContent = t("Unlocking…");
       watermarkGateActionBtn.disabled = true;
       break;
     case "insufficient":
       watermarkGateMessageEl.textContent = `You have ${state.have.toLocaleString()} credits — unlocking Supporter costs ${state.need.toLocaleString()}.`;
-      watermarkGateActionBtn.textContent = "Buy credits";
+      watermarkGateActionBtn.textContent = t("Buy credits");
       watermarkGateActionBtn.onclick = () => {
         closeWatermarkGate();
         openAccountTab();
@@ -1425,7 +1425,7 @@ function renderWatermarkGate(state: WatermarkGateState): void {
       break;
     case "error":
       watermarkGateMessageEl.textContent = state.message;
-      watermarkGateActionBtn.textContent = "Try again";
+      watermarkGateActionBtn.textContent = t("Try again");
       watermarkGateActionBtn.onclick = () => void handleWatermarkToolClick();
       break;
   }
@@ -1999,9 +1999,9 @@ async function refreshSaveSettingsUi(): Promise<void> {
   editorPrefFilenameEl.placeholder = prefs.filename;
   editorPrefFilenameEl.value = prefs.filename === "opencapture" ? "" : prefs.filename;
   editorPrefAskWhereEl.checked = prefs.askWhereToSave;
-  const folderLabel = handle ? handle.name : "Your Downloads folder (default)";
+  const folderLabel = handle ? handle.name : t("Your Downloads folder (default)");
   editorCustomFolderNameEl.textContent = folderLabel;
-  saveSettingsLabel.textContent = handle ? handle.name : "Downloads";
+  saveSettingsLabel.textContent = handle ? handle.name : t("Downloads");
 }
 
 async function persistEditorSavePrefs(): Promise<void> {
