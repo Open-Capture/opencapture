@@ -45,6 +45,14 @@
   // ?overlay puts the column on top of the pane instead of beside it — the
   // "slideover" state the element is named for, where the pane spans the
   // whole window and nothing is wholly to one side of it.
+  // ?overlap=N slides the column N pixels over the pane. Sub-pixel layout
+  // arithmetic does this for real — browser zoom, a scrollbar, a fractional
+  // DPR — and a column that overlaps by a hair is still beside the pane to
+  // anyone looking at it. It is only "on top of" the pane in the code.
+  const overlap = Number(new URLSearchParams(location.search).get("overlap") ?? 0);
+  if (overlap > 0) {
+    document.getElementById("rail").style.marginRight = `-${overlap}px`;
+  }
   if (new URLSearchParams(location.search).has("overlay")) {
     const rail = document.getElementById("rail");
     rail.style.position = "fixed";

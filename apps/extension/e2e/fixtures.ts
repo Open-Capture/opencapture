@@ -4,7 +4,12 @@ import { fileURLToPath } from "node:url";
 import { chromium, test as base, type BrowserContext, type Worker } from "@playwright/test";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const extensionDist = join(here, "..", "dist");
+// DIST_OVERRIDE runs the suite against a different build directory. It is
+// how a fix is shown to be one: build the current tree, copy it, revert the
+// change inside the copy, and run the new test against that — a test that
+// passes on the code it was written to catch is not a regression test, and
+// this repo has shipped one before.
+const extensionDist = process.env.DIST_OVERRIDE ?? join(here, "..", "dist");
 
 export const test = base.extend<{
   context: BrowserContext;

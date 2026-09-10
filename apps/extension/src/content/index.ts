@@ -837,8 +837,23 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
         if (el.contains(innerScroller)) continue;
         const r = el.getBoundingClientRect();
         if (r.height < vh * 0.7 || r.width < 40 || r.width > vw * 0.5) continue;
-        // Wholly to one side of the pane, not overlapping it.
-        if (side === "left" ? r.right > pane.left + 1 : r.left < pane.right - 1) continue;
+        // Beside the pane rather than over it — but with room for the
+        // sub-pixel arithmetic that decides it.
+        //
+        // Measured on chatgpt.com at 1400x900: the sidebar's right edge and
+        // the pane's left edge are the same number, so a 1px tolerance passed
+        // by exactly 1px and nothing to spare. Browser zoom, a scrollbar, a
+        // fractional DPR or a border on either element moves that edge by a
+        // pixel or two, and the moment it does the column is not "beside" the
+        // pane any more, no gutter is found, and the sidebar is photographed
+        // into every slice — which is what a repeat looks like, on a layout
+        // that reads as identical to one that works.
+        //
+        // A few pixels of overlap is still beside; a column genuinely on top
+        // of the pane overlaps it by its whole width, so this cannot make one
+        // look like the other.
+        const OVERLAP_TOLERANCE_PX = 4;
+        if (side === "left" ? r.right > pane.left + OVERLAP_TOLERANCE_PX : r.left < pane.right - OVERLAP_TOLERANCE_PX) continue;
         const area = r.width * r.height;
         // Strictly greater, so among the nested wrappers that share a box the
         // outermost — first in document order — is the one kept.
