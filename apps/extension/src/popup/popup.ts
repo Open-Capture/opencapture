@@ -51,7 +51,7 @@ const browseFolderBtn = $("browseFolder") as HTMLButtonElement;
 const prefAskWhereEl = $("prefAskWhere") as HTMLInputElement;
 const saveSummaryBtn = $("saveSummary") as HTMLButtonElement;
 const saveSummaryTextEl = $("saveSummaryText");
-const saveLocationEl = $("saveLocation") as HTMLFieldSetElement;
+const settingsPanelEl = $("settingsPanel");
 const rateUsBtn = $("rateUs") as HTMLButtonElement;
 
 // showDirectoryPicker() (File System Access API) is Chromium-only — Firefox
@@ -175,8 +175,8 @@ function setSaveSummary(destination: string): void {
 }
 
 saveSummaryBtn.addEventListener("click", () => {
-  const open = saveLocationEl.hidden;
-  saveLocationEl.hidden = !open;
+  const open = settingsPanelEl.hidden;
+  settingsPanelEl.hidden = !open;
   saveSummaryBtn.setAttribute("aria-expanded", String(open));
 });
 
