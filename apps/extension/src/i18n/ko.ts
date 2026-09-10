@@ -170,6 +170,7 @@ const messages: Record<string, string> = {
   "You have {have} credits — unlocking Supporter costs {need}.": "현재 {have} 크레딧이 있습니다. 서포터 잠금 해제에는 {need}이(가) 필요합니다.",
   "Language": "언어",
   "Interface language": "인터페이스 언어",
+  "Settings": "설정",
 };
 
 export default messages;

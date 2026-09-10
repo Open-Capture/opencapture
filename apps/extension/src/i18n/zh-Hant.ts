@@ -170,6 +170,7 @@ const messages: Record<string, string> = {
   "You have {have} credits — unlocking Supporter costs {need}.": "你有 {have} 點數——解鎖支持者需要 {need}。",
   "Language": "語言",
   "Interface language": "介面語言",
+  "Settings": "設定",
 };
 
 export default messages;

@@ -170,6 +170,7 @@ const messages: Record<string, string> = {
   "You have {have} credits — unlocking Supporter costs {need}.": "現在 {have} クレジットあります。サポーターの解除には {need} 必要です。",
   "Language": "言語",
   "Interface language": "表示言語",
+  "Settings": "設定",
 };
 
 export default messages;

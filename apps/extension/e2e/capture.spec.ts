@@ -617,10 +617,15 @@ test("popup: Rate us is always available and Save to is collapsed by default", a
   expect(header.height).toBeLessThan(60);
   await expect(popup.locator("#ratingPrompt")).toBeHidden();
 
-  // Save to starts collapsed, with the destination still legible.
-  await expect(popup.locator("#saveLocation")).toBeHidden();
+  // Settings start collapsed, with what is inside still legible. The row
+  // names the settings rather than spelling out one of them: the filename it
+  // used to carry moved inside the panel to make room for the language
+  // beside the destination (see e2e/settings-summary.spec.ts).
+  await expect(popup.locator("#settingsPanel")).toBeHidden();
   await expect(popup.locator("#saveSummary")).toBeVisible();
-  await expect(popup.locator("#saveSummaryText")).toHaveText(/Downloads · .*\.png/);
+  await expect(popup.locator("#saveSummary")).toContainText("Settings");
+  await expect(popup.locator("#saveSummaryText")).toHaveText("Downloads");
+  await expect(popup.locator("#languageSummaryText")).toHaveText("English");
 
   // The capture buttons are what the popup is for: they must sit above the
   // settings, which is the whole point of moving the fieldset down.
@@ -631,13 +636,14 @@ test("popup: Rate us is always available and Save to is collapsed by default", a
   const collapsedHeight = await popup.evaluate(() => document.body.scrollHeight);
 
   await popup.click("#saveSummary");
+  await expect(popup.locator("#settingsPanel")).toBeVisible();
   await expect(popup.locator("#saveLocation")).toBeVisible();
   await expect(popup.locator("#saveSummary")).toHaveAttribute("aria-expanded", "true");
   const expandedHeight = await popup.evaluate(() => document.body.scrollHeight);
   expect(expandedHeight).toBeGreaterThan(collapsedHeight);
 
   await popup.click("#saveSummary");
-  await expect(popup.locator("#saveLocation")).toBeHidden();
+  await expect(popup.locator("#settingsPanel")).toBeHidden();
 
   // Rate us opens the store listing rather than doing anything in-popup.
   const [tab] = await Promise.all([context.waitForEvent("page"), popup.click("#rateUs")]);
