@@ -222,14 +222,14 @@ async function refreshCustomFolder(): Promise<void> {
   if (prefAskWhereEl.checked) {
     // Saying "Your Downloads folder" under a ticked "ask every time" would be
     // a straight contradiction — the folder is chosen in the dialog now.
-    customFolderNameEl.textContent = "Chosen in the Save dialog";
+    customFolderNameEl.textContent = t("Chosen in the Save dialog");
     setSaveSummary(t("Ask each time"));
     browseFolderBtn.disabled = true;
     return;
   }
   browseFolderBtn.disabled = false;
   const handle = await getSavedDirectoryHandle();
-  customFolderNameEl.textContent = handle ? handle.name : "Your Downloads folder (default)";
+  customFolderNameEl.textContent = handle ? handle.name : t("Your Downloads folder (default)");
   setSaveSummary(handle ? handle.name : t("Downloads"));
 }
 
@@ -697,7 +697,7 @@ $("openHistory").addEventListener("click", () => {
     const balance = await openappsClient.credits.balance();
     label.textContent = `${balance.toLocaleString()} credits`;
   } catch {
-    label.textContent = "Account";
+    label.textContent = t("Account");
   }
 })();
 
