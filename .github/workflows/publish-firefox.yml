@@ -5,16 +5,12 @@ name: Publish to Firefox Add-ons
 # manifest.firefox.json, commit, tag, push the tag. workflow_dispatch is
 # there for re-running a publish (e.g. after AMO rejected a submission
 # and it needs resubmitting) without cutting a new tag.
+# No tag trigger. `web-ext sign --channel=listed` submits to AMO review and
+# the version goes public the moment a reviewer approves it — AMO has no
+# draft-and-hold for a listed version, so "submit but do not publish" cannot
+# be expressed here. Until it can, submitting is a deliberate act: run this
+# from the Actions tab.
 on:
-  push:
-    tags:
-      # Release tags publish. Pre-release tags — anything with a hyphen, like
-      # v1.0.0-rc.1 — deliberately do not: they exist so a build can be handed
-      # round for checking, and a store submission cannot be recalled once it
-      # enters review. The GitHub Release workflow still builds artifacts for
-      # them, which is the whole point of cutting one.
-      - "v*"
-      - "!v*-*"
   workflow_dispatch:
 
 env:
