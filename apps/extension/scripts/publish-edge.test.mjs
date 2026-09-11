@@ -86,7 +86,7 @@ const check = (name, ok, detail = "") => {
 // 1. happy path, bare Location value, status flips InProgress -> Succeeded
 {
   const { server, port, seen } = await startMock({ uploadStatuses: ["InProgress", "Succeeded"], publishStatuses: ["Succeeded"] });
-  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "release notes here");
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "release notes here", { EDGE_DRAFT_ONLY: "0" });
   server.close();
   check("happy path exits 0", code === 0, out);
   check("sends ApiKey auth header", seen.auth === "ApiKey key-xyz", seen.auth);
@@ -101,9 +101,22 @@ const check = (name, ok, detail = "") => {
 // 2. Location returned as a full path — operation ID is the last segment
 {
   const { server, port } = await startMock({ uploadStatuses: ["Succeeded"], publishStatuses: ["Succeeded"], locationStyle: "path" });
-  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n");
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_DRAFT_ONLY: "0" });
   server.close();
   check("handles path-style Location header", code === 0, out);
+}
+
+// 2b. the default: the package lands in the draft and certification is NOT
+//     started. This is what a release actually runs, and the assertion that
+//     matters is the negative one — that /submissions was never called.
+{
+  const { server, port, state } = await startMock({ uploadStatuses: ["Succeeded"], publishStatuses: ["Succeeded"] });
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n");
+  server.close();
+  check("draft-only is the default", code === 0, out);
+  check("draft-only never submits for certification", state.publishAttempts === 0, `publishAttempts=${state.publishAttempts}`);
+  check("draft-only says so", /NOT submitted for certification/.test(out), out);
+  check("draft-only says how to publish", /EDGE_DRAFT_ONLY=0/.test(out), out);
 }
 
 // 3. a rejected package must fail the job, surfacing the errors array
@@ -164,7 +177,7 @@ const check = (name, ok, detail = "") => {
   const { server, port, state } = await startMock({
     uploadStatuses: ["Succeeded"], publishStatuses: ["Succeeded"], blockPublishTimes: 2,
   });
-  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_PUBLISH_RETRY_MS: "10", EDGE_PUBLISH_ATTEMPTS: "5" });
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_DRAFT_ONLY: "0", EDGE_PUBLISH_RETRY_MS: "10", EDGE_PUBLISH_ATTEMPTS: "5" });
   server.close();
   check("waits out an in-progress submission", code === 0, out);
   check("retried the publish", state.publishAttempts === 3, `attempts=${state.publishAttempts}`);
@@ -177,7 +190,7 @@ const check = (name, ok, detail = "") => {
   const { server, port } = await startMock({
     uploadStatuses: ["Succeeded"], publishStatuses: ["Succeeded"], blockPublishTimes: 99,
   });
-  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_PUBLISH_RETRY_MS: "10", EDGE_PUBLISH_ATTEMPTS: "2" });
+  const { code, out } = await run(`http://127.0.0.1:${port}`, zip, "n", { EDGE_DRAFT_ONLY: "0", EDGE_PUBLISH_RETRY_MS: "10", EDGE_PUBLISH_ATTEMPTS: "2" });
   server.close();
   check("gives up non-zero when never clears", code !== 0, String(code));
   check("reassures the upload survived", /package IS uploaded/.test(out), out);

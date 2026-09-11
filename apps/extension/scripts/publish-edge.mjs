@@ -139,6 +139,23 @@ await poll(
 );
 console.log("publish-edge: package accepted into the draft submission");
 
+// Draft-only: the package is in the draft submission and that is where it
+// stays. This is the default for a release, by decision — a last human look
+// at Partner Center happens before anything is sent for certification, and
+// certification cannot be recalled once it starts. Set EDGE_DRAFT_ONLY=0 to
+// go on and submit.
+//
+// The upload above is the half that matters either way: whoever publishes
+// later, by hand or by re-running this, publishes exactly these bytes.
+if (process.env.EDGE_DRAFT_ONLY !== "0") {
+  console.log(
+    "publish-edge: draft only — the package is in the draft submission and was NOT submitted " +
+      "for certification.\n" +
+      "  Review it at Partner Center, then publish there, or re-run with EDGE_DRAFT_ONLY=0.",
+  );
+  process.exit(0);
+}
+
 // Edge refuses a publish while any earlier submission of the same product is
 // still in certification, and reports it the same way as a real rejection: a
 // Failed operation. On a release cut soon after the previous one that is the
