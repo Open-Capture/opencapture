@@ -99,11 +99,43 @@
   --violet-600:color-mix(in oklab,var(--violet) 76%,var(--black));
   --teal:color-mix(in oklab,var(--green) 62%,var(--blue) 38%);
   --lime:color-mix(in oklab,var(--yellow) 52%,var(--green) 48%);
+  /* Five more hues, minted the same way and for the same reason teal and lime
+     were: the suite outgrew eight accent slots. Twelve applications were sharing
+     them by September 2026, four of them doubled up and one slot claimed three
+     times, which is not a naming problem — it is a palette that ran out. Each
+     of these sits between two adjacent brand hues at the same chroma level, so
+     nothing here is a new colour, only a new position on a wheel the brand
+     already defines. */
+  --amber:color-mix(in oklab,var(--orange) 55%,var(--yellow) 45%);
+  --coral:color-mix(in oklab,var(--red) 58%,var(--orange) 42%);
+  --rose:color-mix(in oklab,var(--red) 55%,var(--violet) 45%);
+  --indigo:color-mix(in oklab,var(--violet) 60%,var(--blue) 40%);
+  --cyan:color-mix(in oklab,var(--blue) 62%,var(--teal) 38%);
+  --plum:color-mix(in oklab,var(--violet) 66%,var(--red) 34%);
+  /* Slot 15, minted 6 September 2026 for opentagged. By then every adjacent
+     pair of brand hues already had a midpoint, so this one is a midpoint of two
+     minted slots — blue and indigo, the widest gap left on the wheel at 44.7°.
+     Measured: 6.5 ΔE from blue and 6.3 from indigo (OKLab ×100), which is the
+     spacing the ring already has elsewhere (rose and plum sit 6.9 apart). That
+     is fine for product accents, which are never seen side by side, and it does
+     mean the ring is now at its practical limit: a sixteenth hue at this chroma
+     would land under 5 ΔE from both neighbours. Separate by lightness or chroma
+     instead, or let two products share a hue deliberately. */
+  --azure:color-mix(in oklab,var(--blue) 50%,var(--indigo) 50%);
+  /* Slot 16. The hue ring is full; this one separates by lightness and
+     chroma instead, per ACCENT-SLOTS.md. Ledger ink: a deep blue that cannot
+     be mistaken for a red or green result state. */
+  --ink:color-mix(in oklab,var(--blue) 54%,var(--black) 46%);
+  /* Slot 17, minted the same way: a hue deepened, not the ring bisected. */
+  --mulberry:color-mix(in oklab,var(--violet) 58%,var(--black) 42%);
+  --petrol:color-mix(in oklab,var(--cyan) 62%,var(--black) 38%);
 
   /* ---- Accent slots ----
      Generic, product-neutral names. Any application built on this system claims a slot
      rather than a colour, so palettes can be re-pointed centrally without touching code.
-     Rule: one slot per application, never two in a single surface. */
+     Rule: one slot per application, never two in a single surface.
+     Who holds which is recorded in tokens/ACCENT-SLOTS.md — check it before
+     claiming one. No single product can see the collision it is about to make. */
   --accent-1:var(--green);
   --accent-2:var(--blue);
   --accent-3:var(--violet);
@@ -112,6 +144,16 @@
   --accent-6:var(--yellow);
   --accent-7:var(--teal);
   --accent-8:var(--lime);
+  --accent-9:var(--amber);
+  --accent-10:var(--coral);
+  --accent-11:var(--rose);
+  --accent-12:var(--indigo);
+  --accent-13:var(--cyan);
+  --accent-14:var(--plum);
+  --accent-15:var(--azure);
+  --accent-16:var(--ink);
+  --accent-17:var(--mulberry);
+  --accent-18:var(--petrol);
 
   /* ---- App accents ----
      The OpenApps suite's own assignment. These are aliases: consuming products should
@@ -126,6 +168,17 @@
   --app-vault:var(--gray-600);
   /* OpenScreenCapture — a product in the family, with its own mobile app and extension. */
   --app-screenshot:var(--accent-2);
+  /* Shipped products. These were defined only in downstream copies of this
+     file until 7 September 2026, which is why --app-pdfedit resolved to
+     nothing wherever the local copy was not the one in use. Promoted here so
+     the source of truth actually holds them. */
+  --app-pdfedit:var(--accent-5);
+  --app-frame:var(--accent-3);
+  /* OpenSubs was OpenVidSub. The product renamed; the token had not, and
+     opensubs' local copy carried a note asking for exactly this rename.
+     --app-vidsub stays as a legacy alias so no existing surface breaks. */
+  --app-opensubs:var(--accent-4);
+  --app-vidsub:var(--app-opensubs);
 
   /* ---- 3. Semantic aliases (use these) ---- */
   --brand:var(--green);
@@ -146,7 +199,7 @@
   --text-strong:var(--color-font);
   --text-body:var(--gray-800);
   --text-muted:var(--gray-600);
-  --text-faint:var(--gray-500);
+  --text-faint:color-mix(in oklab, var(--gray-500) 30%, var(--gray-600));
   --text-inverse:var(--white);
   --text-brand:var(--green-700);
   --text-link:var(--color-font);
@@ -201,7 +254,7 @@
   --text-strong:var(--white);
   --text-body:var(--white-70);
   --text-muted:var(--white-60);
-  --text-faint:var(--white-40);
+  --text-faint:var(--white-50);
   --text-inverse:var(--black);
   --text-brand:var(--green);
   --text-link:var(--white);
@@ -238,7 +291,7 @@
     --text-strong:var(--white);
     --text-body:var(--white-70);
     --text-muted:var(--white-60);
-    --text-faint:var(--white-40);
+    --text-faint:var(--white-50);
     --text-inverse:var(--black);
     --text-brand:var(--green);
     --text-link:var(--white);
