@@ -511,6 +511,12 @@ function syncPdfEditRow(busy = false): void {
   pdfEditRowEl.hidden = busy || exportPdfBtn.disabled;
 }
 
+/** How long to wait for the worker to answer a ping before giving up on it
+ * and closing anyway — see the selected-area handler. A cold MV3 worker
+ * starts in well under this; anything longer is a worker that is not
+ * coming. */
+const PING_TIMEOUT_MS = 2000;
+
 async function send(request: PopupRequest): Promise<PopupResponse> {
   return ext.runtime.sendMessage(request);
 }
@@ -600,7 +606,32 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<b
 
 $("captureFullPage").addEventListener("click", () => runCapture({ action: "captureFullPage" }, t("Capturing full page…")));
 $("captureVisible").addEventListener("click", () => runCapture({ action: "captureVisible" }, t("Capturing visible area…")));
-$("captureSelectedArea").addEventListener("click", () => {
+$("captureSelectedArea").addEventListener("click", async () => {
+  // Wake the service worker and wait for proof it is listening, BEFORE the
+  // window.close() below destroys the sender.
+  //
+  // APP-88: a message posted to a dormant MV3 worker is delivered only once
+  // that worker has started, which takes a few hundred milliseconds — and
+  // this handler closes the popup in the same turn it sends. The message
+  // died with the sender, silently: the capture never began, and because
+  // the popup was already gone there was nothing left to show an error on.
+  // The user saw one click do nothing, clicked again, and the second worked
+  // because the first click had left the worker running. Some seconds later
+  // it idles out and the next first click fails the same way.
+  //
+  // Nothing else in this popup is exposed to it. Every other action awaits
+  // its own reply, which keeps the popup — and so the message — alive until
+  // the worker has answered. This one deliberately does not (see below), so
+  // it has to establish that liveness for itself first.
+  //
+  // A ping that never comes back must not strand the popup open: if the
+  // worker cannot be reached, closing and losing the capture is no worse
+  // than the state this fixes, and a popup that hangs is worse than both.
+  await Promise.race([
+    send({ action: "ping" }).catch(() => {}),
+    new Promise((resolve) => setTimeout(resolve, PING_TIMEOUT_MS)),
+  ]);
+
   // Sent, then this popup closes itself, rather than waiting to be dismissed.
   //
   // Selecting an area is the one action carried out on the page rather than
