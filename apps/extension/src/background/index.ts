@@ -330,6 +330,11 @@ function watchPdfHandoff(): void {
 
 async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
   switch (request.action) {
+    case "ping": {
+      // Reaching here is the whole answer: this worker is awake and this
+      // listener is registered.
+      return { ok: true };
+    }
     case "captureFullPage": {
       const tab = await getActiveTab();
       const { report, images } = await captureFullPage(tab.id!, tab.windowId);

@@ -84,6 +84,10 @@ export interface SelectAreaResponse {
 export type ContentResponse = PrepResponse | ScrollToResponse | RestoreResponse | SelectAreaResponse;
 
 export type PopupRequest =
+  // Does nothing, deliberately. Its only job is to come back: awaiting a
+  // reply is how a caller learns the service worker is running and has its
+  // message listener registered. See popup.ts's selected-area handler.
+  | { action: "ping" }
   | { action: "captureFullPage" }
   | { action: "captureVisible" }
   | { action: "captureSelectedArea" }
