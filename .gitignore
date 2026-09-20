@@ -32,3 +32,6 @@ apps/extension/extension-key.pem
 
 # Local MCP wiring (DNS tooling for this app's domains); not shared.
 .mcp.json
+
+# Screenshots pulled from the app-radar tracker while working a task.
+APP-*-image.png
