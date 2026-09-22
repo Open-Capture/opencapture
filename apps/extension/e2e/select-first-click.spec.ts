@@ -95,15 +95,15 @@ test("it waits for the worker to answer before closing, so a cold start cannot s
     chrome.runtime.sendMessage = ((message: { action: string }) => {
       w.__order.push(`send:${message.action}`);
       if (message.action === "ping") {
-        return new Promise((resolve) =>
+        return new Promise<unknown>((resolve) =>
           setTimeout(() => {
             w.__order.push("worker-awake");
             resolve({ ok: true });
           }, 400),
         );
       }
-      return new Promise(() => {});
-    }) as typeof chrome.runtime.sendMessage;
+      return new Promise<unknown>(() => {});
+    }) as unknown as typeof chrome.runtime.sendMessage;
   });
 
   await popup.click("#captureSelectedArea");
