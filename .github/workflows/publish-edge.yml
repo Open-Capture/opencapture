@@ -47,6 +47,10 @@ on:
 
 env:
   WASM_BINDGEN_VERSION: "0.2.100"
+  # A build whose private watermark submodule failed to check out would
+  # otherwise ship a watermark tool that silently does nothing. vite refuses
+  # to build with the stub while this is set — see apps/extension/vite.config.ts.
+  OPENCAPTURE_REQUIRE_PREMIUM: "1"
 
 jobs:
   publish-edge:

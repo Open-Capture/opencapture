@@ -13,7 +13,8 @@ crop, arrow, rectangle, blur, or watermark it, and export as PNG or PDF.
 Every pixel operation happens on your machine, in a Rust/WebAssembly core —
 nothing is uploaded anywhere, no account is needed, and the capture
 pipeline never has standing access to any page you haven't explicitly
-asked it to capture.
+asked it to capture. Screenshots, docs and install links are at
+[opencapture.app, the OpenCapture website](https://opencapture.app).
 
 ## Why local matters
 
@@ -24,11 +25,16 @@ is inherently malicious, but it means your screenshots — which may contain
 account numbers, internal dashboards, private conversations, anything
 that happened to be on your screen — leave your machine by design.
 
-OpenCapture doesn't have a server to send anything to. The manifest
-requests no `host_permissions` and no static content script; capture code
-is injected on demand, only into the tab you click the icon on, and every
-image stays in the browser's own storage until you explicitly download,
-copy, or annotate it.
+Your screenshots have no server to go to. The manifest requests no
+`host_permissions` and no static content script; capture code is injected
+on demand, only into the tab you click the icon on, and every image stays
+in the browser's own storage until you explicitly download, copy, or
+annotate it.
+
+The one request that can leave this extension goes to our own account
+server, and only while you are signed in — see [Permissions](#permissions)
+for which hosts those are and what asks for them. Signing in is optional
+and nothing about capturing, editing or exporting depends on it.
 
 ## Features
 
@@ -95,6 +101,29 @@ see [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md),
 [docs/FIREFOX_TESTING.md](docs/FIREFOX_TESTING.md) and
 [docs/MOBILE_TESTING.md](docs/MOBILE_TESTING.md).
 
+## Permissions
+
+Four permissions are requested at install, and they are the whole set:
+
+- **`activeTab`** — read the page you are capturing, and only the tab whose
+  toolbar icon you clicked, only after you click it.
+- **`scripting`** — inject the capture script into that tab on demand. There
+  is no static content script, so nothing runs on any page until you ask.
+- **`downloads`** — write the PNG or PDF you asked to save.
+- **`storage`** — remember your preferences and the local capture history.
+
+Three more are declared in `optional_host_permissions`, which means the
+browser does **not** grant them at install and never asks unless you take
+the action that needs one:
+
+- **`auth.opencapture.app`, `gateway.opencapture.app`** — our account server.
+  Requested only if you choose to sign in, which is needed for the one paid
+  tool and nothing else. Never signing in means never granting these.
+- **`openpdfedit.com`** — requested only when you tick "Open the PDF in
+  OpenPdfEdit" while exporting, and it exists so the finished PDF can be
+  handed straight to that editor instead of going out through your downloads
+  folder. Leave it unticked and the permission is never asked for.
+
 ## Build from source
 
 ```bash
@@ -112,6 +141,12 @@ npm run build:firefox    # -> dist-firefox/   (load temporarily in Firefox)
 Then in Chrome: `chrome://extensions` → enable **Developer mode** → **Load
 unpacked** → select `dist/`. In Firefox: `about:debugging#/runtime/this-firefox`
 → **Load Temporary Add-on** → select any file inside `dist-firefox/`.
+
+The tiled watermark is not part of this repository. It is a separate
+private module, it is not covered by this repository's licence, and a clone
+of this repository builds without it: the build substitutes a stub and says
+so, every other tool works normally, and only the watermark tool does
+nothing. Nothing else here depends on it.
 
 Full walkthroughs, including the shared-mount build gotcha and what to
 manually click through, are in [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md),
@@ -141,10 +176,10 @@ Full milestone-by-milestone history and design rationale is in
 ## Optional account
 
 OpenCapture never requires an account for any capture, annotation, or
-export feature — everything above works fully offline. An optional
-OpenApps sign-in exists in the popup for a possible future paid tier (a
-larger/remote feature that isn't implemented yet); declining it changes
-nothing about the extension's core functionality.
+export feature — everything above works fully offline. An optional sign-in
+exists in the popup, and one tool — the tiled watermark — is unlocked
+through it. Declining it changes nothing else: every capture mode, every
+annotation tool and both export formats work without an account, offline.
 
 ## License
 

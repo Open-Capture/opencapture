@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2022",
-    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "lib": [
+      "ES2022",
+      "DOM",
+      "DOM.Iterable"
+    ],
     "module": "ESNext",
     "moduleResolution": "Bundler",
     "strict": true,
@@ -15,7 +19,23 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "types": ["chrome", "node"]
+    "types": [
+      "chrome",
+      "node"
+    ],
+    "baseUrl": ".",
+    "paths": {
+      "#watermark-premium": [
+        "./vendor-private/watermark-premium/src/watermark.ts",
+        "./src/editor/watermark-fallback.ts"
+      ]
+    }
   },
-  "include": ["src", "scripts", "vite.config.ts", "playwright.config.ts", "e2e"]
+  "include": [
+    "src",
+    "scripts",
+    "vite.config.ts",
+    "playwright.config.ts",
+    "e2e"
+  ]
 }

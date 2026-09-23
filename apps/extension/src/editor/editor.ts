@@ -20,7 +20,9 @@ import { editableHeightFor } from "../chrome/capture-size";
 import { canvasHeldImage } from "./canvas-limit";
 import { isDoubleTap, type TapState } from "./double-tap";
 import { drawFrame, framePixelInsets, type FramePreset } from "./frame";
-import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from "../../vendor-private/watermark-premium/src/watermark";
+// Resolved by vite (see vite.config.ts): the private module when it is
+// checked out, a stub that draws nothing when it is not.
+import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from "#watermark-premium";
 import init, * as ShotCore from "../wasm-gen/shot_core.js";
 import { ext } from "../platform/webext";
 

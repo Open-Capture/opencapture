@@ -97,6 +97,19 @@ jobs:
         working-directory: apps/extension
       - run: npm run build
         working-directory: apps/extension
+      # Someone cloning the public repository does not get the private
+      # watermark submodule, and for a long time that ended their build at
+      # editor.ts's import — while the README told them to run it. The build
+      # now falls back to a stub, and this proves the fallback still works:
+      # it is the only path CI would otherwise never take, because CI always
+      # has the submodule.
+      - name: A clone without the private submodule still builds (APP-137)
+        working-directory: apps/extension
+        run: |
+          mv vendor-private/watermark-premium/src /tmp/watermark-src
+          npx vite build
+          mv /tmp/watermark-src vendor-private/watermark-premium/src
+          npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: extension-dist

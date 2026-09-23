@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { defineConfig } from "vite";
 
@@ -40,8 +41,41 @@ function buildLabel(): string {
 // TARGET_BROWSER existed.
 const targetBrowser = process.env.TARGET_BROWSER === "firefox" ? "firefox" : "chrome";
 
+// Where the Supporter watermark renderer comes from.
+//
+// It lives in a private repository, pulled in as a submodule, and is not
+// covered by this repository's licence. Someone who clones the public
+// repository does not get it, and editor.ts's import of it used to end their
+// build — while the README told them to run that build and the website linked
+// them to the README. Resolving the import here means a public clone builds,
+// with a stub that draws nothing, and every other tool behaves as it does in
+// a release.
+//
+// The risk this creates is the opposite one: a *release* built without the
+// submodule would silently ship a watermark tool that does nothing to the
+// stores. So the publish and release workflows set OPENCAPTURE_REQUIRE_PREMIUM=1
+// and this refuses to build rather than let that leave the building.
+const PREMIUM_WATERMARK = resolve(__dirname, "vendor-private/watermark-premium/src/watermark.ts");
+const STUB_WATERMARK = resolve(__dirname, "src/editor/watermark-fallback.ts");
+const hasPremiumWatermark = existsSync(PREMIUM_WATERMARK);
+if (!hasPremiumWatermark && process.env.OPENCAPTURE_REQUIRE_PREMIUM === "1") {
+  throw new Error(
+    "vite: the private watermark module is missing and OPENCAPTURE_REQUIRE_PREMIUM=1.\n" +
+      "  This build is meant for a release, and shipping it would give the stores a\n" +
+      "  watermark tool that silently does nothing. Run: git submodule update --init --recursive",
+  );
+}
+console.log(
+  hasPremiumWatermark
+    ? "vite: watermark renderer = private module"
+    : "vite: watermark renderer = stub (public build; the watermark tool will draw nothing)",
+);
+
 export default defineConfig({
   root: resolve(__dirname),
+  resolve: {
+    alias: { "#watermark-premium": hasPremiumWatermark ? PREMIUM_WATERMARK : STUB_WATERMARK },
+  },
   define: {
     __OPENCAPTURE_E2E__: JSON.stringify(process.env.OPENCAPTURE_E2E === "1"),
     __OPENCAPTURE_BUILD__: JSON.stringify(buildLabel()),
