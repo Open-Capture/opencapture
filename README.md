@@ -1,5 +1,7 @@
 # OpenCapture
 
+**The open-source alternative to GoFullPage and FireShot — no access to your other tabs, nothing uploaded.** [opencapture.app](https://opencapture.app)
+
 **A privacy-first, 100% local full-page screenshot and annotation extension for Chrome, Edge and Firefox.**
 
 ![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)
