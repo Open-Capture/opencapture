@@ -1,6 +1,7 @@
 # Contributor Licence Agreement
 
 **Project:** OpenCapture
+
 **Maintainer:** Darius Koh (“the Maintainer”), sole copyright holder of the
 existing work.
 
