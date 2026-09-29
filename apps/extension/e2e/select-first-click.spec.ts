@@ -15,11 +15,22 @@ test("choosing 'capture selected area' closes the popup itself, so the next clic
   await popup.goto(`chrome-extension://${extensionId}/popup.html`);
 
   // window.close() does nothing for a page opened as a tab, so record it.
+  //
+  // The capture request is stubbed as still running, which is what a real
+  // selection is: the crosshair is up and the reply comes whenever the user
+  // finishes dragging. Left unstubbed, the background here has no tab it may
+  // capture and refuses at once — and a refusal now keeps the popup open on
+  // purpose, to show it (see restricted-page.spec.ts). That is the opposite
+  // of what this test is about.
   await popup.evaluate(() => {
     (window as unknown as { __closed: boolean }).__closed = false;
     window.close = () => {
       (window as unknown as { __closed: boolean }).__closed = true;
     };
+    chrome.runtime.sendMessage = ((message: { action: string }) =>
+      message.action === "ping"
+        ? Promise.resolve({ ok: true })
+        : new Promise(() => {})) as unknown as typeof chrome.runtime.sendMessage;
   });
 
   await popup.click("#captureSelectedArea");

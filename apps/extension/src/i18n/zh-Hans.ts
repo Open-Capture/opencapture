@@ -171,6 +171,9 @@ const messages: Record<string, string> = {
   "Language": "语言",
   "Interface language": "界面语言",
   "Settings": "设置",
+  "Your browser doesn't let extensions run on its own pages (settings, the new tab, the extension store), so this page can't be captured. Open an ordinary web page and try again.": "浏览器不允许扩展在它自带的页面（设置、新标签页、扩展商店等）上运行，所以这个页面截不了。请换到普通网页再试。",
+  "This page has moved on since the extension was opened. Reload it, then click the icon again.": "打开扩展之后这个页面发生了跳转。请刷新页面，然后重新点击图标。",
+  "Local files need one extra permission in this browser. Open the extension's details page, turn on \"Allow access to file URLs\", then try again.": "在这个浏览器里，本地文件需要额外授权。打开扩展的详情页，开启「允许访问文件网址」，然后重试。",
 };
 
 export default messages;

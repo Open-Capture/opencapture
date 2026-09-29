@@ -17,6 +17,7 @@ import {
 import { dropPdfEditAccess, hasPdfEditAccess, PDF_EDIT_APP_URL, requestPdfEditAccess } from "../chrome/pdf-handoff";
 import { getSavePrefs, resolveFilename, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
+import type { CaptureFailure } from "../types";
 import { LOCALES, getLocale, initPageLocale, onLocaleChange, setLocale, t } from "../i18n";
 import { ext } from "../platform/webext";
 import type { CaptureReport, PopupRequest, PopupResponse } from "../types";
@@ -517,13 +518,51 @@ function syncPdfEditRow(busy = false): void {
  * coming. */
 const PING_TIMEOUT_MS = 2000;
 
+/** How long the selected-area handler waits for an instant refusal before
+ * closing the popup. Long enough for a local failure to come back, far
+ * shorter than anyone can drag out a selection. */
+const SELECTION_GRACE_MS = 400;
+
 async function send(request: PopupRequest): Promise<PopupResponse> {
   return ext.runtime.sendMessage(request);
 }
 
+/**
+ * What to put on screen for a failed capture.
+ *
+ * The browser's own sentences are written for whoever wrote the extension:
+ * "Cannot access a chrome:// URL", or worse, "Either the '<all_urls>' or
+ * 'activeTab' permission is required" — which reads as a permission this
+ * extension forgot to ask for, and sends people into their settings after a
+ * switch that was never missing. Where the background could tell what kind of
+ * refusal it was, say that instead, in the reader's language.
+ */
+function captureErrorText(response: CaptureFailure): string {
+  switch (response.reason) {
+    case "restricted-page":
+      return t(
+        "Your browser doesn't let extensions run on its own pages (settings, the new tab, the extension store), so this page can't be captured. Open an ordinary web page and try again.",
+      );
+    case "needs-refresh":
+      return t("This page has moved on since the extension was opened. Reload it, then click the icon again.");
+    case "file-access":
+      return t(
+        'Local files need one extra permission in this browser. Open the extension\'s details page, turn on "Allow access to file URLs", then try again.',
+      );
+    default:
+      // Nothing recognised it. The browser's words beat a guess.
+      return t("Error: {error}", { error: response.error });
+  }
+}
+
 async function showCaptureResult(response: PopupResponse): Promise<void> {
   if (!response.ok) {
-    setStatusText(t("Error: {error}", { error: response.error }), true);
+    setStatusText(captureErrorText(response), true);
+    // Nothing was produced, so the row of things to do with a capture has
+    // nothing to act on. On a first run it was showing three dead buttons
+    // beside the error; after an earlier capture it still has one, and that
+    // one stays usable.
+    resultActionsEl.hidden = exportPdfBtn.disabled;
     return;
   }
   if ("cancelled" in response) {
@@ -644,7 +683,29 @@ $("captureSelectedArea").addEventListener("click", async () => {
   // background, independent of this popup's lifetime — it opens the editor
   // and records what happened for the next time the popup is opened (see
   // last-capture-ui.ts), neither of which needs anyone listening here.
-  void send({ action: "captureSelectedArea" }).catch(() => {});
+  // Wait a moment for an immediate refusal before closing.
+  //
+  // On a page no extension may touch, this fails in milliseconds — before the
+  // user could have begun dragging. That error used to be thrown away: the
+  // reply was never read and the popup destroyed itself in the same turn, so
+  // choosing "capture selected area" on chrome://settings simply closed the
+  // popup and did nothing at all, with nothing said anywhere.
+  //
+  // A selection that actually starts takes as long as the user takes, so the
+  // grace period below expires first and the popup closes as it did before —
+  // which is the behaviour the crosshair depends on. Only a failure that
+  // arrives inside the window is shown, and that is exactly the failure that
+  // arrives instantly.
+  const failedImmediately = await Promise.race([
+    send({ action: "captureSelectedArea" })
+      .then((response) => (response.ok ? null : response))
+      .catch(() => null),
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), SELECTION_GRACE_MS)),
+  ]);
+  if (failedImmediately) {
+    await showCaptureResult(failedImmediately);
+    return;
+  }
   window.close();
 });
 $("openPdfEdit").addEventListener("click", async () => {

@@ -124,6 +124,12 @@ export interface CancelledResult {
 export interface CaptureFailure {
   ok: false;
   error: string;
+  /**
+   * What kind of failure, for a surface that can translate it. Absent on
+   * older messages and on anything that was never classified, which the
+   * popup treats as "show the text as given".
+   */
+  reason?: "restricted-page" | "needs-refresh" | "file-access" | "raw";
 }
 
 export type PopupResponse = CaptureResult | AckResult | CancelledResult | CaptureFailure;

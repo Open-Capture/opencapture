@@ -171,6 +171,9 @@ const messages: Record<string, string> = {
   "Language": "語言",
   "Interface language": "介面語言",
   "Settings": "設定",
+  "Your browser doesn't let extensions run on its own pages (settings, the new tab, the extension store), so this page can't be captured. Open an ordinary web page and try again.": "瀏覽器不允許擴充功能在它內建的頁面（設定、新分頁、擴充功能商店等）上執行，所以這個頁面無法擷取。請切換到一般網頁再試。",
+  "This page has moved on since the extension was opened. Reload it, then click the icon again.": "開啟擴充功能之後這個頁面已經換過。請重新整理頁面，然後再按一次圖示。",
+  "Local files need one extra permission in this browser. Open the extension's details page, turn on \"Allow access to file URLs\", then try again.": "在這個瀏覽器中，本機檔案需要額外授權。開啟擴充功能的詳細資料頁，開啟「允許存取檔案網址」，然後再試一次。",
 };
 
 export default messages;

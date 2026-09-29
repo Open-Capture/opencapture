@@ -7,6 +7,7 @@ import {
   getBlob,
   putBlob,
 } from "../chrome/blob-store";
+import { CaptureFailureError } from "./injection-error";
 import { HISTORY_LIST_PORT_NAME, addHistoryEntry, clearHistory, deleteHistoryEntry, getHistoryEntry, listHistoryEntries } from "../chrome/capture-history";
 import { needsFormatChoice } from "../chrome/capture-size";
 import { setLastCaptureUi } from "../chrome/last-capture-ui";
@@ -369,7 +370,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
     }
     case "captureVisible": {
       const tab = await getActiveTab();
-      const { report, images } = await captureVisibleOnly(tab.windowId);
+      const { report, images } = await captureVisibleOnly(tab.windowId, tab.id);
       await openEditorWithBytes(images[0]!, report.dpr, 1, { url: tab.url ?? "", capturedAt: Date.now() });
       await setLastCaptureUi({ report, openedEditor: true });
       await rememberInHistory(tab, report, images[0]!);
@@ -446,7 +447,11 @@ ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
   handleRequest(request as PopupRequest)
     .then(sendResponse)
     .catch((err: unknown) => {
-      sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err) });
+      // A classified failure keeps its kind, so the popup can say the thing
+      // in the reader's own language instead of forwarding the browser's
+      // developer-facing sentence.
+      const reason = err instanceof CaptureFailureError ? err.reason : "raw";
+      sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err), reason });
     });
 
   return true; // keep the message channel open for the async response
@@ -547,8 +552,8 @@ if (__OPENCAPTURE_E2E__) {
       const { report, images } = await captureFullPage(tabId, windowId);
       return { report, imagesBase64: images.map(bytesToBase64) };
     },
-    captureVisibleOnly: async (windowId: number) => {
-      const { report, images } = await captureVisibleOnly(windowId);
+    captureVisibleOnly: async (windowId: number, tabId?: number) => {
+      const { report, images } = await captureVisibleOnly(windowId, tabId);
       return { report, imagesBase64: images.map(bytesToBase64) };
     },
     captureSelectedArea: async (tabId: number, windowId: number) => {

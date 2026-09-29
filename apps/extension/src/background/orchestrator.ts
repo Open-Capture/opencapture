@@ -1,5 +1,5 @@
 import { getCapturePrefs } from "../chrome/capture-prefs";
-import { explainInjectionFailure } from "./injection-error";
+import { CaptureFailureError } from "./injection-error";
 import { captureVisibleTabPaced } from "../chrome/capture";
 import { LAST_CAPTURE_BLOB_KEY, extraLastCaptureBlobKey, getBlob, putBlob } from "../chrome/blob-store";
 import { ext } from "../platform/webext";
@@ -73,7 +73,62 @@ async function injectContentScript(tabId: number): Promise<void> {
       fileAccessAllowed = undefined;
     }
 
-    throw new Error(explainInjectionFailure({ url, fileAccessAllowed, rawMessage }));
+    throw CaptureFailureError.from({ url, fileAccessAllowed, rawMessage });
+  }
+}
+
+/**
+ * Take the screenshot, and classify a refusal the same way an injection
+ * failure is classified.
+ *
+ * The visible-area button never injects anything, so it never went past
+ * explainInjectionFailure — it handed the user chrome.tabs.captureVisibleTab's
+ * own words instead: "Either the '<all_urls>' or 'activeTab' permission is
+ * required." Routing every screenshot through here is what makes the three
+ * capture buttons answer a restricted page identically.
+ */
+async function shoot(windowId: number, tabId?: number, beforeShot?: () => Promise<void>): Promise<Uint8Array> {
+  try {
+    return await captureVisibleTabPaced(windowId, beforeShot);
+  } catch (err) {
+    if (err instanceof CaptureFailureError) throw err;
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    // The URL is deliberately not consulted: on the pages this is for, it
+    // cannot be read at all (see injection-error.ts).
+    const failure = CaptureFailureError.from({ url: "", fileAccessAllowed: undefined, rawMessage });
+    if (failure.reason !== "needs-refresh" || tabId === undefined) throw failure;
+    throw await disambiguateNoGrant(tabId, failure);
+  }
+}
+
+/**
+ * Work out which of the two causes of "no grant for this tab" this is.
+ *
+ * captureVisibleTab says the same thing — "Either the '<all_urls>' or
+ * 'activeTab' permission is required." — whether the tab is a browser page no
+ * extension may ever touch, or an ordinary page that navigated after the
+ * toolbar click and spent its activeTab grant. The advice differs completely:
+ * one is "you cannot capture this page at all", the other is "reload and click
+ * again". Guessing would give half of the people the useless half.
+ *
+ * Asking to inject settles it, because *that* refusal does name the kind:
+ * a chrome:// tab answers "Cannot access a chrome:// URL", while an ordinary
+ * page with a lapsed grant answers "Cannot access contents of the page…".
+ * It costs one failed call, and only on a capture that has already failed.
+ */
+async function disambiguateNoGrant(tabId: number, fallback: CaptureFailureError): Promise<CaptureFailureError> {
+  try {
+    await ext.scripting.executeScript({ target: { tabId }, func: () => 0 });
+    // Injection works, so the tab is reachable and the screenshot failed for
+    // some other reason; the stale-grant advice is still the better guess.
+    return fallback;
+  } catch (probeErr) {
+    const probed = CaptureFailureError.from({
+      url: "",
+      fileAccessAllowed: undefined,
+      rawMessage: probeErr instanceof Error ? probeErr.message : String(probeErr),
+    });
+    return probed.reason === "raw" ? fallback : probed;
   }
 }
 
@@ -186,7 +241,7 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
     });
     // Re-assert the hiding after the quota wait, not before it: those are up
     // to half a second apart, and the page keeps running in between.
-    let pngBytes = await captureVisibleTabPaced(windowId, async () => {
+    let pngBytes = await shoot(windowId, tabId, async () => {
       await assertStillActive(tabId, windowId);
       await sendToContent(tabId, { action: "reassert" });
     });
@@ -272,9 +327,9 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
   return { report: result.report, images: result.images };
 }
 
-export async function captureVisibleOnly(windowId: number): Promise<CaptureOutcome> {
+export async function captureVisibleOnly(windowId: number, tabId?: number): Promise<CaptureOutcome> {
   const shotCore = await loadShotCore();
-  const pngBytes = await captureVisibleTabPaced(windowId);
+  const pngBytes = await shoot(windowId, tabId);
 
   // A single-slice session: dpr doesn't matter for placement math with one
   // slice at scroll 0, but does matter for the report's css dimensions —
@@ -301,7 +356,7 @@ export async function captureSelectedArea(tabId: number, windowId: number): Prom
   const { rect, dpr, target } = await sendToContent<SelectAreaResponse>(tabId, { action: "selectArea" });
   if (!rect) return null;
 
-  const pngBytes = await captureVisibleTabPaced(windowId);
+  const pngBytes = await shoot(windowId, tabId);
   const xDev = Math.round(rect.x * dpr);
   const yDev = Math.round(rect.y * dpr);
   const widthDev = Math.round(rect.width * dpr);

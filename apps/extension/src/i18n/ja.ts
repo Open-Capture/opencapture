@@ -171,6 +171,9 @@ const messages: Record<string, string> = {
   "Language": "言語",
   "Interface language": "表示言語",
   "Settings": "設定",
+  "Your browser doesn't let extensions run on its own pages (settings, the new tab, the extension store), so this page can't be captured. Open an ordinary web page and try again.": "ブラウザーは自身の組み込みページ（設定、新しいタブ、拡張機能ストアなど）で拡張機能を実行させないため、このページは撮影できません。通常のウェブページで試してください。",
+  "This page has moved on since the extension was opened. Reload it, then click the icon again.": "拡張機能を開いた後にこのページが切り替わりました。ページを再読み込みしてから、もう一度アイコンをクリックしてください。",
+  "Local files need one extra permission in this browser. Open the extension's details page, turn on \"Allow access to file URLs\", then try again.": "このブラウザーではローカルファイルに追加の許可が必要です。拡張機能の詳細ページを開き、「ファイルの URL へのアクセスを許可する」をオンにしてから、もう一度お試しください。",
 };
 
 export default messages;

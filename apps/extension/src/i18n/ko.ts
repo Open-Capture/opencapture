@@ -171,6 +171,9 @@ const messages: Record<string, string> = {
   "Language": "언어",
   "Interface language": "인터페이스 언어",
   "Settings": "설정",
+  "Your browser doesn't let extensions run on its own pages (settings, the new tab, the extension store), so this page can't be captured. Open an ordinary web page and try again.": "브라우저는 자체 페이지(설정, 새 탭, 확장 프로그램 스토어 등)에서 확장 프로그램을 실행하도록 허용하지 않으므로 이 페이지는 캡처할 수 없습니다. 일반 웹페이지에서 다시 시도해 주세요.",
+  "This page has moved on since the extension was opened. Reload it, then click the icon again.": "확장 프로그램을 연 뒤 이 페이지가 바뀌었습니다. 페이지를 새로고침한 다음 아이콘을 다시 클릭해 주세요.",
+  "Local files need one extra permission in this browser. Open the extension's details page, turn on \"Allow access to file URLs\", then try again.": "이 브라우저에서는 로컬 파일에 추가 권한이 필요합니다. 확장 프로그램 세부정보 페이지를 열고 \"파일 URL에 대한 액세스 허용\"을 켠 다음 다시 시도해 주세요.",
 };
 
 export default messages;

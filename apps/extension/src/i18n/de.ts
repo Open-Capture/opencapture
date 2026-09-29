@@ -171,6 +171,9 @@ const messages: Record<string, string> = {
   "Language": "Sprache",
   "Interface language": "Sprache der Oberfläche",
   "Settings": "Einstellungen",
+  "Your browser doesn't let extensions run on its own pages (settings, the new tab, the extension store), so this page can't be captured. Open an ordinary web page and try again.": "Ihr Browser lässt Erweiterungen auf seinen eigenen Seiten (Einstellungen, neuer Tab, Erweiterungs-Store) nicht zu, deshalb kann diese Seite nicht aufgenommen werden. Öffnen Sie eine normale Webseite und versuchen Sie es erneut.",
+  "This page has moved on since the extension was opened. Reload it, then click the icon again.": "Diese Seite hat sich geändert, seit die Erweiterung geöffnet wurde. Laden Sie sie neu und klicken Sie dann erneut auf das Symbol.",
+  "Local files need one extra permission in this browser. Open the extension's details page, turn on \"Allow access to file URLs\", then try again.": "Lokale Dateien benötigen in diesem Browser eine zusätzliche Berechtigung. Öffnen Sie die Detailseite der Erweiterung, aktivieren Sie „Zugriff auf Datei-URLs zulassen“ und versuchen Sie es erneut.",
 };
 
 export default messages;
