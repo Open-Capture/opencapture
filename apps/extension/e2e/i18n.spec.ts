@@ -111,7 +111,7 @@ test("the editor and history pages open translated too", async ({ context, exten
 
 test("strings the editor writes itself are translated too", async ({ context, extensionId }) => {
   test.setTimeout(120_000);
-  // APP-63: the editor's save panel wrote "Downloads" as a literal, so it
+  // The editor's save panel wrote "Downloads" as a literal, so it
   // stayed English in every language. localizeDom cannot catch that — the
   // walk translates the markup, and this runs after it, over the top.
   const popup = await context.newPage();

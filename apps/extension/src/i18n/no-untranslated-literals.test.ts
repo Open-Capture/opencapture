@@ -1,15 +1,15 @@
 /**
  * A translated string is no use if the code writes English over it.
  *
- * APP-63: "Downloads" in the editor's save panel stayed English in every
- * language. Not a missing translation — the catalogues all had it — but a
+ * "Downloads" in the editor's save panel stayed English in every language.
+ * Not a missing translation — the catalogues all had it — but a
  * line that assigned the literal instead of calling `t()`. `localizeDom`
  * cannot save it either: the walk translates what the markup shipped with,
  * and this runs afterwards, overwriting the result.
  *
- * tisha found the one that shows on the busiest screen. There were ten more
- * exactly like it, which is what this test is for: it reads the source and
- * fails on any user-facing literal that is also a key we hold.
+ * The one that showed on the busiest screen was spotted by eye. There were
+ * ten more exactly like it, which is what this test is for: it reads the
+ * source and fails on any user-facing literal that is also a key we hold.
  */
 import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";

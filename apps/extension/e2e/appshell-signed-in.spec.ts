@@ -2,7 +2,7 @@ import { expect, test } from "./fixtures";
 
 const BASE_URL = "http://localhost:8934";
 
-// The shape APP-38 was reported against, and the one a signed-out capture
+// The shape the defect was reported against, and the one a signed-out capture
 // cannot reach: a column beside the scrolling pane holding a conversation
 // list that scrolls on its own and rebuilds itself wholesale, under a header
 // spanning the window. `?overlay` is the slideover state the element is named

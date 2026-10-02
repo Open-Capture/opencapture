@@ -60,7 +60,7 @@ dimensions, the runtime.connect port that streams the PNG), so the editor code
 under test is the shipped bundle.
 
 It does **not** run inside a `moz-extension://` page, and that gap is not
-academic: APP-37 was a text-tool failure that reproduced only there. The
+academic: a text-tool failure once reproduced only there. The
 editor's floating text `<input>` was created, blurred by the browser and removed
 by its own blur handler within 1 ms — `preventDefault()` on the cancelable
 `pointerdown` did not stop focus moving to `<body>` — while the same bundle

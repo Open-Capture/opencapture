@@ -49,7 +49,7 @@ function numberedName(filename: string, n: number): string {
  * Writes `bytes` into `handle` under `filename`, or under the first free
  * numbered variant of it, and returns the name actually used.
  *
- * APP-113: never onto a file that is already there. `getFileHandle` with
+ * Never onto a file that is already there. `getFileHandle` with
  * `create: true` opens an existing file of that name, and `createWritable`
  * then truncates it — so with the default name every capture saved to a
  * Browse… folder silently replaced the one before it, with nothing to say

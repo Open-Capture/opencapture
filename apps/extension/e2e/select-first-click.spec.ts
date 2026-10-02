@@ -70,7 +70,7 @@ test("the other capture actions keep the popup open to show their result", async
 });
 
 /**
- * APP-88: "the first click does nothing, the second works".
+ * "the first click does nothing, the second works".
  *
  * The popup closes itself the moment it has sent the request. If the MV3
  * service worker is asleep — which it is whenever the extension has been idle

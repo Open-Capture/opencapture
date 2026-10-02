@@ -1,6 +1,6 @@
 // Tell Bing a page changed, instead of waiting to be crawled.
 //
-// Bing had indexed nothing at all from opencapture.app (APP-55), and Bing is
+// Bing had indexed nothing at all from opencapture.app, and Bing is
 // what Copilot searches and what ChatGPT's web search leans on — so being
 // absent there is being absent from both. IndexNow is the push half of the
 // fix: submit a URL and the engines fetch it rather than discovering it on

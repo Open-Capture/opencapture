@@ -649,7 +649,7 @@ $("captureSelectedArea").addEventListener("click", async () => {
   // Wake the service worker and wait for proof it is listening, BEFORE the
   // window.close() below destroys the sender.
   //
-  // APP-88: a message posted to a dormant MV3 worker is delivered only once
+  // A message posted to a dormant MV3 worker is delivered only once
   // that worker has started, which takes a few hundred milliseconds — and
   // this handler closes the popup in the same turn it sends. The message
   // died with the sender, silently: the capture never began, and because

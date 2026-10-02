@@ -103,7 +103,7 @@ jobs:
       # now falls back to a stub, and this proves the fallback still works:
       # it is the only path CI would otherwise never take, because CI always
       # has the submodule.
-      - name: A clone without the private submodule still builds (APP-137)
+      - name: A clone without the private submodule still builds
         working-directory: apps/extension
         run: |
           mv vendor-private/watermark-premium/src /tmp/watermark-src

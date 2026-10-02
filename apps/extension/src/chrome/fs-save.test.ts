@@ -4,7 +4,7 @@ import { saveToDirectory } from "./fs-save";
 
 /**
  * Just enough of FileSystemDirectoryHandle to behave the way Chromium's does
- * where APP-113 lives: getFileHandle without `create` rejects NotFoundError
+ * where this defect lives: getFileHandle without `create` rejects NotFoundError
  * for a missing name, with `create` it opens whatever is already there, and
  * createWritable starts from empty — which is exactly what turned "save" into
  * "replace".
@@ -40,7 +40,7 @@ function fakeDirectory(initial: Record<string, string> = {}) {
 
 const bytes = (text: string) => new TextEncoder().encode(text);
 
-describe("saveToDirectory (APP-113)", () => {
+describe("saveToDirectory", () => {
   it("writes the name it was given when nothing is there yet", async () => {
     const dir = fakeDirectory();
     expect(await saveToDirectory(dir.handle, "opencapture.png", bytes("first"))).toBe("opencapture.png");
