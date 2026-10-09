@@ -9,7 +9,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_TARGET_DIR: ${{ github.workspace }}/target
   # Must match the `wasm-bindgen = "=X.Y.Z"` pin in Cargo.toml exactly — the
-  # CLI and crate versions are schema-coupled (see PLAN.md's build notes).
+  # CLI and crate versions are schema-coupled (see the pin's comment in Cargo.toml).
   WASM_BINDGEN_VERSION: "0.2.100"
 
 jobs:

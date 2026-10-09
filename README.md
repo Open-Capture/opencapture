@@ -172,8 +172,8 @@ around it.
   handles DOM/lazy-load/sticky-element prep, and the popup/editor pages
   are plain canvas-based TypeScript.
 
-Full milestone-by-milestone history and design rationale is in
-[PLAN.md](PLAN.md).
+The design rationale for each part lives in comments beside the code, and
+the build and test steps are in [docs/LOCAL_TESTING.md](docs/LOCAL_TESTING.md).
 
 ## Optional account
 

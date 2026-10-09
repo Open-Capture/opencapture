@@ -37,3 +37,14 @@ describing the change — what is wrong, what it should do, and how you would
 approach it — and the Project Owner can implement it independently. What cannot
 happen is merging your code without the agreement, because that forecloses a
 distribution channel the project already uses.
+
+## Where development happens
+
+The maintainers work in a private GitLab repository, which is the source of
+truth; this GitHub repository is a mirror of its app code (the website is not
+mirrored). After every push to GitLab `main`, the maintainers run the mirror
+script (`scripts/mirror-github.sh`, kept in the GitLab repository only): it
+commits GitLab main's app code on top of GitHub `main` as one sync commit and
+pushes it, never with force. Release builds run here on GitHub, from the
+mirrored tree. Pull requests opened here are welcome; they are ported to GitLab
+and come back through the next sync.

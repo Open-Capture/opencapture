@@ -9,7 +9,7 @@ pub struct PageMetrics {
     pub dpr: f64,
 }
 
-/// One captured slice as reported by the content script: the scroll
+/// One captured slice as the content script reports it: the scroll
 /// position the browser actually settled at (not the one requested — see
 /// `plan::place_slices`), plus the PNG bytes returned by
 /// `chrome.tabs.captureVisibleTab`.

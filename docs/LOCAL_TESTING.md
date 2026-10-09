@@ -229,8 +229,7 @@ OpenCapture is loaded unpacked, and run captures against them manually.
 
 ## 8. Publishing (not covered here)
 
-Chrome Web Store / Edge Add-ons publishing automation is intentionally not
-set up — it needs real developer-account credentials that don't exist in
-this environment. See `PLAN.md`'s "Publishing automation" section for what
-that would involve (`chrome-webstore-upload-cli`, a zipped `dist/`, store
-listing assets) when you're ready to do it with real credentials.
+Publishing to the Chrome Web Store, Edge Add-ons and Firefox Add-ons is done
+by the workflows in `.github/workflows/` (`publish-chrome.yml`,
+`publish-edge.yml`, `publish-firefox.yml`), which need the store
+credentials as repository secrets.
