@@ -127,6 +127,7 @@ const messages: Record<string, string> = {
   "Copying to clipboard…": "正在複製到剪貼簿…",
   "Copied to clipboard.": "已複製到剪貼簿。",
   "Done.": "完成。",
+  "Done, captured in {count} files.": "完成，已擷取為 {count} 個檔案。",
   "Selection cancelled.": "已取消選取。",
   "Too large to edit on this device.": "太大，無法在此裝置上編輯。",
   "No captured image found — capture a page first, then click Annotate.": "找不到已擷取的圖片——請先擷取網頁，再點選「標註」。",
