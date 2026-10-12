@@ -2818,7 +2818,7 @@ test("rating prompt: a 1-3 star tap shows a feedback link instead of opening the
   await popup.click('.rating-star[data-stars="2"]');
   await expect(popup.locator("#ratingPromptAsk")).toBeHidden();
   await expect(popup.locator("#ratingPromptFeedback")).toBeVisible();
-  await expect(popup.locator("#ratingFeedbackLink")).toHaveAttribute("href", /^mailto:opencaptureapp@proton\.me\?subject=/);
+  await expect(popup.locator("#ratingFeedbackLink")).toHaveAttribute("href", /^mailto:hello@opencapture\.app\?subject=/);
   await popup.close();
 });
 

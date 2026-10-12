@@ -5,8 +5,8 @@
 **A privacy-first, 100% local full-page screenshot and annotation extension for Chrome, Edge and Firefox.**
 
 ![License: AGPL-3.0-or-later](https://img.shields.io/badge/license-AGPL--3.0--or--later-blue.svg)
-[![Chrome Web Store](https://img.shields.io/badge/Chrome-install-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/opencapture-%E2%80%94-private-ful/ikhhoggnlncjhpdbnneekifbnmojpjph)
-[![Microsoft Edge](https://img.shields.io/badge/Edge-install-0078D7?logo=microsoftedge&logoColor=white)](https://microsoftedge.microsoft.com/addons/detail/opencapture-%E2%80%94-private-ful/nbblbelngcbfijhifmbjcoehocngplpc)
+[![Chrome Web Store](https://img.shields.io/badge/Chrome-install-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/full-page-screenshot-to-p/ikhhoggnlncjhpdbnneekifbnmojpjph)
+[![Microsoft Edge](https://img.shields.io/badge/Edge-install-0078D7?logo=microsoftedge&logoColor=white)](https://microsoftedge.microsoft.com/addons/detail/full-page-screenshot-to-p/nbblbelngcbfijhifmbjcoehocngplpc)
 [![Firefox Add-ons](https://img.shields.io/badge/Firefox-install-FF7139?logo=firefoxbrowser&logoColor=white)](https://addons.mozilla.org/en-US/firefox/addon/opencapture-full-page-capture/)
 [![CI](https://github.com/Open-Capture/OpenCapture/actions/workflows/ci.yml/badge.svg)](https://github.com/Open-Capture/OpenCapture/actions/workflows/ci.yml)
 
@@ -63,16 +63,16 @@ and nothing about capturing, editing or exporting depends on it.
 
 |  | **OpenCapture** | GoFullPage | FireShot | Awesome Screenshot |
 |---|---|---|---|---|
-| Free tier covers | Everything but watermarking | Capture and export only<br>editing needs Premium | Capture and export only<br>editing needs a Pro licence | 100 captures<br>basic annotation |
+| Free tier covers | Everything but watermarking | Capture and export only<br>editing needs Premium | Capture and export only, with ads<br>editing needs Pro; the full editor is Windows-only | 100 cloud screenshots<br>unlimited saved locally; basic annotation |
 | Blur private details | Free | Paid | Paid | Free |
-| Watermarking | Paid | No | Paid | Beta |
+| Watermarking | Paid | No | Paid | Yes<br>which plans include it is not stated |
 | Billing | One-time | Subscription | Annual or one-time | Subscription |
-| Price | US$5 once, never expires | From $1/month<br>billed annually | $39.95/year<br>or $99.95 once | From $6/month<br>Basic plan |
-| Firefox | Yes | No | Yes | Yes |
-| Open source | Yes<br>AGPL-3.0-or-later | MIT up to 2018<br>private branch since | No | No |
+| Price | US$5 once, never expires | From $1/month<br>billed annually | $39.95/year<br>or $99.95 once | From $5/month<br>Basic, billed annually |
+| Firefox | Yes | Yes<br>since September 2026 | Yes | Yes |
+| Open source | Yes<br>AGPL-3.0-or-later | MIT up to 2018<br>private branch since | No | No public repo<br>Firefox build listed as MPL-2.0 |
 
 Every figure is checked against that product's own site or store listing.
-Last reviewed August 2026 — [tell us if something is out of date](https://github.com/Open-Capture/OpenCapture/issues).
+Last reviewed October 2026 — [tell us if something is out of date](https://github.com/Open-Capture/OpenCapture/issues).
 
 [Full comparison, including where each one is the better pick →](https://opencapture.app/alternatives.html?utm_source=github&utm_medium=readme&utm_campaign=comparison)
 
@@ -80,11 +80,28 @@ Last reviewed August 2026 — [tell us if something is out of date](https://gith
 
 | Browser | |
 | --- | --- |
-| Chrome | [Chrome Web Store](https://chromewebstore.google.com/detail/opencapture-%E2%80%94-private-ful/ikhhoggnlncjhpdbnneekifbnmojpjph) |
-| Edge | [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/opencapture-%E2%80%94-private-ful/nbblbelngcbfijhifmbjcoehocngplpc) |
+| Chrome | [Chrome Web Store](https://chromewebstore.google.com/detail/full-page-screenshot-to-p/ikhhoggnlncjhpdbnneekifbnmojpjph) |
+| Edge | [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/full-page-screenshot-to-p/nbblbelngcbfijhifmbjcoehocngplpc) |
 | Firefox | [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/opencapture-full-page-capture/) |
 
 Also on [opencapture.app](https://opencapture.app).
+
+## Support
+
+**Official listings.** OpenCapture is published in exactly three places:
+
+- Chrome: [Chrome Web Store](https://chromewebstore.google.com/detail/full-page-screenshot-to-p/ikhhoggnlncjhpdbnneekifbnmojpjph)
+- Edge: [Microsoft Edge Add-ons](https://microsoftedge.microsoft.com/addons/detail/full-page-screenshot-to-p/nbblbelngcbfijhifmbjcoehocngplpc)
+- Firefox: [Firefox Add-ons](https://addons.mozilla.org/en-US/firefox/addon/opencapture-full-page-capture/)
+
+Other screenshot extensions use similar names. If an add-on is not at one
+of these three addresses, it is not this one, and we cannot help with it.
+
+**Getting help.** For a bug or a feature request, open an
+[issue](https://github.com/Open-Capture/OpenCapture/issues) and say which
+browser and version you use. For anything else, email
+[hello@opencapture.app](mailto:hello@opencapture.app). The
+[FAQ](https://opencapture.app/faq.html) answers the common questions.
 
 ## Star us
 

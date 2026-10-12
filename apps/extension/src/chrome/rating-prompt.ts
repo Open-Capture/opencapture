@@ -48,7 +48,7 @@ export async function recordPromptResponded(): Promise<void> {
 
 const CHROME_REVIEW_URL = "https://chromewebstore.google.com/detail/ikhhoggnlncjhpdbnneekifbnmojpjph/reviews";
 const FIREFOX_REVIEW_URL = "https://addons.mozilla.org/firefox/addon/opencapture-full-page-capture/reviews/";
-const FEEDBACK_EMAIL = "opencaptureapp@proton.me";
+const FEEDBACK_EMAIL = "hello@opencapture.app";
 
 /** NOT the same check as webext.ts's `ext` alias (`browser ?? chrome`) —
  * that one only needs *a* promise-based API surface to call, so either
