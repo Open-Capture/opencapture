@@ -139,6 +139,10 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   console.log("TOO LONG downloads: " + JSON.stringify(saved));
   expect(saved.every((name) => name.endsWith(".png"))).toBe(true);
   expect(saved.length).toBe(report.output_image_count);
+  // Both places the count now shows agree with what was written: the status
+  // line, and the button that names how many files its click will produce.
+  await expect(popup3.locator("#status")).toHaveText(`Done, captured in ${report.output_image_count} files.`);
+  await expect(popup3.locator("#savePngLabel")).toHaveText(`PNG (${report.output_image_count})`);
   await popup3.close();
 
   // And the PDF answer, which is the recommended one, says where a PDF of a
