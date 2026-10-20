@@ -2,6 +2,9 @@
 <html class="oa-auto">
   <head>
     <meta charset="utf-8" />
+    <!-- Without it a phone lays the editor out 980px wide and shrinks the
+         whole thing onto the screen, so every button is a third of its size. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" sizes="48x48" href="/icons/icon48.png" />
     <link rel="icon" sizes="16x16" href="/icons/icon16.png" />
     <title>OpenCapture Editor</title>
@@ -125,13 +128,18 @@
         color: var(--text-brand);
         border-color: var(--border-hairline);
       }
+      /* Placed by editor.ts (positionCropBar) just outside the marquee,
+         following it as it is dragged, rather than pinned to the bottom of
+         the window, far from the box it confirms. */
       #cropBar {
         position: fixed;
-        left: 50%;
-        transform: translateX(-50%);
-        bottom: var(--space-5);
+        left: 0;
+        top: 0;
         z-index: 30;
         display: flex;
+        flex-wrap: wrap;
+        max-width: calc(100vw - 16px);
+        box-sizing: border-box;
         align-items: center;
         gap: var(--space-2);
         padding: var(--space-2);
@@ -144,6 +152,40 @@
          otherwise keep the bar on screen with nothing pending. */
       #cropBar[hidden] {
         display: none;
+      }
+      /* A fingertip needs a 44px target; the toolbar-sized buttons are 28. */
+      @media (pointer: coarse) {
+        #cropBar .btn,
+        #cropBar input,
+        #toolbar .btn,
+        #toolbar .icon-btn {
+          min-height: 44px;
+        }
+        #toolbar .tool-btn,
+        #toolbar .icon-btn {
+          min-width: 44px;
+          min-height: 44px;
+        }
+      }
+      /* A phone. The toolbar becomes one row that scrolls sideways instead of
+         wrapping: wrapped, it took three rows and a fifth of the screen, and
+         a toolbar that changes height moves the canvas under the finger (see
+         .tool-label). The page itself never scrolls sideways — only the strip
+         does. The canvas padding shrinks so Fit gives the image the width. */
+      @media (max-width: 640px) {
+        #toolbar {
+          flex-wrap: nowrap;
+          overflow-x: auto;
+          overscroll-behavior-x: contain;
+          scrollbar-width: none;
+        }
+        #toolbar > * {
+          flex: 0 0 auto;
+        }
+        /* body-qualified to outrank the #canvasWrap rule further down. */
+        body #canvasWrap {
+          padding: var(--space-3);
+        }
       }
       .crop-bar-divider {
         width: var(--border-width);
@@ -545,7 +587,7 @@
          drawn — which pushed the image down 40px mid-interaction, so the
          next grab at the corner handle landed 40px above it and collapsed
          the selection. A floating bar cannot change the toolbar's height,
-         and it puts the confirmation next to the thing being confirmed. -->
+         and it sits beside the marquee, next to the thing being confirmed. -->
     <div id="cropBar" hidden>
       <button id="cropApply" class="btn btn-primary btn-sm">
         <span class="oa-icon oa-icon-14 icon-check"></span>

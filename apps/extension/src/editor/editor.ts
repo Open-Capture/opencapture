@@ -18,6 +18,7 @@ import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
 import { clearWatermarkLogoDataUrl, getWatermarkLogoDataUrl, setWatermarkLogoDataUrl } from "../chrome/watermark-logo-store";
 import { editableHeightFor } from "../chrome/capture-size";
 import { canvasHeldImage } from "./canvas-limit";
+import { placeCropBar } from "./crop-bar";
 import { isDoubleTap, type TapState } from "./double-tap";
 import { drawFrame, framePixelInsets, type FramePreset } from "./frame";
 // Resolved by vite (see vite.config.ts): the private module when it is
@@ -394,6 +395,8 @@ function updateCropReadout(r: Rect | null): void {
   const actual = `${Math.round(r.width)} × ${Math.round(r.height)}`;
   const target = cropTargetSize();
   cropSizeEl.textContent = target ? `${actual} → ${target.width} × ${target.height}` : actual;
+  // The readout is part of the bar, so a longer number makes the bar wider.
+  positionCropBar();
 }
 
 /** Commits a crop: shrinks the canvas itself to the given rect, discarding
@@ -444,7 +447,9 @@ type CropDragMode = "draw" | "move" | "resize" | null;
 
 // See content/index.ts's own isCoarsePointer comment — same reasoning: a
 // touch fingertip needs a bigger target than a mouse cursor does.
-const HANDLE_SIZE = matchMedia("(pointer: coarse)").matches ? 20 : 10; // target on-screen (CSS px) size, not canvas-buffer px
+// 22 on touch: the hit area reaches HANDLE_SIZE either side of the handle's
+// centre, so that is the 44px square a fingertip needs.
+const HANDLE_SIZE = matchMedia("(pointer: coarse)").matches ? 22 : 10; // target on-screen (CSS px) size, not canvas-buffer px
 const AUTO_SCROLL_EDGE = 36; // px from #canvasWrap's edge that triggers scrolling
 const AUTO_SCROLL_MAX_SPEED = 18; // px per animation frame at the very edge
 
@@ -544,6 +549,46 @@ function renderCropOverlay(r: Rect): void {
   clearPreview();
   drawCropPreview(previewCtx, r.x, r.y, r.x + r.width, r.y + r.height);
   drawCropHandles(previewCtx, r);
+  positionCropBar();
+}
+
+/** Moves the crop bar next to the marquee — see crop-bar.ts for where and
+ * why. Runs on every change to the marquee (so it follows a drag live) and
+ * on anything that moves the marquee on screen without changing it: scroll,
+ * zoom, window resize. */
+function positionCropBar(): void {
+  if (!pendingCrop || cropBar.hidden) return;
+  const canvasRect = canvas.getBoundingClientRect();
+  const s = 1 / displayScale();
+  const box = {
+    left: canvasRect.left + pendingCrop.x * s,
+    top: canvasRect.top + pendingCrop.y * s,
+    right: canvasRect.left + (pendingCrop.x + pendingCrop.width) * s,
+    bottom: canvasRect.top + (pendingCrop.y + pendingCrop.height) * s,
+  };
+  // The visible part of the scrolling area: below the toolbar and notice
+  // bar, inside its scrollbars, and inside the window itself.
+  const wrapRect = canvasWrap.getBoundingClientRect();
+  const view = {
+    left: Math.max(0, wrapRect.left),
+    top: Math.max(0, wrapRect.top),
+    right: Math.min(window.innerWidth, wrapRect.left + canvasWrap.clientWidth),
+    bottom: Math.min(window.innerHeight, wrapRect.top + canvasWrap.clientHeight),
+  };
+  // Measured at the origin: a fixed box's shrink-to-fit width depends on
+  // how far from the right edge it starts, so measuring it where it last was
+  // would report a bar wrapped narrower than it needs to be.
+  cropBar.style.left = "0px";
+  cropBar.style.top = "0px";
+  const size = { width: cropBar.offsetWidth, height: cropBar.offsetHeight };
+  // Clear of the resize handles' hit area (HANDLE_SIZE out from the frame
+  // line), so the bar never sits on top of one and steals the grab meant
+  // for it.
+  const gap = Math.max(HANDLE_SIZE / 2 + 8, HANDLE_SIZE + 2);
+  const placed = placeCropBar(box, view, size, gap);
+  cropBar.style.left = `${placed.left}px`;
+  cropBar.style.top = `${placed.top}px`;
+  cropBar.dataset.side = placed.side;
 }
 
 function updateCropActionButtons(): void {
@@ -551,6 +596,7 @@ function updateCropActionButtons(): void {
   // floating container now, so there is one thing to show and its layout is
   // the container's business rather than something this has to restate.
   cropBar.hidden = pendingCrop === null;
+  positionCropBar();
 }
 
 function cancelPendingCrop(): void {
@@ -1750,6 +1796,7 @@ function applyZoom(): void {
   // The preview overlay is positioned in JS against the canvas's rendered box,
   // so it has to be re-laid-out or the crop marquee drifts off the image.
   syncPreviewCanvas();
+  positionCropBar();
 }
 
 function stepZoom(direction: 1 | -1): void {
@@ -2237,6 +2284,9 @@ async function loadImage(): Promise<void> {
 // depends on the window's available width via max-width:100% — resync on
 // resize so preview drawings stay aligned with the real canvas.
 window.addEventListener("resize", syncPreviewCanvas);
+window.addEventListener("resize", positionCropBar);
+// Scrolling moves the marquee on screen without changing it.
+canvasWrap.addEventListener("scroll", positionCropBar, { passive: true });
 
 loadImage();
 
