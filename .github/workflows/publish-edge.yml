@@ -31,7 +31,7 @@ name: Publish to Microsoft Edge Add-ons
 on:
   push:
     tags:
-      # Release tags publish. Pre-release tags — anything with a hyphen, like
+      # Release tags upload to the draft. Pre-release tags — anything with a hyphen, like
       # v1.0.0-rc.1 — deliberately do not: they exist so a build can be handed
       # round for checking, and a store submission cannot be recalled once it
       # enters review. The GitHub Release workflow still builds artifacts for
@@ -54,7 +54,7 @@ env:
 
 jobs:
   publish-edge:
-    name: build, package, submit to Edge Add-ons
+    name: build, package, upload to the Edge Add-ons draft
     runs-on: ubuntu-latest
     steps:
       # apps/extension/vendor-private/watermark-premium is a private
@@ -98,7 +98,10 @@ jobs:
           cd apps/extension/dist
           zip -r -q ../edge-package.zip .
           unzip -l ../edge-package.zip | head -5
-      - name: Upload and publish to Edge Add-ons
+      # Draft only: publish-edge.mjs stops after the package upload unless
+      # EDGE_DRAFT_ONLY=0, which nothing here sets. Submitting for
+      # certification is done by hand in Partner Center.
+      - name: Upload to the Edge Add-ons draft (not submitted)
         run: node scripts/publish-edge.mjs edge-package.zip
         working-directory: apps/extension
         env:

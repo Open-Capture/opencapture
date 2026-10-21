@@ -1136,6 +1136,23 @@ canvas.addEventListener("pointerup", (e) => {
   renderPendingShape();
 });
 
+// A finger drag on the canvas is the editor's own gesture, but touch-action:
+// none only stops the browser scrolling; Chromium still reads a quick lift-off
+// as a flick. The next tap then lands while that flick is "in flight", and
+// the browser spends it stopping the flick: pointerdown and pointerup arrive,
+// click never does. So a crop drawn with a flick and confirmed straight away
+// left Apply crop doing nothing for about a second. Consuming the drag's
+// touchmoves tells the browser the page handled the gesture, so there is no
+// flick to stop. Only during a drag: a tap's own jitter is left alone, since
+// cancelling it can cost the tap its focus change.
+canvas.addEventListener(
+  "touchmove",
+  (e) => {
+    if (cropDragMode || dragStart || shapeDragMode) e.preventDefault();
+  },
+  { passive: false },
+);
+
 // --- text tool -------------------------------------------------------------
 
 /** `bufferPos` is where the text will actually be drawn (canvas-buffer
