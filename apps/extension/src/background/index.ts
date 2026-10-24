@@ -18,12 +18,13 @@ import { getSavePrefs, resolveFilename } from "../chrome/save-prefs";
 import { registerCallbackScript } from "../chrome/auth-permission";
 import { PDF_EDIT_HANDOFF_URL, registerHandoffScript } from "../chrome/pdf-handoff";
 import { ext } from "../platform/webext";
-import type { PopupRequest, PopupResponse } from "../types";
+import type { CaptureFailure, PopupRequest, PopupResponse } from "../types";
 import {
   captureFullPage,
   captureSelectedArea,
   captureVisibleOnly,
   exportLastCaptureAsPdf,
+  getCaptureProgress,
   getLastCaptureDpr,
   getLastCaptureFirstImage,
   getLastCaptureImageCount,
@@ -329,12 +330,31 @@ function watchPdfHandoff(): void {
   }, PDF_HANDOFF_GRACE_MS);
 }
 
+/**
+ * Tell popups that a capture they may be attached to is over.
+ *
+ * A popup reopened mid-capture (popup.ts's adoptRunningCapture) has no reply
+ * of its own to wait for — the request that started the capture belonged to
+ * a popup instance that no longer exists. This is how it learns the outcome
+ * instead. On success it is fired only after setLastCaptureUi, so the
+ * popup's restore reads the capture that just finished rather than the one
+ * before it; the failure form carries the classified reason, so "the active
+ * tab changed" reaches the user instead of a progress bar that silently
+ * never fills.
+ */
+function broadcastCaptureFinished(failure?: CaptureFailure): void {
+  void ext.runtime.sendMessage({ type: "captureFinished", failure }).catch(() => {});
+}
+
 async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
   switch (request.action) {
     case "ping": {
       // Reaching here is the whole answer: this worker is awake and this
       // listener is registered.
       return { ok: true };
+    }
+    case "captureState": {
+      return { ok: true, capture: getCaptureProgress() };
     }
     case "captureFullPage": {
       const tab = await getActiveTab();
@@ -366,6 +386,9 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       await setLastCaptureUi({ report, openedEditor });
       await rememberInHistory(tab, report, images[0]!);
       await bumpUsageCount();
+      // Here, not earlier: an attached popup restores the last-capture record
+      // when this lands, and it must read this capture, not the one before it.
+      broadcastCaptureFinished();
       return { ok: true, report, pngDataUrls: images.map((img) => bytesToDataUrl(img, "image/png")), openedEditor };
     }
     case "captureVisible": {
@@ -451,7 +474,13 @@ ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       // in the reader's own language instead of forwarding the browser's
       // developer-facing sentence.
       const reason = err instanceof CaptureFailureError ? err.reason : "raw";
-      sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err), reason });
+      const failure: CaptureFailure = {
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+        reason,
+      };
+      broadcastCaptureFinished(failure);
+      sendResponse(failure);
     });
 
   return true; // keep the message channel open for the async response
