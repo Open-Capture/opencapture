@@ -102,7 +102,11 @@ export type PopupRequest =
 export interface CaptureResult {
   ok: true;
   report: CaptureReport;
-  pngDataUrls: string[];
+  // Small downscaled PNG of the capture's first output image, for the popup's
+  // preview thumbnail. The full-size bytes stay in blob-store: putting them in
+  // this response crossed chrome.runtime.sendMessage's ~64MiB message cap and
+  // failed captures that had already succeeded.
+  previewDataUrl?: string;
   // True when the capture was routed to the editor for crop/annotate/format
   // review. False when it was too long for that (see capture-size.ts's
   // needsFormatChoice), in which case nothing has been written or opened at
