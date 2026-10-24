@@ -127,6 +127,7 @@ const messages: Record<string, string> = {
   "Copying to clipboard…": "クリップボードにコピーしています…",
   "Copied to clipboard.": "クリップボードにコピーしました。",
   "Done.": "完了しました。",
+  "Done, captured in {count} files.": "完了しました。{count} つのファイルとしてキャプチャしました。",
   "Selection cancelled.": "選択をキャンセルしました。",
   "Too large to edit on this device.": "この端末で編集するには大きすぎます。",
   "No captured image found — capture a page first, then click Annotate.": "キャプチャが見つかりません。先にページをキャプチャしてから「注釈」を選んでください。",
