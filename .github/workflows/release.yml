@@ -68,14 +68,16 @@ jobs:
           OPENCAPTURE_BUILD: ${{ github.ref_name }}
 
       # Zip the *contents*, not the directory: both browsers reject a package
-      # whose manifest.json sits one level down.
+      # whose manifest.json sits one level down. store-zip.mjs does that, keeps
+      # any manifest `key` out of the zip (Chrome refuses a key that does not
+      # match the listing, Edge refuses any), and fails if a zip still has one.
       - name: Package both
         working-directory: apps/extension
         run: |
           VERSION="$(node -p "require('./package.json').version")"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
-          (cd dist && zip -r -q "../opencapture-chromium-${VERSION}.zip" .)
-          (cd dist-firefox && zip -r -q "../opencapture-firefox-${VERSION}.zip" .)
+          node scripts/store-zip.mjs dist "opencapture-chromium-${VERSION}.zip"
+          node scripts/store-zip.mjs dist-firefox "opencapture-firefox-${VERSION}.zip"
           ls -la ./*.zip
 
       - name: Create or update the Release

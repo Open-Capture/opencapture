@@ -84,11 +84,13 @@ jobs:
         working-directory: apps/extension
       # Zip the *contents* of dist/, not the directory itself — the store
       # rejects a package whose manifest.json is nested one level down.
+      # store-zip.mjs also keeps any manifest `key` out of the zip and fails
+      # if one got in: the store refuses a key, and says so only on upload.
       - name: Package dist/ as a zip
         run: |
-          cd apps/extension/dist
-          zip -r -q ../chrome-package.zip .
-          unzip -l ../chrome-package.zip | head -5
+          cd apps/extension
+          node scripts/store-zip.mjs dist chrome-package.zip
+          unzip -l chrome-package.zip | head -5
       - name: Upload and publish to the Chrome Web Store
         run: node scripts/publish-chrome.mjs chrome-package.zip
         working-directory: apps/extension

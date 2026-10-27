@@ -30,4 +30,4 @@ echo "==> building the Firefox extension (Rust/WASM core, then the extension its
 
 echo ""
 echo "done — apps/extension/dist-firefox/ is what gets zipped and submitted:"
-echo "  cd apps/extension/dist-firefox && zip -r ../opencapture-firefox.zip ."
+echo "  cd apps/extension && node scripts/store-zip.mjs dist-firefox opencapture-firefox.zip"
