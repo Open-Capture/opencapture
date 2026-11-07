@@ -32,6 +32,8 @@ const statusEl = $("status");
 const reportEl = $("report") as HTMLPreElement;
 const previewEl = $("preview") as HTMLImageElement;
 const exportPdfBtn = $("exportPdf") as HTMLButtonElement;
+const savePngBtn = $("savePng") as HTMLButtonElement;
+const savePngLabelEl = $("savePngLabel");
 const copyBtn = $("copyToClipboard") as HTMLButtonElement;
 const openEditorBtn = $("openEditor") as HTMLButtonElement;
 const resultActionsEl = $("resultActions");
@@ -307,7 +309,7 @@ refreshCustomFolder();
 function captureStatusText(ui: LastCaptureUi): string {
   if (ui.openedEditor) return t("Opened in editor — crop, annotate, then choose PNG or PDF to save.");
   if (isChoicePending(ui)) return t("Captured. Nothing saved yet — choose how to keep it.");
-  return t("Done.");
+  return doneStatusText(ui.report);
 }
 
 const count = new Intl.NumberFormat();
@@ -315,6 +317,25 @@ const count = new Intl.NumberFormat();
 /** Whether this capture is still waiting on the user to say how to keep it. */
 function isChoicePending(ui: LastCaptureUi): boolean {
   return !ui.openedEditor && !ui.formatChosen && needsFormatChoice(ui.report);
+}
+
+/**
+ * The Done status, counting files only when one PNG save would not write
+ * the whole capture as one file. The catalogue has no plural rules (see
+ * i18n/index.ts), so the numbered form only runs above 1 — "1 files" can
+ * never ship.
+ */
+function doneStatusText(report: CaptureReport): string {
+  const files = report.output_image_count;
+  return files > 1 ? t("Done, captured in {count} files.", { count: files }) : t("Done.");
+}
+
+/** The same count on the button, so its label names what a click writes. */
+function setSavePngLabel(report: CaptureReport): void {
+  const files = report.output_image_count;
+  // "PNG" is a format name, not prose — the button label is untranslated
+  // in every language, same as "PDF" beside it.
+  savePngLabelEl.textContent = files > 1 ? `PNG (${files})` : "PNG";
 }
 
 /**
@@ -348,8 +369,8 @@ function showFormatChoice(report: CaptureReport): void {
       ? `Annotate part 1 of ${parts} only. The rest is kept, but not shown there.`
       : `Annotate the first ${count.format(editableHeightFor(width, height))} rows of ${count.format(height)}. The rest is kept, but not shown there.`;
   formatChoiceEl.hidden = false;
-  // Not both: the row of small actions underneath offers two of these three
-  // again, unlabelled and without the cost attached, which is exactly the
+  // Not both: the row of small actions underneath offers these three again,
+  // unlabelled and without the cost attached, which is exactly the
   // sight-unseen click this panel exists to replace.
   resultActionsEl.hidden = true;
   // The tickbox follows the PDF option into the list, rather than sitting
@@ -416,8 +437,10 @@ async function restoreLastCaptureUi(): Promise<void> {
   reportEl.textContent = JSON.stringify(ui.report, null, 2);
 
   exportPdfBtn.disabled = false;
+  savePngBtn.disabled = false;
   copyBtn.disabled = false;
   openEditorBtn.disabled = false;
+  setSavePngLabel(ui.report);
   // Before the preview, deliberately. The capture this asks about is the
   // large kind by definition, and reading tens of megabytes of PNG out of
   // the store to show a thumbnail of it takes long enough to be visible —
@@ -493,6 +516,7 @@ function setBusy(busy: boolean, busyMessage?: string): void {
   allButtons.forEach((b) => (b.disabled = busy));
   if (!busy) {
     exportPdfBtn.disabled = false;
+    savePngBtn.disabled = false;
     copyBtn.disabled = false;
     openEditorBtn.disabled = false;
   }
@@ -586,8 +610,12 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
     const ui: LastCaptureUi = { report: response.report, openedEditor: response.openedEditor };
     if (isChoicePending(ui)) showFormatChoice(response.report);
     setStatusText(captureStatusText(ui));
+    setSavePngLabel(response.report);
   } else {
-    setStatusText(t("Done."));
+    // The save actions answer {ok} without a report; the count comes from
+    // the persisted record, which still describes the capture just saved.
+    const ui = await getLastCaptureUi();
+    setStatusText(ui ? doneStatusText(ui.report) : t("Done."));
   }
 }
 
@@ -732,6 +760,13 @@ $("choosePdf").addEventListener("click", () =>
 );
 $("choosePng").addEventListener("click", () => takeFormatChoice({ action: "savePngs" }, t("Saving PNG…")));
 $("chooseEditor").addEventListener("click", () => takeFormatChoice({ action: "openEditor" }, t("Opening editor…")));
+
+// The same save the format panel's PNG answer performs — {action:
+// "savePngs"} in background/index.ts — reached the ordinary way. The button
+// sits with the other two ways to keep a capture, so PNG is offered after
+// every capture rather than only when the page is too long for the format
+// panel to appear.
+savePngBtn.addEventListener("click", () => runCapture({ action: "savePngs" }, t("Saving PNG…")));
 // The same follow-up as the format panel's PDF answer, because it is the
 // same file and the same question. Wiring it only to the panel meant anyone
 // who reached for this button — the ordinary way to get a PDF — was told

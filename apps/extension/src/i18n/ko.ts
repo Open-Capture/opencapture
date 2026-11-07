@@ -127,6 +127,7 @@ const messages: Record<string, string> = {
   "Copying to clipboard…": "클립보드에 복사하는 중…",
   "Copied to clipboard.": "클립보드에 복사했습니다.",
   "Done.": "완료했습니다.",
+  "Done, captured in {count} files.": "완료했습니다. {count}개의 파일로 캡처했습니다.",
   "Selection cancelled.": "선택을 취소했습니다.",
   "Too large to edit on this device.": "이 기기에서 편집하기에는 너무 큽니다.",
   "No captured image found — capture a page first, then click Annotate.": "캡처한 이미지가 없습니다. 먼저 페이지를 캡처한 다음 주석을 누르세요.",

@@ -7,6 +7,12 @@ import { expect, test } from "./fixtures";
 
 const BASE_URL = "http://localhost:8934";
 const SHOT_QA_BIN = process.env.SHOT_QA_BIN ?? "/tmp/opencapture-target/debug/shot-qa";
+// What the download stub in the restore test records, declared so the
+// assertions can read it back without casting at every call site.
+declare global {
+  // eslint-disable-next-line no-var
+  var __downloads: string[];
+}
 // A real, small PNG already in the repo — no synthetic fixture needed.
 const LOGO_FIXTURE_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "public", "icons", "icon48.png");
 
@@ -46,6 +52,7 @@ test("popup renders its controls", async ({ context, extensionId }) => {
   await page.goto(`chrome-extension://${extensionId}/popup.html`);
   await expect(page.locator("#captureFullPage")).toBeVisible();
   await expect(page.locator("#captureVisible")).toBeVisible();
+  await expect(page.locator("#savePng")).toBeVisible();
   await page.close();
 });
 
@@ -2372,9 +2379,31 @@ test("popup: restores report/preview/enabled buttons after closing and reopening
   const previewSrc = await popup.locator("#preview").getAttribute("src");
   expect(previewSrc).toMatch(/^blob:/);
   await expect(popup.locator("#exportPdf")).toBeEnabled();
+  await expect(popup.locator("#savePng")).toBeEnabled();
   await expect(popup.locator("#copyToClipboard")).toBeEnabled();
   await expect(popup.locator("#openEditor")).toBeEnabled();
   await expect(popup.locator("#status")).toHaveText("Opened in editor — crop, annotate, then choose PNG or PDF to save.");
+
+  // And the PNG button saves from this restored state, the same way the
+  // format panel's PNG answer does — counted at the download call rather
+  // than in a folder, like too-long.spec.ts does.
+  await serviceWorker.evaluate(() => {
+    globalThis.__downloads = [];
+    const real = chrome.downloads.download;
+    chrome.downloads.download = ((options: chrome.downloads.DownloadOptions) => {
+      globalThis.__downloads.push(options.filename ?? "");
+      return real(options);
+    }) as typeof chrome.downloads.download;
+  });
+  await popup.click("#savePng");
+  await expect
+    .poll(async () => serviceWorker.evaluate(() => globalThis.__downloads.length), { timeout: 60_000 })
+    .toBeGreaterThan(0);
+  expect(await serviceWorker.evaluate(() => globalThis.__downloads.every((name) => name.endsWith(".png")))).toBe(true);
+  await serviceWorker.evaluate(() => {
+    // @ts-expect-error test-only stub installed above
+    delete globalThis.__downloads;
+  });
 
   await popup.close();
 

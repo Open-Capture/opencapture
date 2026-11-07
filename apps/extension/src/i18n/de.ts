@@ -127,6 +127,7 @@ const messages: Record<string, string> = {
   "Copying to clipboard…": "Wird in die Zwischenablage kopiert…",
   "Copied to clipboard.": "In die Zwischenablage kopiert.",
   "Done.": "Fertig.",
+  "Done, captured in {count} files.": "Fertig, in {count} Dateien erfasst.",
   "Selection cancelled.": "Auswahl abgebrochen.",
   "Too large to edit on this device.": "Zu groß, um auf diesem Gerät bearbeitet zu werden.",
   "No captured image found — capture a page first, then click Annotate.": "Keine Aufnahme gefunden — nehmen Sie zuerst eine Seite auf und klicken Sie dann auf Kommentieren.",
