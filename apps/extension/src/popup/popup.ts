@@ -434,8 +434,6 @@ async function restoreLastCaptureUi(): Promise<void> {
   }
 }
 
-restoreLastCaptureUi();
-
 // Nudges toward a store rating after real, repeated use — see
 // chrome/rating-prompt.ts for the show-again/never-again rules. Checked
 // on every popup open (not synchronously after a capture) because a
@@ -617,6 +615,66 @@ ext.runtime.onMessage.addListener((message: unknown) => {
   // the result is about to replace them anyway.
   if (m.done >= m.total) return;
   setStatusText(`${captureBusyMessage} ${m.done + 1} of ${m.total}`);
+});
+
+// A capture runs on in the service worker after the popup that started it is
+// torn down (MV3 destroys a popup the moment it loses focus). The popup a
+// user reopens mid-capture is a new instance that never heard the progress
+// messages above and has no busy state of its own — so it attaches to the
+// running capture instead of sitting on "No capture yet" while the page
+// visibly scrolls.
+
+/** True when this popup attached to a capture it did not start. Only such a
+ * popup listens for captureFinished: the one that started the capture learns
+ * the outcome from its own awaited reply. */
+let adoptedCapture = false;
+
+/** Attach this popup to a capture already running in the service worker.
+ *
+ * Returns true when it did, so the caller can skip restoreLastCaptureUi —
+ * that would render the *previous* capture underneath (and read tens of
+ * megabytes of preview out of blob-store doing it) until this one finished
+ * and replaced it.
+ *
+ * Asking the worker is the whole liveness test: a capture in flight is what
+ * keeps the worker alive, so an answer means a live capture, and a fresh
+ * worker woken by this very message truthfully has nothing to offer. There
+ * is no stored flag to go stale.
+ */
+async function adoptRunningCapture(): Promise<boolean> {
+  let response: PopupResponse;
+  try {
+    response = await send({ action: "captureState" });
+  } catch {
+    return false; // worker unreachable — nothing running to attach to
+  }
+  if (!response.ok || !("capture" in response) || !response.capture) return false;
+
+  const { done, total } = response.capture;
+  adoptedCapture = true;
+  const busyMessage = t("Capturing full page…");
+  captureBusyMessage = busyMessage.replace(/…$/, "");
+  showCaptureProgress(total > 0 ? done / total : 0);
+  setBusy(true);
+  setStatusText(done < total ? `${captureBusyMessage} ${done + 1} of ${total}` : busyMessage);
+  return true;
+}
+
+ext.runtime.onMessage.addListener((message: unknown) => {
+  const m = message as { type?: string; failure?: CaptureFailure };
+  if (m?.type !== "captureFinished") return;
+  if (!adoptedCapture) return;
+  adoptedCapture = false;
+  captureBusyMessage = "";
+  showCaptureProgress(null);
+  setBusy(false);
+  void (async () => {
+    // Written before the broadcast fired (background/index.ts), so this reads
+    // the capture that just finished — or, when it failed, the record it
+    // never displaced.
+    await restoreLastCaptureUi();
+    if (m.failure) setStatusText(captureErrorText(m.failure), true);
+  })();
 });
 
 /** Resolves true when the request came back without an error. */
@@ -801,3 +859,12 @@ declare const __OPENCAPTURE_BUILD__: string;
   const el = document.getElementById("buildLabel");
   if (el) el.textContent = __OPENCAPTURE_BUILD__;
 }
+
+// Open onto whichever state the world is in: a capture still running (its
+// progress), or the last capture's result. Asked in this order because the
+// restore is the expensive path — its preview read alone can take visible
+// time — and is skipped entirely when a capture is mid-flight.
+(async () => {
+  if (await adoptRunningCapture()) return;
+  await restoreLastCaptureUi();
+})();

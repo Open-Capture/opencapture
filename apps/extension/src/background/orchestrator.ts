@@ -3,7 +3,15 @@ import { CaptureFailureError } from "./injection-error";
 import { captureVisibleTabPaced } from "../chrome/capture";
 import { LAST_CAPTURE_BLOB_KEY, extraLastCaptureBlobKey, getBlob, putBlob } from "../chrome/blob-store";
 import { ext } from "../platform/webext";
-import type { CaptureReport, ContentRequest, PageMetrics, PrepResponse, ScrollToResponse, SelectAreaResponse } from "../types";
+import type {
+  CaptureProgress,
+  CaptureReport,
+  ContentRequest,
+  PageMetrics,
+  PrepResponse,
+  ScrollToResponse,
+  SelectAreaResponse,
+} from "../types";
 import { loadShotCore } from "./wasm-loader";
 
 export interface CaptureOutcome {
@@ -193,6 +201,18 @@ async function assertStillActive(tabId: number, windowId: number): Promise<void>
   );
 }
 
+/** How far the running full-page capture is, for popup.ts's
+ * adoptRunningCapture. Module state on purpose, not storage: the capture in
+ * flight is exactly what keeps this service worker alive, so the record
+ * cannot outlive the capture it describes — a worker evicted mid-capture
+ * wakes blank and truthfully answers "nothing running", where a storage copy
+ * would survive as a progress bar nothing would ever advance. */
+let captureProgress: CaptureProgress | null = null;
+
+export function getCaptureProgress(): CaptureProgress | null {
+  return captureProgress;
+}
+
 /**
  * Tell the popup how far along a capture is.
  *
@@ -207,10 +227,22 @@ async function assertStillActive(tabId: number, windowId: number): Promise<void>
  * the capture carries on either way.
  */
 function reportProgress(done: number, total: number): void {
+  captureProgress = { done, total };
   void ext.runtime.sendMessage({ type: "captureProgress", done, total }).catch(() => {});
 }
 
 export async function captureFullPage(tabId: number, windowId: number): Promise<CaptureOutcome> {
+  // Cleared on every exit, success or not — a capture that died halfway must
+  // not answer captureState as if it were still going.
+  captureProgress = { done: 0, total: 0 };
+  try {
+    return await runFullPageCapture(tabId, windowId);
+  } finally {
+    captureProgress = null;
+  }
+}
+
+async function runFullPageCapture(tabId: number, windowId: number): Promise<CaptureOutcome> {
   await injectContentScript(tabId);
 
   const shotCore = await loadShotCore();

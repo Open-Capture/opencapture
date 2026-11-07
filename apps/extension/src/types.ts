@@ -97,7 +97,12 @@ export type PopupRequest =
   | { action: "exportPdf"; handoff?: boolean }
   | { action: "savePngs" }
   | { action: "openPdfEdit" }
-  | { action: "openEditor" };
+  | { action: "openEditor" }
+  // Asked by a popup reopened while a capture is still running (MV3 tore the
+  // one that started it down the moment it lost focus) — the answer is what
+  // it shows instead of a reset "No capture yet" while the page visibly
+  // scrolls. See popup.ts's adoptRunningCapture.
+  | { action: "captureState" };
 
 export interface CaptureResult {
   ok: true;
@@ -132,4 +137,17 @@ export interface CaptureFailure {
   reason?: "restricted-page" | "needs-refresh" | "file-access" | "raw";
 }
 
-export type PopupResponse = CaptureResult | AckResult | CancelledResult | CaptureFailure;
+/** How far a running full-page capture is, in slices. */
+export interface CaptureProgress {
+  done: number;
+  total: number;
+}
+
+/** Answer to captureState: how far the running full-page capture is, or null
+ * when none is. */
+export interface CaptureStateResult {
+  ok: true;
+  capture: CaptureProgress | null;
+}
+
+export type PopupResponse = CaptureResult | AckResult | CancelledResult | CaptureStateResult | CaptureFailure;
