@@ -575,9 +575,9 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
   if ("report" in response) {
     reportEl.style.display = "block";
     reportEl.textContent = JSON.stringify(response.report, null, 2);
-    if (response.pngDataUrls[0]) {
+    if (response.previewDataUrl) {
       previewEl.style.display = "block";
-      previewEl.src = response.pngDataUrls[0];
+      previewEl.src = response.previewDataUrl;
     }
     // background/index.ts already persisted this (see chrome/last-capture-ui.ts)
     // by the time this response reaches here, if it reaches here at all —

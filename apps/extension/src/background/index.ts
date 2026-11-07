@@ -30,6 +30,7 @@ import {
   getLastCaptureImages,
   testScrollTargets,
 } from "./orchestrator";
+import { loadShotCore } from "./wasm-loader";
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -81,6 +82,28 @@ function pngPixelSize(bytes: Uint8Array): { width: number; height: number } | nu
   const height = view.getUint32(20);
   if (!width || !height) return null;
   return { width, height };
+}
+
+/**
+ * Small PNG preview of a capture for the popup's thumbnail. The popup's
+ * preview used to ride in the capture response as full-size base64 data URLs,
+ * which at a long page crossed chrome.runtime.sendMessage's ~64MiB message
+ * cap — the response died after the capture had already succeeded, so the
+ * popup showed an error and no preview over a healthy capture (saves and the
+ * editor, which read blob-store, kept working). A ~320px-wide re-encode is a
+ * few KB and cannot hit the cap; the full-size bytes stay in blob-store for
+ * everything that actually needs them.
+ */
+const PREVIEW_WIDTH_PX = 320;
+
+async function previewDataUrl(image: Uint8Array): Promise<string | undefined> {
+  const size = pngPixelSize(image);
+  if (!size) return undefined;
+  const shotCore = await loadShotCore();
+  const width = Math.min(size.width, PREVIEW_WIDTH_PX);
+  const height = Math.max(1, Math.round((size.height * width) / size.width));
+  const thumb = shotCore.cropAndEncode(image, 0, 0, size.width, size.height, 1, width, height) as Uint8Array;
+  return bytesToDataUrl(thumb, "image/png");
 }
 
 /**
@@ -366,7 +389,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       await setLastCaptureUi({ report, openedEditor });
       await rememberInHistory(tab, report, images[0]!);
       await bumpUsageCount();
-      return { ok: true, report, pngDataUrls: images.map((img) => bytesToDataUrl(img, "image/png")), openedEditor };
+      return { ok: true, report, previewDataUrl: await previewDataUrl(images[0]!), openedEditor };
     }
     case "captureVisible": {
       const tab = await getActiveTab();
@@ -375,7 +398,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       await setLastCaptureUi({ report, openedEditor: true });
       await rememberInHistory(tab, report, images[0]!);
       await bumpUsageCount();
-      return { ok: true, report, pngDataUrls: images.map((img) => bytesToDataUrl(img, "image/png")), openedEditor: true };
+      return { ok: true, report, previewDataUrl: await previewDataUrl(images[0]!), openedEditor: true };
     }
     case "captureSelectedArea": {
       // The popup closes as soon as the user clicks into the page to start
@@ -398,7 +421,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       return {
         ok: true,
         report: outcome.report,
-        pngDataUrls: outcome.images.map((img) => bytesToDataUrl(img, "image/png")),
+        previewDataUrl: await previewDataUrl(outcome.images[0]!),
         openedEditor: true,
       };
     }
