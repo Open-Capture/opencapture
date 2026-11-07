@@ -13,6 +13,41 @@ const MAX_EDITABLE_AREA_PX = 2940 * 15559;
 declare global {
   // eslint-disable-next-line no-var
   var __downloads: string[];
+  // eslint-disable-next-line no-var
+  var __exportBytes: { name: string; mime: string; b64: string }[];
+}
+
+/**
+ * Records exported bytes instead of letting them download, in whichever
+ * extension context saves them (the service worker for popup-triggered
+ * exports, the editor tab for its own buttons). The point is to parse what
+ * the file actually contains — a PNG's IHDR, a PDF's MediaBoxes — because
+ * "a download happened" is exactly the bar this bug cleared while silently
+ * writing partial pages.
+ */
+async function recordExportBytes(ctx: { evaluate: (fn: () => void) => Promise<void> }): Promise<void> {
+  await ctx.evaluate(() => {
+    globalThis.__exportBytes = [];
+    chrome.downloads.download = ((options: chrome.downloads.DownloadOptions) => {
+      const m = /data:([^;]+);base64,(.*)/s.exec(options.url ?? "");
+      if (m) globalThis.__exportBytes.push({ name: options.filename ?? "", mime: m[1]!, b64: m[2]! });
+      return Promise.resolve(1);
+    }) as typeof chrome.downloads.download;
+  });
+}
+
+function pngHeight(b64: string): number {
+  const bin = atob(b64);
+  return ((bin.charCodeAt(20) << 24 | bin.charCodeAt(21) << 16 | bin.charCodeAt(22) << 8 | bin.charCodeAt(23)) >>> 0);
+}
+
+function pdfMediaBoxes(b64: string): [number, number][] {
+  const bin = atob(b64);
+  const boxes: [number, number][] = [];
+  const re = /MediaBox \[0 0 ([\d.]+) ([\d.]+)\]/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(bin))) boxes.push([parseFloat(m[1]!), parseFloat(m[2]!)]);
+  return boxes;
 }
 
 test("a capture too long to finish is left to the user, not downloaded or opened", async ({
@@ -112,6 +147,40 @@ test("a capture too long to finish is left to the user, not downloaded or opened
   expect(shown.height).toBeLessThanOrEqual(editable);
   const notice = await editorPage.locator("#splitNoticeText").textContent();
   expect(notice).toContain("openpdfedit.com/app");
+
+  // The editor's own export buttons used to write exactly the part 1 on
+  // the canvas — the very data loss the notice above promises against.
+  // Both must reassemble the whole page: PNG as one numbered file per
+  // part, PDF as one file with a page per part.
+  await recordExportBytes(editorPage);
+  await editorPage.click("#downloadPng");
+  await expect
+    .poll(
+      async () =>
+        editorPage.evaluate(() => (globalThis.__exportBytes ?? []).filter((e) => e.name.endsWith(".png")).length),
+      { timeout: 120_000 },
+    )
+    .toBe(report.output_image_count);
+  const pngHeights = (await editorPage.evaluate(() =>
+    (globalThis.__exportBytes ?? []).filter((e) => e.name.endsWith(".png")).map((e) => e.b64),
+  )).map(pngHeight);
+  // The parts are contiguous ranges of one canvas, so their heights sum to
+  // the page — anything less means the editor's export drops rows too.
+  expect(pngHeights.reduce((a, b) => a + b, 0)).toBe(report.output_height_px);
+  await editorPage.click("#downloadPdf");
+  await expect
+    .poll(
+      async () =>
+        editorPage.evaluate(() => (globalThis.__exportBytes ?? []).filter((e) => e.name.endsWith(".pdf")).length),
+      { timeout: 120_000 },
+    )
+    .toBe(1);
+  const boxes = pdfMediaBoxes(
+    await editorPage.evaluate(() => (globalThis.__exportBytes ?? []).find((e) => e.name.endsWith(".pdf"))!.b64),
+  );
+  expect(boxes.length).toBe(report.output_image_count);
+  // dpr is 1 here, so the page's css height lands as height×0.75pt.
+  expect(Math.round(boxes.reduce((sum, [, h]) => sum + h, 0))).toBe(Math.round(report.output_height_px * 0.75));
   await editorPage.close();
 
   // And the answer is remembered, so reopening does not ask again.
@@ -256,4 +325,34 @@ test("one image the editor still cannot hold whole is trimmed, and says so", asy
   const notice = await editorPage.locator("#splitNoticeText").textContent();
   expect(notice).toContain("too long to annotate in one piece");
   expect(notice).toContain("openpdfedit.com/app");
+
+  // The other half of the original bug, in its purest form: one PNG, more
+  // rows than the editor shows. The editor's own export used to hold only
+  // the trimmed rows the canvas was cut to; it must compose the canvas's
+  // edits back over the full capture and save every row.
+  await recordExportBytes(editorPage);
+  await editorPage.click("#downloadPng");
+  await expect
+    .poll(
+      async () =>
+        editorPage.evaluate(() => (globalThis.__exportBytes ?? []).filter((e) => e.name.endsWith(".png")).length),
+      { timeout: 120_000 },
+    )
+    .toBe(1);
+  expect(
+    pngHeight(await editorPage.evaluate(() => (globalThis.__exportBytes ?? []).find((e) => e.name.endsWith(".png"))!.b64)),
+  ).toBe(report.output_height_px);
+  await editorPage.click("#downloadPdf");
+  await expect
+    .poll(
+      async () =>
+        editorPage.evaluate(() => (globalThis.__exportBytes ?? []).filter((e) => e.name.endsWith(".pdf")).length),
+      { timeout: 120_000 },
+    )
+    .toBe(1);
+  const boxes = pdfMediaBoxes(
+    await editorPage.evaluate(() => (globalThis.__exportBytes ?? []).find((e) => e.name.endsWith(".pdf"))!.b64),
+  );
+  expect(boxes.length).toBe(1);
+  expect(Math.round(boxes[0]![1])).toBe(Math.round(report.output_height_px * 0.75));
 });

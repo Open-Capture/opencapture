@@ -42,6 +42,14 @@ export const PDF_HANDOFF_PORT_NAME = "opencapture-pdf-handoff";
 
 export const LAST_CAPTURE_BLOB_KEY = "lastCaptureImage";
 
+// Port the editor tab opens at export time to fetch output images 2..N of a
+// capture that split — the editor itself is only ever handed the first one
+// (see getLastCaptureFirstImage's comment in background/orchestrator.ts), but
+// its PNG/PDF export buttons reassemble the whole page from all of them. A
+// port, not direct IndexedDB reads, for the same Firefox private-window
+// partitioning reason as EDITOR_IMAGE_PORT_NAME above.
+export const LAST_CAPTURE_PARTS_PORT_NAME = "lastCaptureParts";
+
 // Output images beyond the first, only populated when a very tall page
 // split into more than one output PNG (see orchestrator.ts's
 // rememberLastCapture). Index 0 is always LAST_CAPTURE_BLOB_KEY above;

@@ -7,7 +7,7 @@
 // export is the one thing here that *does* route through shot-core's wasm
 // build, since PDF page geometry is exactly the kind of pixel-correctness
 // code the project keeps in Rust — see wasm-loader below.
-import { EDITOR_IMAGE_PORT_NAME } from "../chrome/blob-store";
+import { EDITOR_IMAGE_PORT_NAME, LAST_CAPTURE_PARTS_PORT_NAME } from "../chrome/blob-store";
 import { initPageLocale, t } from "../i18n";
 import { copyPngBytesToClipboard } from "../chrome/copy-image";
 import { getSavedDirectoryHandle } from "../chrome/dir-handle-store";
@@ -1868,6 +1868,21 @@ const toolFrameBtn = document.getElementById("toolFrame") as HTMLButtonElement;
 let capturePageUrl = "";
 let captureTakenAt = Date.now();
 
+// What loadImage() put on the canvas, remembered so the export buttons can
+// put back the parts of the capture the canvas leaves out. `loadedWidth`/
+// `loadedShownHeight` describe the canvas as first loaded: an export whose
+// canvas still matches those dimensions is the untouched top of the capture,
+// and the rest of the page can be reassembled around it. Anything else (a
+// crop, a frame) redefined the image's boundary, and the canvas alone is
+// what gets saved. `captureBlob` keeps the compressed pixels rather than a
+// decoded bitmap so holding the whole session open doesn't pin hundreds of
+// megabytes — the decode happens again only when an export composes.
+let loadedWidth = 0;
+let loadedShownHeight = 0;
+let loadedFullHeight = 0;
+let captureImageCount = 1;
+let captureBlob: Blob | null = null;
+
 /**
  * Which frame is currently composited into the canvas.
  *
@@ -2025,9 +2040,9 @@ window.addEventListener("keydown", (e) => {
   }
 });
 
-function canvasPngBytes(): Promise<Uint8Array> {
+function canvasPngBytes(surface: HTMLCanvasElement = canvas): Promise<Uint8Array> {
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => {
+    surface.toBlob((blob) => {
       if (!blob) {
         reject(new Error("canvas.toBlob returned null"));
         return;
@@ -2038,6 +2053,125 @@ function canvasPngBytes(): Promise<Uint8Array> {
         .catch(reject);
     }, "image/png");
   });
+}
+
+// PNG files start with an 8-byte signature, then the IHDR chunk: 4 length
+// bytes, 4 type bytes, then width and height as big-endian u32s at offsets
+// 16 and 20. Composing knows its own size, but the parts fetched from the
+// background arrive as bare bytes, and the post-export status reports the
+// size the file actually holds rather than the canvas's possibly-trimmed
+// dimensions.
+function pngSize(bytes: Uint8Array): { width: number; height: number } {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  return { width: view.getUint32(16), height: view.getUint32(20) };
+}
+
+// Fetches output images 2..N of the last capture from the background over a
+// runtime.connect Port — the same Firefox private-browsing storage
+// partitioning reasoning as requestEditorImageBytes below. The background
+// streams `{parts}` first, then base64 chunks tagged with their part index,
+// then `{allDone}`; a store that has lost a part answers `{error}` instead,
+// and the export aborts rather than silently stopping where the store did.
+function requestRemainingParts(): Promise<Uint8Array[]> {
+  return new Promise((resolve, reject) => {
+    const port = ext.runtime.connect({ name: LAST_CAPTURE_PARTS_PORT_NAME });
+    const chunks: Uint8Array[][] = [];
+    port.onMessage.addListener((msg: { parts?: number; index?: number; chunk?: string; allDone?: boolean; error?: string }) => {
+      if (msg.error) {
+        port.disconnect();
+        reject(new Error(msg.error));
+        return;
+      }
+      if (typeof msg.parts === "number") {
+        chunks.length = Math.max(0, msg.parts - 1);
+        return;
+      }
+      if (msg.chunk && msg.index !== undefined) {
+        (chunks[msg.index - 1] ??= []).push(base64ToBytes(msg.chunk));
+        return;
+      }
+      if (msg.allDone) {
+        port.disconnect();
+        resolve(chunks.map(mergeBytes));
+      }
+    });
+  });
+}
+
+function mergeBytes(chunks: Uint8Array[]): Uint8Array {
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const chunk of chunks) {
+    merged.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return merged;
+}
+
+/**
+ * Part 1 at its full original height, this canvas's edits included — the
+ * untouched pixels loadImage() trimmed away, with the annotated canvas drawn
+ * over their top rows so annotations land exactly where they were drawn.
+ * Null when the canvas refused the full size (see canvas-limit.ts): the
+ * caller then falls back to the visible rows and says so rather than
+ * passing a shortened file off as the page.
+ */
+async function composeFullPage(): Promise<Uint8Array | null> {
+  const bitmap = await createImageBitmap(captureBlob!);
+  const out = document.createElement("canvas");
+  out.width = bitmap.width;
+  out.height = bitmap.height;
+  const octx = out.getContext("2d");
+  if (!octx) return null;
+  octx.drawImage(bitmap, 0, 0);
+  octx.drawImage(canvas, 0, 0);
+  const held = canvasHeldImage(octx, bitmap.width, bitmap.height);
+  bitmap.close();
+  if (!held) return null;
+  return canvasPngBytes(out);
+}
+
+/**
+ * The capture as PNG parts with every edit on this canvas carried into the
+ * first one — or null when the canvas is no longer the untouched top of the
+ * capture, because a crop or a frame redefined the image's boundary and the
+ * canvas alone is now exactly what the user made.
+ *
+ * Two ways the canvas can be missing part of the capture, and this repairs
+ * both: loadImage() trimmed the view to stay responsive (the trimmed rows
+ * are still in `captureBlob`, composed back in by composeFullPage), and a
+ * page past shot-core's per-image cap arrives as several output images with
+ * only the first opened here (parts 2..N are still in the background's blob
+ * store — see getLastCaptureImages). The parts are contiguous row ranges of
+ * one canvas (plan.rs's split_ranges), so part 1 restored to full height
+ * followed by the rest is the page exactly as captured, and imagesToPdf
+ * paginates it without further geometry.
+ *
+ * `note` accompanies a fallback export: the compose was refused on this
+ * device, and the file is the visible rows only — the status line has to be
+ * the one place that doesn't claim the page is whole.
+ */
+async function editedCaptureParts(): Promise<{ parts: Uint8Array[]; note?: string } | null> {
+  const untouched = captureBlob !== null && canvas.width === loadedWidth && canvas.height === loadedShownHeight;
+  if (!untouched) return null;
+
+  let first: Uint8Array;
+  let note: string | undefined;
+  if (loadedShownHeight < loadedFullHeight) {
+    setStatus("Composing the whole page…");
+    const composed = await composeFullPage();
+    if (composed) {
+      first = composed;
+    } else {
+      first = await canvasPngBytes();
+      note = `This device couldn't compose the full ${loadedWidth} × ${loadedFullHeight} page, so the export holds the ${loadedShownHeight} rows shown — the popup's “Export as PDF” keeps the whole page.`;
+    }
+  } else {
+    first = await canvasPngBytes();
+  }
+  const rest = captureImageCount > 1 ? await requestRemainingParts() : [];
+  return note !== undefined ? { parts: [first, ...rest], note } : { parts: [first, ...rest] };
 }
 
 // Where PNG/PDF exports land — saveOutput() (chrome/save.ts) already reads
@@ -2114,8 +2248,25 @@ document.getElementById("copyToClipboard")!.addEventListener("click", async () =
 document.getElementById("downloadPng")!.addEventListener("click", async () => {
   if (pendingShape) commitPendingShape(); // so the download matches what's on screen
   try {
-    const result = await saveOutput(await canvasPngBytes(), "-annotated", "png", "image/png");
-    setStatus(result.savedToCustomFolder ? `Saved to your chosen folder — ${canvas.width}×${canvas.height}` : `${canvas.width}×${canvas.height}`);
+    const edited = await editedCaptureParts();
+    if (!edited) {
+      const result = await saveOutput(await canvasPngBytes(), "-annotated", "png", "image/png");
+      setStatus(result.savedToCustomFolder ? `Saved to your chosen folder — ${canvas.width}×${canvas.height}` : `${canvas.width}×${canvas.height}`);
+      return;
+    }
+    // A split capture leaves as the same numbered pages the popup's PNG
+    // answer writes — the suffix is what keeps their order legible once the
+    // folder is sorted by name. A capture that never split keeps the plain
+    // name, for the same reason the popup's is plain.
+    const parts = edited.parts;
+    const results = await Promise.all(
+      parts.map((bytes, i) =>
+        saveOutput(bytes, parts.length === 1 ? "-annotated" : `-annotated-page-${i + 1}-of-${parts.length}`, "png", "image/png"),
+      ),
+    );
+    const size = `${pngSize(parts[0]!).width}×${parts.reduce((sum, p) => sum + pngSize(p).height, 0)}`;
+    const folderNote = results.some((r) => r.savedToCustomFolder) ? "Saved to your chosen folder — " : "";
+    setStatus(edited.note ?? `${folderNote}${size}`);
   } catch (err) {
     setStatus(`Download failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -2125,11 +2276,21 @@ document.getElementById("downloadPdf")!.addEventListener("click", async () => {
   if (pendingShape) commitPendingShape(); // so the download matches what's on screen
   setStatus("Building PDF…");
   try {
-    const pngBytes = await canvasPngBytes();
     const shotCore = await loadShotCore();
-    const pdfBytes = shotCore.pngToPdf(pngBytes, currentDpr) as Uint8Array;
+    const edited = await editedCaptureParts();
+    // One part is pngToPdf's whole job; several are one PDF page each, in
+    // capture order — the same file the popup's export builds, with this
+    // canvas's edits on the first page.
+    const pdfBytes = edited
+      ? edited.parts.length === 1
+        ? (shotCore.pngToPdf(edited.parts[0]!, currentDpr) as Uint8Array)
+        : (shotCore.imagesToPdf(edited.parts, currentDpr) as Uint8Array)
+      : (shotCore.pngToPdf(await canvasPngBytes(), currentDpr) as Uint8Array);
     const result = await saveOutput(pdfBytes, "-annotated", "pdf", "application/pdf");
-    setStatus(result.savedToCustomFolder ? `Saved to your chosen folder — ${canvas.width}×${canvas.height}` : `${canvas.width}×${canvas.height}`);
+    const size = edited
+      ? `${pngSize(edited.parts[0]!).width}×${edited.parts.reduce((sum, p) => sum + pngSize(p).height, 0)}`
+      : `${canvas.width}×${canvas.height}`;
+    setStatus(edited?.note ?? (result.savedToCustomFolder ? `Saved to your chosen folder — ${size}` : size));
   } catch (err) {
     setStatus(`PDF export failed: ${err instanceof Error ? err.message : String(err)}`);
   }
@@ -2176,14 +2337,7 @@ function requestEditorImageBytes(): Promise<Uint8Array | null> {
         resolve(null);
         return;
       }
-      const total = chunks.reduce((sum, c) => sum + c.length, 0);
-      const merged = new Uint8Array(total);
-      let offset = 0;
-      for (const chunk of chunks) {
-        merged.set(chunk, offset);
-        offset += chunk.length;
-      }
-      resolve(merged);
+      resolve(mergeBytes(chunks));
     });
   });
 }
@@ -2238,8 +2392,8 @@ async function loadImage(): Promise<void> {
     return;
   }
   currentDpr = dpr ?? 1;
-  const blob = new Blob([bytes as BlobPart], { type: "image/png" });
-  const bitmap = await createImageBitmap(blob);
+  captureBlob = new Blob([bytes as BlobPart], { type: "image/png" });
+  const bitmap = await createImageBitmap(captureBlob);
   // Only as much of it as this can stay an editor over — see
   // capture-size.ts. Every committed shape re-rasterises the whole canvas
   // (the comment above requestEditorImageBytes has the detail), so past a
@@ -2252,6 +2406,10 @@ async function loadImage(): Promise<void> {
   canvas.width = bitmap.width;
   canvas.height = shownHeight;
   ctx.drawImage(bitmap, 0, 0);
+  loadedWidth = bitmap.width;
+  loadedShownHeight = shownHeight;
+  loadedFullHeight = bitmap.height;
+  captureImageCount = imageCount ?? 1;
   finishLoading();
   syncPreviewCanvas();
   // Past a certain size the canvas stops accepting draws instead of
@@ -2260,14 +2418,16 @@ async function loadImage(): Promise<void> {
   // draws into this same canvas, so if the capture itself didn't land
   // there is nothing to annotate; say so and stop, rather than leave a
   // blank canvas and a full toolbar that quietly does nothing.
-  if (!canvasHeldImage(ctx, bitmap.width, shownHeight)) {
+  if (!canvasHeldImage(ctx, loadedWidth, shownHeight)) {
     setStatus(t("Too large to edit on this device."));
     showNotice(
-      `This ${bitmap.width}×${bitmap.height} capture is larger than this device can display, so it can't be annotated here. The capture itself is complete — use “Save as PNG” or “Export as PDF” from the popup to keep it.`,
+      `This ${loadedWidth}×${loadedFullHeight} capture is larger than this device can display, so it can't be annotated here. The capture itself is complete — use “Save as PNG” or “Export as PDF” from the popup to keep it.`,
     );
+    bitmap.close();
     return;
   }
-  setStatus(`${bitmap.width}×${shownHeight}`);
+  bitmap.close();
+  setStatus(`${loadedWidth}×${shownHeight}`);
   selectTool("crop");
   // A page large enough to exceed shot-core's per-image pixel cap
   // (plan.rs's MAX_CANVAS_AREA_PX) splits into several output PNGs — this
@@ -2283,16 +2443,16 @@ async function loadImage(): Promise<void> {
   // overwrite each other.
   const rows = new Intl.NumberFormat();
   const split = imageCount !== undefined && imageCount > 1;
-  const trimmed = shownHeight < bitmap.height;
+  const trimmed = shownHeight < loadedFullHeight;
   if (split || trimmed) {
     const what = split
       ? `Showing part 1 of ${imageCount}`
-      : `Showing the first ${rows.format(shownHeight)} rows of ${rows.format(bitmap.height)}`;
+      : `Showing the first ${rows.format(shownHeight)} rows of ${rows.format(loadedFullHeight)}`;
     const why = split
       ? "this page was too large for one image and was split"
       : "this page is too long to annotate in one piece";
     showNotice(
-      `${what} — ${why}. Nothing was dropped: “Export as PDF” from the popup keeps the whole page in one file, and openpdfedit.com/app can edit it.`,
+      `${what} — ${why}. Nothing was dropped: “Export PDF” here or “Export as PDF” from the popup keeps the whole page in one file, “Download PNG” saves every part, and openpdfedit.com/app can edit it.`,
     );
   }
 }

@@ -1,6 +1,7 @@
 import {
   EDITOR_IMAGE_BLOB_KEY,
   EDITOR_IMAGE_PORT_NAME,
+  LAST_CAPTURE_PARTS_PORT_NAME,
   PDF_HANDOFF_BLOB_KEY,
   PDF_HANDOFF_PORT_NAME,
   deleteBlob,
@@ -149,6 +150,31 @@ ext.runtime.onConnect.addListener((port) => {
     }
     port.postMessage({ done: true });
   })();
+});
+
+// Streams output images 2..N of the last capture to the editor tab. The
+// editor only ever receives part 1 at open (see getLastCaptureFirstImage's
+// comment in orchestrator.ts for why), but its export buttons reassemble
+// the whole page, which needs the parts it was not shown. Chunked and
+// base64 for the same two reasons as the editor image port above; unlike
+// that key these are read-only — the popup's own exports still need them
+// after this.
+ext.runtime.onConnect.addListener((port) => {
+  if (port.name !== LAST_CAPTURE_PARTS_PORT_NAME) return;
+  (async () => {
+    const images = await getLastCaptureImages();
+    port.postMessage({ parts: images.length });
+    for (let i = 1; i < images.length; i++) {
+      for (let offset = 0; offset < images[i]!.length; offset += EDITOR_IMAGE_CHUNK_SIZE) {
+        port.postMessage({ index: i, chunk: bytesToBase64(images[i]!.subarray(offset, offset + EDITOR_IMAGE_CHUNK_SIZE)) });
+      }
+    }
+    port.postMessage({ allDone: true });
+  })().catch((err: unknown) => {
+    // The honest failure for a missing part: nothing is exported rather
+    // than an export that quietly stops where the store ran out.
+    port.postMessage({ error: err instanceof Error ? err.message : String(err) });
+  });
 });
 
 // The PDF an export set aside for openpdfedit.com/app, handed to the content
