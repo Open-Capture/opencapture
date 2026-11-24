@@ -133,7 +133,16 @@ async function disambiguateNoGrant(tabId: number, fallback: CaptureFailureError)
 }
 
 async function sendToContent<T>(tabId: number, request: ContentRequest): Promise<T> {
-  return ext.tabs.sendMessage(tabId, request) as Promise<T>;
+  try {
+    return (await ext.tabs.sendMessage(tabId, request)) as T;
+  } catch (err) {
+    // "Could not establish connection. Receiving end does not exist." reached
+    // the user verbatim on Firefox for Android. Classified, so the
+    // popup can say what to do about it in the user's language.
+    const rawMessage = err instanceof Error ? err.message : String(err);
+    const failure = CaptureFailureError.from({ url: "", fileAccessAllowed: undefined, rawMessage });
+    throw failure.reason === "raw" ? err : failure;
+  }
 }
 
 /**

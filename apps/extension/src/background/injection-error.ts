@@ -62,7 +62,13 @@ export interface InjectionContext {
  * `raw` means nothing here recognised it: the popup shows the browser's own
  * words, which is still better than inventing a cause.
  */
-export type CaptureErrorReason = "restricted-page" | "needs-refresh" | "file-access" | "raw";
+export type CaptureErrorReason =
+  | "restricted-page"
+  | "needs-refresh"
+  | "file-access"
+  | "page-unreachable"
+  | "page-not-in-front"
+  | "raw";
 
 /** The browser refusing because the page is one no extension may touch. */
 const RESTRICTED_MESSAGES = [
@@ -95,6 +101,15 @@ const NO_GRANT_MESSAGES = [
   /missing host permission for the tab/i,
 ];
 
+/**
+ * The script was injected, or the browser said it was, but nothing in the tab
+ * answers it. Firefox for Android produced this on the first full-page
+ * attempt, where the "active tab" was the popup's own page; it is
+ * also what any browser says to a page that discarded the script, and the
+ * raw sentence reads as an internal bug either way.
+ */
+const UNREACHABLE_MESSAGES = [/receiving end does not exist/i, /could not establish connection/i];
+
 function looksBlocked(url: string): boolean {
   return url !== "" && BLOCKED_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
@@ -106,6 +121,7 @@ export function classifyCaptureFailure(ctx: InjectionContext): CaptureErrorReaso
   if (looksBlocked(ctx.url)) return "restricted-page";
   if (RESTRICTED_MESSAGES.some((re) => re.test(ctx.rawMessage))) return "restricted-page";
   if (NO_GRANT_MESSAGES.some((re) => re.test(ctx.rawMessage))) return "needs-refresh";
+  if (UNREACHABLE_MESSAGES.some((re) => re.test(ctx.rawMessage))) return "page-unreachable";
   return "raw";
 }
 
@@ -132,6 +148,10 @@ export function explainCaptureFailure(reason: CaptureErrorReason, rawMessage: st
       );
     case "needs-refresh":
       return "This page has moved on since the extension was opened. Reload it, then click the icon again.";
+    case "page-unreachable":
+      return "OpenCapture couldn't talk to this page. Reload it and try again.";
+    case "page-not-in-front":
+      return "The page didn't come back to the front after OpenCapture closed, so nothing was captured. Go back to the page and try again.";
     case "raw":
       return rawMessage;
   }

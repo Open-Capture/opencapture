@@ -6,15 +6,23 @@
 // which is why the SDK's `asyncBackedStore` exists: it keeps a synchronous
 // in-memory copy for the client and writes through.
 //
-// `session` rather than `local`: it is memory-backed and cleared when the
-// browser closes, so refresh tokens never touch disk — consistent with this
-// extension's local-only posture elsewhere (no capture data ever leaves the
-// device; the OpenApps session is the one thing that does talk to a server,
-// and it is opt-in and disk-free). The cost is signing in again after a
-// browser restart.
+// `local` rather than `session`, so signing in survives a browser restart.
+// This used to be `session` — memory-backed, cleared when the browser closes,
+// so refresh tokens never touched disk — and the cost turned out to be every
+// Supporter signing in again each morning before the watermark tool would
+// open. storage.local is what extensions normally keep tokens in, and the
+// SDK's own default on the web is localStorage: it is private to this
+// extension, unreadable by web pages and by other extensions. Unlike
+// storage.session it is also visible to this extension's own content
+// scripts — none of which read it. The access token is short-lived; Sign out
+// revokes the refresh token server-side and removes it here.
+//
+// A session from an older version still sitting in storage.session is moved
+// across on first load, so updating doesn't sign anyone out.
 import { OpenApps, asyncBackedStore } from "@openapps/sdk";
-import type { Session } from "@openapps/sdk";
+import type { AsyncTokenBackend, Session } from "@openapps/sdk";
 import { ext } from "../platform/webext";
+import { clearSupporterCache } from "./supporter-entitlement";
 
 // A CNAME'd custom domain, not the shared OpenApps backend's own — same
 // server, same account/credits database (sessions are bearer tokens, not
@@ -34,19 +42,43 @@ export const OPENAPPS_BASE_URL = "https://auth.opencapture.app";
 // user is shown changes. The old host stays in nginx's server_name, so an
 // install that already granted it keeps working.
 export const OPENAPPS_GATEWAY_URL = "https://gateway.opencapture.app";
-const KEY = "openapps.session";
+export const SESSION_KEY = "openapps.session";
+const KEY = SESSION_KEY;
 
-export const store = asyncBackedStore(
-  {
+/** The two storage areas the session can be in; `session` only for migration. */
+export interface SessionAreas {
+  local: Pick<chrome.storage.StorageArea, "get" | "set" | "remove">;
+  session?: Pick<chrome.storage.StorageArea, "get" | "remove"> | undefined;
+}
+
+export function sessionBackend(areas: SessionAreas): AsyncTokenBackend {
+  return {
     async load() {
-      const result = await ext.storage.session.get(KEY);
-      return (result[KEY] as Session | undefined) ?? null;
+      const local = (await areas.local.get(KEY))[KEY] as Session | undefined;
+      if (local) return local;
+      if (!areas.session) return null;
+      const legacy = (await areas.session.get(KEY))[KEY] as Session | undefined;
+      if (!legacy) return null;
+      await areas.local.set({ [KEY]: legacy });
+      await areas.session.remove(KEY);
+      return legacy;
     },
     async save(session) {
-      if (session) await ext.storage.session.set({ [KEY]: session });
-      else await ext.storage.session.remove(KEY);
+      if (session) {
+        await areas.local.set({ [KEY]: session });
+        return;
+      }
+      await areas.local.remove(KEY);
+      // Signed out — whatever the server last said about this account's
+      // Supporter unlock no longer applies to whoever signs in next.
+      await clearSupporterCache(areas.local);
+      if (areas.session) await areas.session.remove(KEY);
     },
-  },
+  };
+}
+
+export const store = asyncBackedStore(
+  sessionBackend({ local: ext.storage.local, session: ext.storage.session }),
   (error) => console.warn("[openapps] session storage failed", error),
 );
 

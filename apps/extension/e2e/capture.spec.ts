@@ -2487,13 +2487,13 @@ test("watermark tool: tiled pattern respects location/orientation, remembers the
 
   // Bypass the Supporter gate: seed a fake signed-in session *before* the
   // editor page loads (its own openapps store only hydrates once, from
-  // whatever chrome.storage.session holds at that first read — writing to
+  // whatever chrome.storage.local holds at that first read — writing to
   // it after the page has already loaded would not be picked up), and mock
   // the entitlement check as already-unlocked. The gate itself has its own
   // dedicated tests below; this test is about the watermark panel's own
   // behavior once past it.
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.session.set({
+    await chrome.storage.local.set({
       "openapps.session": { accessToken: "e2e-fake-token", refreshToken: "e2e-fake-refresh" },
     });
   });
@@ -2697,7 +2697,7 @@ test("watermark tool: signed in but not yet Supporter shows the 1000-credit unlo
   }, windowId);
 
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.session.set({
+    await chrome.storage.local.set({
       "openapps.session": { accessToken: "e2e-fake-token", refreshToken: "e2e-fake-refresh" },
     });
   });
@@ -2741,6 +2741,99 @@ test("watermark tool: signed in but not yet Supporter shows the 1000-credit unlo
   await expect(editorPage.locator("#watermarkPanel")).toBeHidden();
 
   await editorPage.close();
+  await page.close();
+});
+
+test("watermark tool: a failed entitlement check never offers the purchase, and a known Supporter gets in offline", async ({
+  context,
+  serviceWorker,
+}) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 800, height: 600 });
+  await page.goto(`${BASE_URL}/ruler-3000.html`);
+
+  const windowId = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab) throw new Error(`no tab found for ${url}`);
+    return tab.windowId;
+  }, page.url());
+  await serviceWorker.evaluate(async (winId) => {
+    // @ts-expect-error test-only global, see background/index.ts
+    await globalThis.__test.captureVisibleOnly(winId);
+  }, windowId);
+
+  await serviceWorker.evaluate(async () => {
+    await chrome.storage.local.remove("opencapture.supporterUnlocked");
+    await chrome.storage.local.set({
+      "openapps.session": { accessToken: "e2e-fake-token", refreshToken: "e2e-fake-refresh" },
+    });
+  });
+  // The server is unreachable first, then answers, then is unreachable again.
+  let entitlement: "down" | "unlocked" = "down";
+  let unlockCalls = 0;
+  await context.route("https://auth.opencapture.app/v1/credits/entitlement*", (route) =>
+    entitlement === "down"
+      ? route.abort("internetdisconnected")
+      : route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ unlocked: true }) }),
+  );
+  await context.route("https://gateway.opencapture.app/opencapture/supporter/unlock", (route) => {
+    unlockCalls++;
+    return route.fulfill({ status: 500, body: "{}" });
+  });
+
+  const [editorPage] = await Promise.all([
+    context.waitForEvent("page"),
+    serviceWorker.evaluate(async () => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.openEditor();
+    }),
+  ]);
+  await editorPage.waitForLoadState();
+  await editorPage.waitForFunction(() => {
+    const c = document.getElementById("canvas") as HTMLCanvasElement;
+    const stack = document.getElementById("canvasStack");
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
+  });
+
+  // Nothing known about this account yet: neutral, with a retry — not the offer.
+  await editorPage.click("#toolWatermark");
+  await expect(editorPage.locator("#watermarkGateMessage")).toContainText("Couldn't check");
+  await expect(editorPage.locator("#watermarkGateAction")).toHaveText("Try again");
+  await expect(editorPage.locator("#watermarkGatePanel")).not.toContainText("Unlock for 1000 credits");
+  await expect(editorPage.locator("#watermarkPanel")).toBeHidden();
+
+  // Back online: the retry gets the real answer, and it is remembered.
+  entitlement = "unlocked";
+  await editorPage.click("#watermarkGateAction");
+  await expect(editorPage.locator("#watermarkPanel")).toBeVisible();
+  await expect(editorPage.locator("#watermarkGatePanel")).toBeHidden();
+  expect(
+    await serviceWorker.evaluate(async () => (await chrome.storage.local.get("opencapture.supporterUnlocked"))["opencapture.supporterUnlocked"]),
+  ).toMatchObject({ unlocked: true });
+  await editorPage.close();
+
+  // Offline again, in a fresh editor: the remembered unlock lets them in.
+  entitlement = "down";
+  const [editorPage2] = await Promise.all([
+    context.waitForEvent("page"),
+    serviceWorker.evaluate(async () => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.openEditor();
+    }),
+  ]);
+  await editorPage2.waitForLoadState();
+  await editorPage2.waitForFunction(() => {
+    const c = document.getElementById("canvas") as HTMLCanvasElement;
+    const stack = document.getElementById("canvasStack");
+    return c.width > 0 && c.height > 0 && !!stack && !stack.classList.contains("loading");
+  });
+  await editorPage2.click("#toolWatermark");
+  await expect(editorPage2.locator("#watermarkPanel")).toBeVisible();
+  await expect(editorPage2.locator("#watermarkGatePanel")).toBeHidden();
+  expect(unlockCalls).toBe(0);
+
+  await editorPage2.close();
   await page.close();
 });
 
@@ -2818,7 +2911,22 @@ test("rating prompt: a 1-3 star tap shows a feedback link instead of opening the
   await popup.click('.rating-star[data-stars="2"]');
   await expect(popup.locator("#ratingPromptAsk")).toBeHidden();
   await expect(popup.locator("#ratingPromptFeedback")).toBeVisible();
-  await expect(popup.locator("#ratingFeedbackLink")).toHaveAttribute("href", /^mailto:hello@opencapture\.app\?subject=/);
+  await expect(popup.locator("#ratingFeedbackLink")).toHaveAttribute("href", "https://t.me/openappsnetwork/42");
+  await popup.close();
+});
+
+test("popup: the help line points at Telegram and X, opening each in a new tab", async ({ context, extensionId }) => {
+  const popup = await context.newPage();
+  await popup.goto(`chrome-extension://${extensionId}/popup.html`);
+  const telegram = popup.locator("#telegramLink");
+  const x = popup.locator("#followXLink");
+  await expect(telegram).toBeVisible();
+  await expect(telegram).toHaveAttribute("href", "https://t.me/openappsnetwork/42");
+  await expect(telegram).toHaveAttribute("target", "_blank");
+  await expect(telegram).toHaveAttribute("rel", "noopener");
+  await expect(x).toBeVisible();
+  await expect(x).toHaveAttribute("href", "https://x.com/OpenCaptureApp");
+  await expect(x).toHaveAttribute("target", "_blank");
   await popup.close();
 });
 
@@ -2835,7 +2943,7 @@ test("account page: connecting a wallet or Nostr identity opens /link instead of
   // to /link instead; this proves the redirect fires, not that /link's own
   // flow completes (that's link_page.rs's job, server-side).
   await serviceWorker.evaluate(async () => {
-    await chrome.storage.session.set({
+    await chrome.storage.local.set({
       "openapps.session": { accessToken: "e2e-fake-token", refreshToken: "e2e-fake-refresh" },
     });
   });

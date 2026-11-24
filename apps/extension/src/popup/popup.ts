@@ -8,7 +8,9 @@ import { pickDirectory } from "../chrome/pick-directory";
 import {
   getRatingPromptState,
   getStoreReviewUrl,
-  getFeedbackMailto,
+  getFeedbackUrl,
+  TELEGRAM_URL,
+  X_URL,
   getUsageCount,
   recordPromptDismissed,
   recordPromptResponded,
@@ -18,9 +20,54 @@ import { dropPdfEditAccess, hasPdfEditAccess, PDF_EDIT_APP_URL, requestPdfEditAc
 import { getSavePrefs, resolveFilename, setSavePrefs } from "../chrome/save-prefs";
 import { getCapturePrefs, setCapturePrefs, type StickyMode } from "../chrome/capture-prefs";
 import type { CaptureFailure } from "../types";
-import { LOCALES, getLocale, initPageLocale, onLocaleChange, setLocale, t } from "../i18n";
-import { ext } from "../platform/webext";
+import { saveOutput } from "../chrome/save";
+import { LOCALES, getLocale, initPageLocale, localizeDom, onLocaleChange, setLocale, t } from "../i18n";
+import { detectAndroid, ext, onAndroid } from "../platform/webext";
+import { POPUP_PRESENCE_PORT_NAME } from "../background/target-tab";
+import { clearDetachedCaptureWaiting, takeDetachedFailure } from "../chrome/detached-failure";
 import type { CaptureReport, PopupRequest, PopupResponse } from "../types";
+
+// On Android the popup is a full-screen page over the tab, not a panel beside
+// it. The class lets popup.html lay it out for a phone (see its .is-android
+// rules), and the port lets a detached capture know when this page has really
+// gone (background/target-tab.ts) — on desktop neither applies, and nothing
+// connects.
+//
+// The user agent answers before first paint; the platform answers a moment
+// later and wins, because Firefox for Android's "Desktop site" setting gives
+// this page a desktop user agent (see detectAndroid). Until it answers, a tap
+// is judged by the user agent alone.
+let android = false;
+function useAndroidLayout(): void {
+  if (android) return;
+  android = true;
+  document.documentElement.classList.add("is-android");
+  ext.runtime.connect({ name: POPUP_PRESENCE_PORT_NAME });
+  // Firefox for Android takes the image write and puts nothing on the
+  // system clipboard: the popup said "Copied" and nothing pasted anywhere.
+  // There, the button saves the PNG instead, and says so.
+  const label = [...document.getElementById("copyToClipboard")!.childNodes].find(
+    (n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim(),
+  );
+  if (label) {
+    label.replaceWith(document.createTextNode("Save as PNG"));
+    localizeDom(document.getElementById("copyToClipboard")!);
+  }
+}
+if (onAndroid) useAndroidLayout();
+else
+  void detectAndroid().then((yes) => {
+    if (yes) useAndroidLayout();
+  });
+
+/**
+ * Whether the capture report (raw numbers: slice count, lazy images forced…)
+ * is shown under the preview. It is for whoever is debugging a capture, not
+ * for the person taking it, and it sat under every preview in
+ * the store build. Only an e2e or OPENCAPTURE_DEBUG=1 build shows it; see
+ * vite.config.ts.
+ */
+declare const __OPENCAPTURE_DEBUG_REPORT__: boolean;
 
 function $(id: string): HTMLElement {
   const el = document.getElementById(id);
@@ -30,6 +77,12 @@ function $(id: string): HTMLElement {
 
 const statusEl = $("status");
 const reportEl = $("report") as HTMLPreElement;
+
+function showReport(report: CaptureReport): void {
+  if (!__OPENCAPTURE_DEBUG_REPORT__) return;
+  reportEl.style.display = "block";
+  reportEl.textContent = JSON.stringify(report, null, 2);
+}
 const previewEl = $("preview") as HTMLImageElement;
 const exportPdfBtn = $("exportPdf") as HTMLButtonElement;
 const copyBtn = $("copyToClipboard") as HTMLButtonElement;
@@ -151,6 +204,13 @@ async function reportPdfHandoffFailure(): Promise<void> {
 
 reportPdfHandoffFailure();
 
+/** Say why a capture that ran after the last popup closed did not finish. */
+async function reportDetachedFailure(): Promise<void> {
+  await clearDetachedCaptureWaiting();
+  const record = await takeDetachedFailure();
+  if (record) setStatusText(captureErrorText(record.failure, record.action), true);
+}
+
 async function persistSavePrefs(): Promise<void> {
   await setSavePrefs({
     folder: "",
@@ -216,7 +276,7 @@ saveSummaryBtn.addEventListener("click", () => {
 // first.
 rateUsBtn.addEventListener("click", () => {
   void recordPromptResponded();
-  ext.tabs.create({ url: getStoreReviewUrl() });
+  void openTab(getStoreReviewUrl());
 });
 
 async function refreshCustomFolder(): Promise<void> {
@@ -412,8 +472,7 @@ async function restoreLastCaptureUi(): Promise<void> {
   const ui = await getLastCaptureUi();
   if (!ui) return;
 
-  reportEl.style.display = "block";
-  reportEl.textContent = JSON.stringify(ui.report, null, 2);
+  showReport(ui.report);
 
   exportPdfBtn.disabled = false;
   copyBtn.disabled = false;
@@ -434,7 +493,8 @@ async function restoreLastCaptureUi(): Promise<void> {
   }
 }
 
-restoreLastCaptureUi();
+// After the last capture's own status line, which would otherwise overwrite it.
+void restoreLastCaptureUi().then(reportDetachedFailure);
 
 // Nudges toward a store rating after real, repeated use — see
 // chrome/rating-prompt.ts for the show-again/never-again rules. Checked
@@ -467,13 +527,13 @@ document.querySelectorAll<HTMLButtonElement>(".rating-star").forEach((btn) => {
       // tap can get to "not leaving the popup," so it opens in a new tab
       // while this one shows a short acknowledgement instead of just
       // vanishing.
-      ext.tabs.create({ url: getStoreReviewUrl() });
+      void openTab(getStoreReviewUrl());
       ratingPromptAskEl.style.display = "none";
       ratingPromptThanksEl.style.display = "block";
     } else {
       // A low rating is a signal worth capturing without pushing it into
       // a public review — routes to feedback instead of the store.
-      ratingFeedbackLinkEl.href = getFeedbackMailto();
+      ratingFeedbackLinkEl.href = getFeedbackUrl();
       ratingPromptAskEl.style.display = "none";
       ratingPromptFeedbackEl.style.display = "block";
     }
@@ -528,6 +588,24 @@ async function send(request: PopupRequest): Promise<PopupResponse> {
 }
 
 /**
+ * Open a page in its own tab. On Android this popup is a full-screen page
+ * covering the tabs, so a tab opened behind it looked like a button that did
+ * nothing (History, Account): close it, and the new tab is what shows.
+ */
+async function openTab(url: string): Promise<void> {
+  await ext.tabs.create({ url });
+  if (await detectAndroid()) window.close();
+}
+
+/** On Android, ask for the files back and save them here (see types.ts). */
+async function forThisDevice(request: PopupRequest): Promise<PopupRequest> {
+  if ((request.action === "exportPdf" || request.action === "savePngs") && (await detectAndroid())) {
+    return { ...request, inPage: true };
+  }
+  return request;
+}
+
+/**
  * What to put on screen for a failed capture.
  *
  * The browser's own sentences are written for whoever wrote the extension:
@@ -537,7 +615,7 @@ async function send(request: PopupRequest): Promise<PopupResponse> {
  * switch that was never missing. Where the background could tell what kind of
  * refusal it was, say that instead, in the reader's language.
  */
-function captureErrorText(response: CaptureFailure): string {
+function captureErrorText(response: CaptureFailure, action?: PopupRequest["action"]): string {
   switch (response.reason) {
     case "restricted-page":
       return t(
@@ -549,15 +627,29 @@ function captureErrorText(response: CaptureFailure): string {
       return t(
         'Local files need one extra permission in this browser. Open the extension\'s details page, turn on "Allow access to file URLs", then try again.',
       );
+    case "page-unreachable":
+      return t("OpenCapture couldn't talk to this page. Reload it and try again.");
+    case "page-not-in-front":
+      return t(
+        "The page didn't come back to the front after OpenCapture closed, so nothing was captured. Go back to the page and try again.",
+      );
     default:
+      // On Android a full-page capture scrolls and photographs a page through
+      // APIs that are least proven there; when it fails for a reason nothing
+      // recognised, say what does work rather than leave only the error.
+      if (android && action === "captureFullPage") {
+        return t("Full-page capture didn't work in this browser on Android ({error}). Capture visible area works here.", {
+          error: response.error,
+        });
+      }
       // Nothing recognised it. The browser's words beat a guess.
       return t("Error: {error}", { error: response.error });
   }
 }
 
-async function showCaptureResult(response: PopupResponse): Promise<void> {
+async function showCaptureResult(response: PopupResponse, action?: PopupRequest["action"]): Promise<void> {
   if (!response.ok) {
-    setStatusText(captureErrorText(response), true);
+    setStatusText(captureErrorText(response, action), true);
     // Nothing was produced, so the row of things to do with a capture has
     // nothing to act on. On a first run it was showing three dead buttons
     // beside the error; after an earlier capture it still has one, and that
@@ -573,8 +665,7 @@ async function showCaptureResult(response: PopupResponse): Promise<void> {
     return;
   }
   if ("report" in response) {
-    reportEl.style.display = "block";
-    reportEl.textContent = JSON.stringify(response.report, null, 2);
+    showReport(response.report);
     if (response.pngDataUrls[0]) {
       previewEl.style.display = "block";
       previewEl.src = response.pngDataUrls[0];
@@ -628,9 +719,15 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<b
   setBusy(true, busyMessage);
   let ok = false;
   try {
-    const response = await send(request);
+    const response = await send(await forThisDevice(request));
     ok = response.ok;
-    await showCaptureResult(response);
+    if (response.ok && "files" in response && response.files) {
+      for (const f of response.files) await saveOutput(f.bytes, f.suffix, f.ext, f.mime);
+    }
+    // Android's PDF opens in the browser's viewer, in a tab behind this
+    // full-screen popup (background/index.ts, openPdfInViewer).
+    if (response.ok && "closePopup" in response && response.closePopup) window.close();
+    await showCaptureResult(response, request.action);
   } catch (err) {
     setStatusText(t("Error: {error}", { error: err instanceof Error ? err.message : String(err) }), true);
   } finally {
@@ -643,9 +740,20 @@ async function runCapture(request: PopupRequest, busyMessage: string): Promise<b
   return ok;
 }
 
-$("captureFullPage").addEventListener("click", () => runCapture({ action: "captureFullPage" }, t("Capturing full page…")));
-$("captureVisible").addEventListener("click", () => runCapture({ action: "captureVisible" }, t("Capturing visible area…")));
-$("captureSelectedArea").addEventListener("click", async () => {
+/**
+ * Run a capture that works on the page itself, after this popup has gone.
+ *
+ * Selecting an area always needs it: it happens on the page, and a popup is
+ * dismissed by the first click anywhere outside it, so that click was spent
+ * closing this window instead of starting the selection. On Android every
+ * capture that scrolls or overlays the page needs it too, because the popup
+ * there is a full-screen page *covering* the tab — see
+ * background/target-tab.ts. The background waits for this popup to close and
+ * the page to be in front before it starts (`detached`), and keeps a failure
+ * for the next popup to show.
+ */
+async function runAfterClosing(request: PopupRequest, busyMessage: string): Promise<void> {
+  if (busyMessage) setStatusText(busyMessage);
   // Wake the service worker and wait for proof it is listening, BEFORE the
   // window.close() below destroys the sender.
   //
@@ -658,11 +766,6 @@ $("captureSelectedArea").addEventListener("click", async () => {
   // because the first click had left the worker running. Some seconds later
   // it idles out and the next first click fails the same way.
   //
-  // Nothing else in this popup is exposed to it. Every other action awaits
-  // its own reply, which keeps the popup — and so the message — alive until
-  // the worker has answered. This one deliberately does not (see below), so
-  // it has to establish that liveness for itself first.
-  //
   // A ping that never comes back must not strand the popup open: if the
   // worker cannot be reached, closing and losing the capture is no worse
   // than the state this fixes, and a popup that hangs is worse than both.
@@ -671,18 +774,6 @@ $("captureSelectedArea").addEventListener("click", async () => {
     new Promise((resolve) => setTimeout(resolve, PING_TIMEOUT_MS)),
   ]);
 
-  // Sent, then this popup closes itself, rather than waiting to be dismissed.
-  //
-  // Selecting an area is the one action carried out on the page rather than
-  // in here, and a popup is dismissed by the first click anywhere outside it.
-  // That click was therefore spent closing this window instead of starting
-  // the selection: the crosshair only appeared on the click *after* the one
-  // the user meant as their first. Closing up front gives that click back.
-  //
-  // Nothing is lost by not awaiting the reply. The whole flow runs in the
-  // background, independent of this popup's lifetime — it opens the editor
-  // and records what happened for the next time the popup is opened (see
-  // last-capture-ui.ts), neither of which needs anyone listening here.
   // Wait a moment for an immediate refusal before closing.
   //
   // On a page no extension may touch, this fails in milliseconds — before the
@@ -691,23 +782,38 @@ $("captureSelectedArea").addEventListener("click", async () => {
   // choosing "capture selected area" on chrome://settings simply closed the
   // popup and did nothing at all, with nothing said anywhere.
   //
-  // A selection that actually starts takes as long as the user takes, so the
-  // grace period below expires first and the popup closes as it did before —
-  // which is the behaviour the crosshair depends on. Only a failure that
-  // arrives inside the window is shown, and that is exactly the failure that
-  // arrives instantly.
+  // A capture that actually starts takes longer than this, so the grace
+  // period expires first and the popup closes — which is the behaviour the
+  // crosshair (and, on Android, the page coming back in front) depends on.
+  const reply = send(request).catch(
+    (err: unknown): PopupResponse => ({ ok: false, error: err instanceof Error ? err.message : String(err), reason: "raw" }),
+  );
   const failedImmediately = await Promise.race([
-    send({ action: "captureSelectedArea" })
-      .then((response) => (response.ok ? null : response))
-      .catch(() => null),
+    reply.then((response) => (response.ok ? null : response)),
     new Promise<null>((resolve) => setTimeout(() => resolve(null), SELECTION_GRACE_MS)),
   ]);
   if (failedImmediately) {
-    await showCaptureResult(failedImmediately);
+    await showCaptureResult(failedImmediately, request.action);
+    void takeDetachedFailure();
     return;
   }
   window.close();
-});
+  // Normally unreachable: the popup is gone. If the browser kept it open
+  // after all, the answer still lands here rather than nowhere.
+  const response = await reply;
+  if (!response.ok) void takeDetachedFailure();
+  await showCaptureResult(response, request.action);
+}
+
+$("captureFullPage").addEventListener("click", () =>
+  android
+    ? runAfterClosing({ action: "captureFullPage", detached: true }, t("Capturing full page…"))
+    : runCapture({ action: "captureFullPage" }, t("Capturing full page…")),
+);
+$("captureVisible").addEventListener("click", () => runCapture({ action: "captureVisible" }, t("Capturing visible area…")));
+$("captureSelectedArea").addEventListener("click", () =>
+  runAfterClosing({ action: "captureSelectedArea", detached: android }, ""),
+);
 $("openPdfEdit").addEventListener("click", async () => {
   // FIRST await, for the gesture — see the tickbox handler above.
   const granted = await requestPdfEditAccess();
@@ -715,7 +821,7 @@ $("openPdfEdit").addEventListener("click", async () => {
   if (!granted) {
     // Still worth opening: the file is saved, and picking it by hand is the
     // thing this was trying to save them, not the thing it replaced.
-    ext.tabs.create({ url: PDF_EDIT_APP_URL });
+    void openTab(PDF_EDIT_APP_URL);
     setStatusText(t("Opened OpenPdfEdit — choose {filename} there.", { filename: resolveFilename(await getSavePrefs(), "", "pdf") }));
     return;
   }
@@ -757,6 +863,11 @@ copyBtn.addEventListener("click", async () => {
   try {
     const bytes = await getBlob(LAST_CAPTURE_BLOB_KEY);
     if (!bytes) throw new Error("No capture to copy yet — capture a page first.");
+    if (await detectAndroid()) {
+      await saveOutput(bytes, "", "png", "image/png");
+      setStatusText(t("Firefox for Android can't copy images, so it is saved as a PNG instead."));
+      return;
+    }
     await copyPngBytesToClipboard(bytes);
     setStatusText(t("Copied to clipboard."));
   } catch (err) {
@@ -772,13 +883,13 @@ copyBtn.addEventListener("click", async () => {
 // a real sign-in redirect or a checkout flow itself (same reason the
 // capture buttons above route "Annotate" to a separate editor tab).
 $("openAccount").addEventListener("click", () => {
-  ext.tabs.create({ url: ext.runtime.getURL("account.html") });
+  void openTab(ext.runtime.getURL("account.html"));
 });
 
 // Same reasoning as openAccount above — a grid of past captures needs a
 // real page, not a 380px popup that closes on blur.
 $("openHistory").addEventListener("click", () => {
-  ext.tabs.create({ url: ext.runtime.getURL("history.html") });
+  void openTab(ext.runtime.getURL("history.html"));
 });
 
 (async () => {
@@ -797,6 +908,11 @@ $("openHistory").addEventListener("click", () => {
 // it reads like "v1.0.0-rc.6-3-g04943ae": three commits past rc.6. See
 // vite.config.ts for why this exists.
 declare const __OPENCAPTURE_BUILD__: string;
+{
+  ($("telegramLink") as HTMLAnchorElement).href = TELEGRAM_URL;
+  ($("followXLink") as HTMLAnchorElement).href = X_URL;
+}
+
 {
   const el = document.getElementById("buildLabel");
   if (el) el.textContent = __OPENCAPTURE_BUILD__;

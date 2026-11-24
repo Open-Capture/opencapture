@@ -11,6 +11,13 @@ const on = (rawMessage: string, url = "", fileAccessAllowed: boolean | undefined
   classifyCaptureFailure({ url, fileAccessAllowed, rawMessage });
 
 describe("classifyCaptureFailure", () => {
+  // Firefox for Android handed this to the user verbatim on the first
+  // full-page attempt.
+  it("recognises a page nothing answers in", () => {
+    expect(on("Could not establish connection. Receiving end does not exist.")).toBe("page-unreachable");
+    expect(explainCaptureFailure("page-unreachable", "x")).toMatch(/reload/i);
+  });
+
   // The defect this whole module was rewritten for: the tab's URL is empty on
   // exactly the pages that need explaining, because reading it needs a
   // permission the extension does not hold. Classification must not depend on

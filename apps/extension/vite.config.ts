@@ -78,6 +78,11 @@ export default defineConfig({
   },
   define: {
     __OPENCAPTURE_E2E__: JSON.stringify(process.env.OPENCAPTURE_E2E === "1"),
+    // The popup's raw capture report (css_width, slice_count,
+    // lazy_images_forced…) is a debugging aid. It shipped under every preview
+    // in the store build; now only an e2e build — whose specs read
+    // it — or an explicit OPENCAPTURE_DEBUG=1 build shows it.
+    __OPENCAPTURE_DEBUG_REPORT__: JSON.stringify(process.env.OPENCAPTURE_E2E === "1" || process.env.OPENCAPTURE_DEBUG === "1"),
     __OPENCAPTURE_BUILD__: JSON.stringify(buildLabel()),
   },
   build: {

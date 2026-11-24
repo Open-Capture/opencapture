@@ -2,6 +2,12 @@
 <html class="oa-auto">
   <head>
     <meta charset="utf-8" />
+    <!-- Without this a phone lays the popup out on a ~980px desktop-width
+         canvas and scales it down: on Firefox for Android the 380px body
+         filled the left four-tenths of the screen in tiny type, and
+         the max-width clamp below never matched because the viewport was
+         never narrow. Desktop browsers ignore the tag. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" sizes="48x48" href="/icons/icon48.png" />
     <link rel="icon" sizes="16x16" href="/icons/icon16.png" />
     <title>OpenCapture</title>
@@ -24,6 +30,41 @@
           max-width: 100vw;
         }
       }
+      /* Android: the popup is a full-screen page, not a panel (popup.ts adds
+         the class from the user agent before first paint, or from
+         runtime.getPlatformInfo when "Desktop site" hides Android from it). Fill the
+         screen instead of a fixed 380px column, cap the line length on a
+         tablet, and give touch targets room. Desktop never gets the class, so
+         its popup sizing — and the Firefox measurement trap above — is
+         untouched. */
+      html.is-android body {
+        width: auto;
+        max-width: 640px;
+        margin: 0 auto;
+      }
+      html.is-android #popupBody {
+        padding: var(--space-4) max(var(--space-4), env(safe-area-inset-right)) var(--space-4)
+          max(var(--space-4), env(safe-area-inset-left));
+      }
+      html.is-android #captureActions .btn,
+      html.is-android #resultActions .btn,
+      html.is-android #saveSummary {
+        min-height: 44px;
+      }
+      html.is-android #popupHeader {
+        gap: var(--space-2);
+      }
+      html.is-android #popupHeader .btn,
+      html.is-android #popupHeader .icon-btn {
+        min-height: 36px;
+      }
+      /* Very narrow phones: the header's three controls plus the wordmark do
+         not fit on one line, so the wordmark gives way to the icon. */
+      @media (max-width: 359px) {
+        html.is-android .brand-wordmark {
+          display: none;
+        }
+      }
       #popupHeader {
         display: flex;
         align-items: center;
@@ -36,6 +77,38 @@
         /* An icon alone read as decoration next to the wordmark. The words are
            the ask; the star just makes it findable. */
         white-space: nowrap;
+      }
+      /* Telegram and X as one quiet pair: same caption size, muted at rest,
+         green on hover, never underlined — the design system's quiet-link
+         treatment, with the brand glyph standing in for the underline as the
+         "this is a link" cue. */
+      #communityLinks {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: var(--space-1) var(--space-4);
+        padding: 0 var(--space-4) var(--space-2);
+      }
+      .quiet-link {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        font: var(--type-caption);
+        color: var(--text-muted);
+        text-decoration: none;
+        border-radius: var(--radius-sm);
+      }
+      .quiet-link:hover {
+        color: var(--text-link-hover);
+        text-decoration: none;
+      }
+      /* The global a:hover (underline, link green) outranks .btn, so a link
+         drawn as a button would otherwise underline on hover. */
+      a.btn:hover {
+        text-decoration: none;
+      }
+      a.btn-secondary:hover {
+        color: var(--text-strong);
       }
       #popupBody {
         padding: var(--space-4);
@@ -466,12 +539,25 @@
         </div>
         <div id="ratingPromptFeedback" style="display: none">
           <p class="oa-caption">Thanks for the honest rating. Mind telling us what's off?</p>
-          <a id="ratingFeedbackLink" href="#" class="btn btn-secondary btn-sm btn-full" target="_blank" rel="noopener">Send feedback</a>
+          <a id="ratingFeedbackLink" href="#" class="btn btn-secondary btn-sm btn-full" target="_blank" rel="noopener"
+            ><span class="oa-icon oa-icon-14 icon-brand-telegram" aria-hidden="true"></span><span>Tell us on Telegram</span></a
+          >
         </div>
         <div id="ratingPromptThanks" style="display: none">
           <p class="oa-caption">Thanks — opening the store review page.</p>
         </div>
       </div>
+    </div>
+    <!-- Where to go with a problem, and the one place the X account is
+         mentioned. Quiet on purpose: a caption-size pair under everything,
+         not a card competing with the capture buttons. Telegram first. -->
+    <div id="communityLinks">
+      <a id="telegramLink" class="quiet-link" href="#" target="_blank" rel="noopener"
+        ><span class="oa-icon oa-icon-14 icon-brand-telegram" aria-hidden="true"></span><span>Ask us on Telegram</span></a
+      >
+      <a id="followXLink" class="quiet-link" href="#" target="_blank" rel="noopener"
+        ><span class="oa-icon oa-icon-14 icon-brand-x" aria-hidden="true"></span><span>Follow @OpenCaptureApp on X</span></a
+      >
     </div>
     <!-- Which build this is. Every release candidate ships as 1.0.0, so this
          is the only way a tester can tell whether the fix they are checking is

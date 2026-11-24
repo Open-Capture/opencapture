@@ -88,14 +88,24 @@ export type PopupRequest =
   // reply is how a caller learns the service worker is running and has its
   // message listener registered. See popup.ts's selected-area handler.
   | { action: "ping" }
-  | { action: "captureFullPage" }
+  // `detached`: the popup has closed itself (or is about to) and the capture
+  // must wait for the page to be back in front before touching it — how
+  // these run on Android, where the popup covers the page. A failure is kept
+  // for the next popup to show, since this one will not be there to hear it.
+  // See background/target-tab.ts.
+  | { action: "captureFullPage"; detached?: boolean }
   | { action: "captureVisible" }
-  | { action: "captureSelectedArea" }
+  | { action: "captureSelectedArea"; detached?: boolean }
   // `handoff` chains the export straight into OpenPdfEdit, so the one click
   // that asked for a PDF also carries it there — the alternative being a
   // second gesture for something the user already said yes to.
-  | { action: "exportPdf"; handoff?: boolean }
-  | { action: "savePngs" }
+  //
+  // `inPage` asks for the file back instead of a download from here. Firefox
+  // for Android's downloads.download() never settles — no id, no error, no
+  // file — so on Android the page the user is looking at saves it, with a
+  // download link (chrome/downloads.ts).
+  | { action: "exportPdf"; handoff?: boolean; inPage?: boolean }
+  | { action: "savePngs"; inPage?: boolean }
   | { action: "openPdfEdit" }
   | { action: "openEditor" };
 
@@ -114,6 +124,18 @@ export interface CaptureResult {
 
 export interface AckResult {
   ok: true;
+  /** The files an `inPage` request asked for, for the page to save. */
+  files?: OutputFile[];
+  /** A tab now shows the result (Android's PDF viewer); the popup should go. */
+  closePopup?: boolean;
+}
+
+/** One file to save: the bytes, and the parts saveOutput() names it from. */
+export interface OutputFile {
+  bytes: Uint8Array;
+  suffix: string;
+  ext: string;
+  mime: string;
 }
 
 export interface CancelledResult {
@@ -129,7 +151,7 @@ export interface CaptureFailure {
    * older messages and on anything that was never classified, which the
    * popup treats as "show the text as given".
    */
-  reason?: "restricted-page" | "needs-refresh" | "file-access" | "raw";
+  reason?: "restricted-page" | "needs-refresh" | "file-access" | "page-unreachable" | "page-not-in-front" | "raw";
 }
 
 export type PopupResponse = CaptureResult | AckResult | CancelledResult | CaptureFailure;

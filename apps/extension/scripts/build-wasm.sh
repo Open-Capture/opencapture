@@ -39,7 +39,15 @@ if [ -n "$PINNED" ] && [ "$HAVE" != "$PINNED" ]; then
   exit 1
 fi
 
-cargo build -p shot-core --target wasm32-unknown-unknown --profile wasm-release --manifest-path "$WORKSPACE_DIR/Cargo.toml"
+# rustc writes the absolute path of every source file it compiles into the
+# binary (panic locations), so an unmapped build carried the builder's home
+# directory, user name included, in shot_core_bg.wasm. Mapped to fixed
+# prefixes it names no machine, and two machines build the same bytes.
+CARGO_DIR="${CARGO_HOME:-$HOME/.cargo}"
+RUSTUP_DIR="${RUSTUP_HOME:-$HOME/.rustup}"
+REMAP="--remap-path-prefix=$CARGO_DIR=/cargo --remap-path-prefix=$RUSTUP_DIR=/rustup --remap-path-prefix=$WORKSPACE_DIR=."
+RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }$REMAP" \
+  cargo build -p shot-core --target wasm32-unknown-unknown --profile wasm-release --manifest-path "$WORKSPACE_DIR/Cargo.toml"
 
 "$WASM_BINDGEN" \
   --target web \
@@ -48,7 +56,15 @@ cargo build -p shot-core --target wasm32-unknown-unknown --profile wasm-release 
   "$CARGO_TARGET_DIR/wasm32-unknown-unknown/wasm-release/shot_core.wasm"
 
 if command -v wasm-opt >/dev/null 2>&1; then
-  wasm-opt -O3 -o "$OUT_DIR/shot_core_bg.wasm" "$OUT_DIR/shot_core_bg.wasm"
+  # Rust's wasm32 target now emits bulk-memory, sign-ext, non-trapping
+  # float-to-int, mutable globals, reference types and multivalue by
+  # default, and a current wasm-opt validates strictly: without these it
+  # refuses the module ("memory.copy operations require bulk memory").
+  # Listed rather than --all-features, so it cannot add anything else.
+  wasm-opt -O3 \
+    --enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext \
+    --enable-mutable-globals --enable-reference-types --enable-multivalue \
+    -o "$OUT_DIR/shot_core_bg.wasm" "$OUT_DIR/shot_core_bg.wasm"
   echo "wasm-opt: optimized shot_core_bg.wasm"
 else
   echo "wasm-opt not found on PATH — skipping (glue still works, just larger/slower than optimal)"

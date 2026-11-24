@@ -61,12 +61,26 @@ Beyond that, mobile-specific things that can't be proven from the Chrome
 e2e suite or from a desktop pass. These are engine-independent except
 where one is named:
 
-- **Popup renders without clipping.** Firefox Android shows the extension
-  popup as a full-width panel rather than an anchored 380px box; Edge
-  presents its own mobile surface. Either way the body is clamped by a
-  plain `max-width: 100vw` media query between 200px and 379px (see
-  `popup.html` for why the lower bound is not optional) — confirm nothing
-  is cut off or squeezed.
+- **Popup fills the screen.** Firefox Android shows the extension popup
+  as a full-screen page (back arrow + the popup's title) rather than an
+  anchored 380px box. `popup.html` carries a `width=device-width` viewport
+  meta — without it the page was laid out at ~980px and the popup sat in
+  the left four-tenths of the screen in tiny type — and
+  `popup.ts` adds `html.is-android` from the user agent, which drops the
+  fixed 380px width — or, when "Desktop site" is on and the user agent
+  claims desktop Linux, from `runtime.getPlatformInfo()` a moment later.
+  Check once with "Desktop site" on as well. History and account open as
+  tabs and carry the same viewport meta. Confirm the buttons span the screen, type is normal
+  size, and nothing is cut off or squeezed.
+- **Full page runs after the popup closes.** On Android the popup covers
+  the page, and the browser's "current window" is the popup's, so "Capture
+  full page" (and "Capture selected area") close the popup first and the
+  background waits for the page to be back in front before scrolling it
+  (`background/target-tab.ts`). Expect: tap, the popup closes, the page
+  scrolls through, the editor opens. A page too long for the editor opens
+  nothing — the action shows a "1" badge and the popup asks how to keep it.
+  A failure shows a "!" badge and is explained the next time the popup
+  opens. The capture report JSON must not appear under the preview.
 - **Selected-area capture works entirely by touch**: drag out a selection
   with a finger, drag a resize handle without it "letting go" mid-drag
   (this is what pointer capture is for), then tap the on-screen ✓/✕

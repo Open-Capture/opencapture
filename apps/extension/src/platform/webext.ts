@@ -53,3 +53,50 @@ export function captureRateLimit(): number | null {
   // dividing by it.
   return typeof declared === "number" && declared > 0 ? declared : null;
 }
+
+/**
+ * Whether a user-agent string is an Android browser's.
+ *
+ * Firefox for Android ("Mozilla/5.0 (Android 14; Mobile; rv:145.0) …") and
+ * Edge for Android both say so. Read from the user agent rather than
+ * `runtime.getPlatformInfo()` because the popup needs the answer before its
+ * first paint — the layout depends on it — and that call is asynchronous.
+ */
+export function isAndroidUserAgent(userAgent: string): boolean {
+  return /\bAndroid\b/i.test(userAgent);
+}
+
+/**
+ * True when this extension is running on Android.
+ *
+ * What that changes: the browser shows the popup as a full-screen page in
+ * front of the tab it was opened for, rather than as a small panel beside it.
+ * Anything that has to work on that tab while the popup is up — scrolling it,
+ * photographing it — is working on a tab nobody can see, and the browser's
+ * idea of the "current window" is the popup's, not the page's. See
+ * background/target-tab.ts.
+ */
+export const onAndroid: boolean = typeof navigator !== "undefined" && isAndroidUserAgent(navigator.userAgent ?? "");
+
+/**
+ * Whether this is Android, asked of the browser rather than read off the user
+ * agent.
+ *
+ * `onAndroid` reads the user agent because the popup needs an answer before
+ * its first paint. That answer can be wrong: Firefox for Android's "Desktop
+ * site" setting (per tab, and as a default for every tab) swaps in a desktop
+ * Linux user agent, and the popup then took the desktop path — a 380px column,
+ * and a full-page capture that runs while the popup still covers the page,
+ * which is the failure all over again. `runtime.getPlatformInfo()`
+ * reports the real OS whatever the user agent says, so it settles the
+ * question as soon as it answers.
+ */
+export async function detectAndroid(): Promise<boolean> {
+  if (onAndroid) return true;
+  try {
+    const info = await ext.runtime.getPlatformInfo();
+    return info?.os === "android";
+  } catch {
+    return false;
+  }
+}

@@ -8,10 +8,13 @@ import {
   putBlob,
 } from "../chrome/blob-store";
 import { CaptureFailureError } from "./injection-error";
+import { PageNotInFrontError, trackPopupPresence, waitForPageInFront, waitForPopupClosed } from "./target-tab";
+import { markDetachedCaptureWaiting, rememberDetachedFailure } from "../chrome/detached-failure";
 import { HISTORY_LIST_PORT_NAME, addHistoryEntry, clearHistory, deleteHistoryEntry, getHistoryEntry, listHistoryEntries } from "../chrome/capture-history";
 import { needsFormatChoice } from "../chrome/capture-size";
 import { setLastCaptureUi } from "../chrome/last-capture-ui";
 import { client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
+import { clearSupporterCache } from "../chrome/supporter-entitlement";
 import { bumpUsageCount } from "../chrome/rating-prompt";
 import { saveOutput } from "../chrome/save";
 import { getSavePrefs, resolveFilename } from "../chrome/save-prefs";
@@ -51,6 +54,25 @@ async function getActiveTab(): Promise<chrome.tabs.Tab> {
   }
   return tab;
 }
+
+/**
+ * The tab a capture is for.
+ *
+ * Detached (Android): only once the popup has gone and the page is back in
+ * front — see target-tab.ts for why asking straight away finds the popup.
+ */
+async function getCaptureTab(detached: boolean | undefined): Promise<chrome.tabs.Tab> {
+  if (!detached) return getActiveTab();
+  try {
+    await waitForPopupClosed();
+    return await waitForPageInFront();
+  } catch (err) {
+    if (err instanceof PageNotInFrontError) throw new CaptureFailureError("page-not-in-front", err.message);
+    throw err;
+  }
+}
+
+trackPopupPresence();
 
 // The image bytes go through blob-store.ts (IndexedDB), not
 // chrome.storage.session — a full-page capture's PNG can exceed
@@ -329,6 +351,21 @@ function watchPdfHandoff(): void {
   }, PDF_HANDOFF_GRACE_MS);
 }
 
+/**
+ * Firefox for Android: show a PDF in the browser's own viewer, whose Download
+ * button saves it.
+ *
+ * downloads.download() never settles there, and Firefox opens a PDF link in
+ * that viewer rather than saving it anyway — but a PDF link clicked in the
+ * popup also leaves the popup blank on top of the new tab, so the tab is
+ * opened from here instead. The viewer takes the saved file's name from the
+ * URL, so the fragment carries it; without one it saves "document.pdf".
+ */
+async function openPdfInViewer(bytes: Uint8Array, filename: string): Promise<void> {
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: "application/pdf" }));
+  await ext.tabs.create({ url: `${url}#${encodeURIComponent(filename.split("/").pop() || filename)}` });
+}
+
 async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
   switch (request.action) {
     case "ping": {
@@ -337,7 +374,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       return { ok: true };
     }
     case "captureFullPage": {
-      const tab = await getActiveTab();
+      const tab = await getCaptureTab(request.detached);
       const { report, images } = await captureFullPage(tab.id!, tab.windowId);
       let openedEditor = false;
       if (needsFormatChoice(report)) {
@@ -364,6 +401,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
         openedEditor = true;
       }
       await setLastCaptureUi({ report, openedEditor });
+      if (request.detached && !openedEditor) await markDetachedCaptureWaiting();
       await rememberInHistory(tab, report, images[0]!);
       await bumpUsageCount();
       return { ok: true, report, pngDataUrls: images.map((img) => bytesToDataUrl(img, "image/png")), openedEditor };
@@ -386,7 +424,7 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       // to be lost along with the popup was *this popup's own* memory of
       // what happened — see last-capture-ui.ts for why that's written here
       // instead of back in the popup's response handler.
-      const tab = await getActiveTab();
+      const tab = await getCaptureTab(request.detached);
       const outcome = await captureSelectedArea(tab.id!, tab.windowId);
       if (!outcome) {
         return { ok: true, cancelled: true };
@@ -407,15 +445,23 @@ async function handleRequest(request: PopupRequest): Promise<PopupResponse> {
       // folder. A capture that did not split keeps the plain name — the
       // "-page-1-of-1" a naive version of this produces is noise.
       const images = await getLastCaptureImages();
-      await Promise.all(
-        images.map((img, i) =>
-          saveOutput(img, images.length === 1 ? "" : `-page-${i + 1}-of-${images.length}`, "png", "image/png"),
-        ),
-      );
+      const files = images.map((img, i) => ({
+        bytes: img,
+        suffix: images.length === 1 ? "" : `-page-${i + 1}-of-${images.length}`,
+        ext: "png",
+        mime: "image/png",
+      }));
+      if (request.inPage) return { ok: true, files };
+      await Promise.all(files.map((f) => saveOutput(f.bytes, f.suffix, f.ext, f.mime)));
       return { ok: true };
     }
     case "exportPdf": {
       const pdfBytes = await exportLastCaptureAsPdf();
+      if (request.inPage) {
+        await openPdfInViewer(pdfBytes, resolveFilename(await getSavePrefs(), "", "pdf"));
+        if (request.handoff) await handOffToPdfEdit(pdfBytes);
+        return { ok: true, closePopup: true };
+      }
       await saveOutput(pdfBytes, "", "pdf", "application/pdf");
       if (request.handoff) await handOffToPdfEdit(pdfBytes);
       return { ok: true };
@@ -451,7 +497,15 @@ ext.runtime.onMessage.addListener((message: unknown, _sender, sendResponse) => {
       // in the reader's own language instead of forwarding the browser's
       // developer-facing sentence.
       const reason = err instanceof CaptureFailureError ? err.reason : "raw";
-      sendResponse({ ok: false, error: err instanceof Error ? err.message : String(err), reason });
+      const failure = { ok: false as const, error: err instanceof Error ? err.message : String(err), reason };
+      // A detached capture's popup is gone; keep the failure for the next one.
+      // Sent as well, for the case where the browser kept the popup open.
+      // Recorded before replying, so a popup that does hear the reply can
+      // take the record back out without racing the write.
+      const recorded = (request as { detached?: boolean }).detached
+        ? rememberDetachedFailure({ action: request.action!, failure }).catch(() => {})
+        : Promise.resolve();
+      void recorded.then(() => sendResponse(failure));
     });
 
   return true; // keep the message channel open for the async response
@@ -486,6 +540,9 @@ ext.runtime.onMessage.addListener((message: unknown, sender, sendResponse) => {
 
   (async () => {
     await openappsReady;
+    // A fresh sign-in may be a different account: forget the previous one's
+    // cached Supporter unlock before the editor can see the new session.
+    await clearSupporterCache(ext.storage.local);
     openappsClient.adoptSession(openappsMessage.accessToken!, openappsMessage.refreshToken!);
     if (sender.tab?.id !== undefined) {
       ext.tabs.remove(sender.tab.id).catch(() => {});

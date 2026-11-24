@@ -48,7 +48,11 @@ export async function recordPromptResponded(): Promise<void> {
 
 const CHROME_REVIEW_URL = "https://chromewebstore.google.com/detail/ikhhoggnlncjhpdbnneekifbnmojpjph/reviews";
 const FIREFOX_REVIEW_URL = "https://addons.mozilla.org/firefox/addon/opencapture-full-page-capture/reviews/";
-const FEEDBACK_EMAIL = "hello@opencapture.app";
+/** Where problems go: OpenCapture's topic in the public OpenApps Telegram
+ * group, which replaced the feedback email. A conversation there is public,
+ * so other users can find the answer too. */
+export const TELEGRAM_URL = "https://t.me/openappsnetwork/42";
+export const X_URL = "https://x.com/OpenCaptureApp";
 
 /** NOT the same check as webext.ts's `ext` alias (`browser ?? chrome`) —
  * that one only needs *a* promise-based API surface to call, so either
@@ -65,7 +69,7 @@ export function getStoreReviewUrl(): string {
   return isFirefox() ? FIREFOX_REVIEW_URL : CHROME_REVIEW_URL;
 }
 
-export function getFeedbackMailto(): string {
-  const subject = encodeURIComponent("OpenCapture feedback");
-  return `mailto:${FEEDBACK_EMAIL}?subject=${subject}`;
+/** A low rating is asked what went wrong — on Telegram, not by email. */
+export function getFeedbackUrl(): string {
+  return TELEGRAM_URL;
 }

@@ -11,7 +11,8 @@ import { EDITOR_IMAGE_PORT_NAME } from "../chrome/blob-store";
 import { initPageLocale, t } from "../i18n";
 import { copyPngBytesToClipboard } from "../chrome/copy-image";
 import { getSavedDirectoryHandle } from "../chrome/dir-handle-store";
-import { client as openappsClient, ready as openappsReady, store as openappsStore, OPENAPPS_BASE_URL, OPENAPPS_GATEWAY_URL } from "../chrome/openapps-session";
+import { client as openappsClient, ready as openappsReady, store as openappsStore, OPENAPPS_BASE_URL, OPENAPPS_GATEWAY_URL, SESSION_KEY } from "../chrome/openapps-session";
+import { rememberSupporterUnlocked, resolveSupporterStatus } from "../chrome/supporter-entitlement";
 import { pickDirectory } from "../chrome/pick-directory";
 import { saveOutput } from "../chrome/save";
 import { getSavePrefs, setSavePrefs } from "../chrome/save-prefs";
@@ -25,7 +26,7 @@ import { drawFrame, framePixelInsets, type FramePreset } from "./frame";
 // checked out, a stub that draws nothing when it is not.
 import { applyWatermarkPattern, drawWatermarkCell, type WatermarkLocation } from "#watermark-premium";
 import init, * as ShotCore from "../wasm-gen/shot_core.js";
-import { ext } from "../platform/webext";
+import { detectAndroid, ext } from "../platform/webext";
 
 type Tool = "crop" | "arrow" | "rect" | "text" | "blur" | "watermark" | null;
 
@@ -1446,6 +1447,7 @@ type WatermarkGateState =
   | { kind: "checking" }
   | { kind: "signed-out" }
   | { kind: "locked" }
+  | { kind: "unavailable" }
   | { kind: "unlocking" }
   | { kind: "insufficient"; have: number; need: number }
   | { kind: "error"; message: string };
@@ -1476,12 +1478,24 @@ function renderWatermarkGate(state: WatermarkGateState): void {
       watermarkGateActionBtn.textContent = t("Unlock for 1000 credits");
       watermarkGateActionBtn.onclick = () => void handleUnlockClick();
       break;
+    case "unavailable":
+      // The check failed and this device has no earlier "unlocked" to fall
+      // back on. Not the purchase offer: for all we know this is a Supporter
+      // who is offline, and "Unlock for 1000 credits" would tell them their
+      // unlock is gone.
+      watermarkGateMessageEl.textContent = t("Couldn't check whether the watermark tool is unlocked on your account. Check your connection and try again.");
+      watermarkGateActionBtn.textContent = t("Try again");
+      watermarkGateActionBtn.onclick = () => void handleWatermarkToolClick();
+      break;
     case "unlocking":
       watermarkGateMessageEl.textContent = t("Unlocking…");
       watermarkGateActionBtn.disabled = true;
       break;
     case "insufficient":
-      watermarkGateMessageEl.textContent = `You have ${state.have.toLocaleString()} credits — unlocking Supporter costs ${state.need.toLocaleString()}.`;
+      watermarkGateMessageEl.textContent = t("You have {have} credits — unlocking Supporter costs {need}.", {
+        have: state.have.toLocaleString(),
+        need: state.need.toLocaleString(),
+      });
       watermarkGateActionBtn.textContent = t("Buy credits");
       watermarkGateActionBtn.onclick = () => {
         closeWatermarkGate();
@@ -1542,18 +1556,16 @@ async function authedFetch(url: string, init?: RequestInit): Promise<Response | 
 /** Read-only: has this account already redeemed the Supporter unlock?
  * Calls openapps-server directly (no app key needed — it only ever
  * answers about the caller's own ledger), not the gateway, which is only
- * for the one route that actually spends credits. */
-async function isSupporterUnlocked(): Promise<boolean> {
-  try {
-    const res = await authedFetch(
-      `${OPENAPPS_BASE_URL}/v1/credits/entitlement?ref_id=${encodeURIComponent(SUPPORTER_REF_ID)}`,
-    );
-    if (!res || !res.ok) return false;
-    const body = (await res.json()) as { unlocked?: boolean };
-    return body.unlocked === true;
-  } catch {
-    return false;
-  }
+ * for the one route that actually spends credits. A failed check falls back
+ * to the last answer this device got (see supporter-entitlement.ts), so it
+ * never turns into "locked" on its own. */
+function checkSupporterStatus() {
+  return resolveSupporterStatus({
+    fetchEntitlement: () =>
+      authedFetch(`${OPENAPPS_BASE_URL}/v1/credits/entitlement?ref_id=${encodeURIComponent(SUPPORTER_REF_ID)}`),
+    isLoggedIn: () => openappsClient.isLoggedIn,
+    storage: ext.storage.local,
+  });
 }
 
 type UnlockResult =
@@ -1609,13 +1621,14 @@ async function handleUnlockClick(): Promise<void> {
   if (!(await ensureGatewayAccess())) {
     renderWatermarkGate({
       kind: "error",
-      message: "Permission is needed to complete the purchase. Try Unlock again and choose Allow.",
+      message: t("Permission is needed to complete the purchase. Try Unlock again and choose Allow."),
     });
     return;
   }
   renderWatermarkGate({ kind: "unlocking" });
   const result = await unlockSupporter();
   if (result.ok) {
+    await rememberSupporterUnlocked(ext.storage.local);
     closeWatermarkGate();
     void openWatermarkPanel();
     return;
@@ -1624,7 +1637,7 @@ async function handleUnlockClick(): Promise<void> {
     renderWatermarkGate({ kind: "insufficient", have: result.have, need: result.need });
     return;
   }
-  renderWatermarkGate({ kind: "error", message: "Couldn't unlock — please try again." });
+  renderWatermarkGate({ kind: "error", message: t("Couldn't unlock — please try again.") });
 }
 
 // Also called automatically (see the visibilitychange and storage
@@ -1658,13 +1671,13 @@ async function handleWatermarkToolClick(): Promise<void> {
         renderWatermarkGate({ kind: "signed-out" });
         return;
       }
-      const unlocked = await isSupporterUnlocked();
-      if (unlocked) {
+      const status = await checkSupporterStatus();
+      if (status === "unlocked") {
         closeWatermarkGate();
         void openWatermarkPanel();
         return;
       }
-      renderWatermarkGate({ kind: "locked" });
+      renderWatermarkGate({ kind: status === "unknown" ? "unavailable" : status });
     } finally {
       clearTimeout(slowCheck);
     }
@@ -1674,7 +1687,7 @@ async function handleWatermarkToolClick(): Promise<void> {
 }
 
 // openappsClient here was constructed once at page load and hydrated from
-// chrome.storage.session then — it has no built-in way to notice a session
+// chrome.storage.local then — it has no built-in way to notice a session
 // adopted later by background.ts from a *different* tab's sign-in (see
 // asyncBackedStore in the SDK: the in-memory copy only updates via this
 // same instance's own set()/adoptSession()). account.ts solves this with a
@@ -1682,8 +1695,8 @@ async function handleWatermarkToolClick(): Promise<void> {
 // in-progress canvas edits. Re-hydrating this client directly, in place,
 // gets the same result without touching the canvas.
 ext.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName !== "session" || !("openapps.session" in changes)) return;
-  const next = changes["openapps.session"].newValue as { accessToken: string; refreshToken: string } | undefined;
+  if (areaName !== "local" || !(SESSION_KEY in changes)) return;
+  const next = changes[SESSION_KEY]!.newValue as { accessToken: string; refreshToken: string } | undefined;
   if (next) {
     openappsClient.adoptSession(next.accessToken, next.refreshToken);
   } else {
@@ -2109,6 +2122,13 @@ document.getElementById("copyToClipboard")!.addEventListener("click", async () =
   } catch (err) {
     setStatus(`Copy failed: ${err instanceof Error ? err.message : String(err)}`);
   }
+});
+
+// Firefox for Android takes the image write and puts nothing on the system
+// clipboard, so a Copy button there reports success for nothing. Save PNG,
+// beside it, is the way to keep the image on Android.
+void detectAndroid().then((android) => {
+  if (android) document.getElementById("copyToClipboard")!.hidden = true;
 });
 
 document.getElementById("downloadPng")!.addEventListener("click", async () => {

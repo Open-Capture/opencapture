@@ -51,3 +51,60 @@ describe("captureRateLimit", () => {
     expect(captureRateLimit()).toBeNull();
   });
 });
+
+describe("isAndroidUserAgent", () => {
+  it("recognises Firefox for Android and Edge for Android", async () => {
+    vi.stubGlobal("browser", undefined);
+    vi.stubGlobal("chrome", { tabs: {} } as unknown as typeof chrome);
+    const { isAndroidUserAgent } = await import("./webext");
+
+    expect(isAndroidUserAgent("Mozilla/5.0 (Android 14; Mobile; rv:145.0) Gecko/145.0 Firefox/145.0")).toBe(true);
+    expect(
+      isAndroidUserAgent(
+        "Mozilla/5.0 (Linux; Android 14; SM-S9260) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36 EdgA/140.0.0.0",
+      ),
+    ).toBe(true);
+  });
+
+  it("does not mistake a desktop browser for one", async () => {
+    vi.stubGlobal("browser", undefined);
+    vi.stubGlobal("chrome", { tabs: {} } as unknown as typeof chrome);
+    const { isAndroidUserAgent } = await import("./webext");
+
+    expect(isAndroidUserAgent("Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0")).toBe(false);
+    expect(
+      isAndroidUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36"),
+    ).toBe(false);
+  });
+});
+
+describe("detectAndroid", () => {
+  it("believes the platform over a desktop user agent (Firefox for Android's Desktop site setting)", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (X11; Linux x86_64; rv:145.0) Gecko/20100101 Firefox/145.0" });
+    vi.stubGlobal("browser", { runtime: { getPlatformInfo: async () => ({ os: "android", arch: "arm64" }) }, tabs: {} });
+    const { detectAndroid, onAndroid } = await import("./webext");
+
+    expect(onAndroid).toBe(false);
+    expect(await detectAndroid()).toBe(true);
+  });
+
+  it("answers from the user agent without asking when it already says Android", async () => {
+    const getPlatformInfo = vi.fn(async () => ({ os: "linux" }));
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Android 14; Mobile; rv:145.0) Gecko/145.0 Firefox/145.0" });
+    vi.stubGlobal("browser", { runtime: { getPlatformInfo }, tabs: {} });
+    const { detectAndroid } = await import("./webext");
+
+    expect(await detectAndroid()).toBe(true);
+    expect(getPlatformInfo).not.toHaveBeenCalled();
+  });
+
+  it("is false on desktop, and when the platform cannot be asked", async () => {
+    vi.stubGlobal("navigator", { userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:145.0) Gecko/20100101 Firefox/145.0" });
+    vi.stubGlobal("browser", { runtime: { getPlatformInfo: async () => ({ os: "win" }) }, tabs: {} });
+    expect(await (await import("./webext")).detectAndroid()).toBe(false);
+
+    vi.resetModules();
+    vi.stubGlobal("browser", { runtime: { getPlatformInfo: async () => Promise.reject(new Error("nope")) }, tabs: {} });
+    expect(await (await import("./webext")).detectAndroid()).toBe(false);
+  });
+});

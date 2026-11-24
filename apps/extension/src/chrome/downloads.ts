@@ -8,7 +8,39 @@
 // platform/webext.ts) and the editor's own extension page both have
 // `document`, so createObjectURL works there; Chrome never reaches this
 // fallback since its data: URL attempt always succeeds.
-import { ext } from "../platform/webext";
+//
+// Firefox for Android is different again: downloads.download() never settles
+// there, with a data: URL refused and a Blob URL simply never answered — no
+// id, no error, no file — whether the background or a page calls it. A link
+// with `download`, clicked in a page that is a tab (the popup, the editor),
+// goes through the browser's own download prompt and saves. The background is
+// not a tab, and a link clicked there does nothing, so on Android it hands its
+// files to the page instead (the `inPage` requests in types.ts).
+import { detectAndroid, ext } from "../platform/webext";
+
+/**
+ * Save through the browser's own download prompt, from the page in front.
+ *
+ * Refuses in the background rather than doing nothing: a link clicked there
+ * saves no file and raises no error, which is the silent failure this
+ * replaces. The name is the last path segment, since a link cannot choose a
+ * subfolder of Downloads.
+ */
+function clickDownloadLink(bytes: Uint8Array, filename: string, mimeType: string): void {
+  if (typeof document === "undefined" || location.pathname.includes("background")) {
+    throw new Error("On Firefox for Android a file can only be saved from a page, not from the background.");
+  }
+  const url = URL.createObjectURL(new Blob([bytes as BlobPart], { type: mimeType }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename.split("/").pop() || filename;
+  link.hidden = true;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  // The prompt reads the URL after this returns; a minute is ample.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = "";
@@ -25,6 +57,10 @@ export async function downloadBytes(
   mimeType: string,
   saveAs = false,
 ): Promise<void> {
+  if (await detectAndroid()) {
+    clickDownloadLink(bytes, filename, mimeType);
+    return;
+  }
   const dataUrl = `data:${mimeType};base64,${bytesToBase64(bytes)}`;
   try {
     await ext.downloads.download({ url: dataUrl, filename, saveAs });

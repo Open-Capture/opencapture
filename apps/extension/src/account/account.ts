@@ -5,12 +5,12 @@
 // being a separate tab rather than living inside the popup.
 import "@openapps/tokens/tokens.css";
 import { configure } from "@openapps/ui";
-import { OPENAPPS_BASE_URL, client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
+import { OPENAPPS_BASE_URL, SESSION_KEY, client as openappsClient, ready as openappsReady, store as openappsStore } from "../chrome/openapps-session";
 import { ensureAuthAccess } from "../chrome/auth-permission";
 import { initPageLocale, t } from "../i18n";
 import { ext } from "../platform/webext";
 
-// Shares the same chrome.storage.session-backed store as background.ts's
+// Shares the same chrome.storage.local-backed store as background.ts's
 // own client (see openapps-session.ts) rather than letting configure()
 // build a fresh one — otherwise this page and the background service
 // worker would each think the other was signed out.
@@ -31,7 +31,7 @@ configure({ baseUrl: OPENAPPS_BASE_URL, store: openappsStore });
 // every <openapps-*> element on the page. (Change events live on the
 // top-level chrome.storage.onChanged, not per-area — filter by areaName.)
 ext.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === "session" && "openapps.session" in changes) location.reload();
+  if (areaName === "local" && SESSION_KEY in changes) location.reload();
 });
 
 const signInCard = document.getElementById("signInCard")!;
@@ -74,7 +74,7 @@ buyEl.addEventListener("openapps-checkout", (event) => {
   ext.tabs.create({ url });
 });
 
-// The session lives in chrome.storage.session, shared with the background
+// The session lives in chrome.storage.local, shared with the background
 // worker, so signing out has to clear it there rather than just in this
 // page's memory — which is what the SDK's logout does via the store passed
 // to configure(). The storage change then reloads this page through the

@@ -7,6 +7,8 @@ One `<locale>.txt` per language. Each file holds two blocks:
 - **OVERVIEW** — the long description for the store listing's
   Overview/Description field.
 
+Per-version release notes ("what's new") are in `RELEASE-NOTES.md`.
+
 These are **not** shipped inside the extension package. They are pasted
 into the store dashboards by hand:
 

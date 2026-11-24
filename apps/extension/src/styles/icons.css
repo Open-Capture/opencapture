@@ -33,3 +33,8 @@
 .icon-percent{--icon-src:url("../assets/icons/percent.svg")}
 .icon-languages{--icon-src:url("../assets/icons/languages.svg")}
 .icon-settings-2{--icon-src:url("../assets/icons/settings-2.svg")}
+/* Brand marks (Simple Icons, CC0) — the one exception to Lucide-only, since
+   Lucide draws no Telegram or X logo. Named brand-* so .icon-x stays the
+   close glyph. */
+.icon-brand-telegram{--icon-src:url("../assets/icons/brand-telegram.svg")}
+.icon-brand-x{--icon-src:url("../assets/icons/brand-x.svg")}
