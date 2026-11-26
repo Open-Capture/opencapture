@@ -112,6 +112,49 @@ test("full-page capture stitches a long page without duplicated or missing bands
   await page.close();
 });
 
+test("an off-canvas scrolling drawer is not mistaken for the page", async ({ context, serviceWorker }) => {
+  const page = await context.newPage();
+  await page.setViewportSize({ width: 1000, height: 720 });
+  await page.goto(`${BASE_URL}/offcanvas-drawer.html`);
+
+  const tabInfo = await serviceWorker.evaluate(async (url) => {
+    const tabs = await chrome.tabs.query({});
+    const tab = tabs.find((t) => t.url === url);
+    if (!tab?.id) throw new Error(`no tab found for ${url}`);
+    return { tabId: tab.id, windowId: tab.windowId };
+  }, page.url());
+
+  const result = await serviceWorker.evaluate(
+    async ({ tabId, windowId }) => {
+      // @ts-expect-error test-only global, see background/index.ts
+      return globalThis.__test.captureFullPage(tabId, windowId);
+    },
+    tabInfo,
+  );
+
+  // The drawer is window-sized and scrolls 8000px, but none of it is on
+  // screen. Taken for the page, it made the capture 8000px of the first
+  // screen repeated; the page itself is the 3000px of bands.
+  expect(result.report.warnings).not.toContain("Captured an inner scrolling area on this page instead of the full window.");
+  expect(result.report.output_height_px).toBe(3000);
+
+  const dir = mkdtempSync(join(tmpdir(), "opencapture-e2e-"));
+  const pngPath = writeBase64Png(dir, "offcanvas.png", result.imagesBase64[0]);
+  const bandSample = shotQa(["band-sample", pngPath, "--bands", "30", "--band-height", "100", "--x", "10", "--y-offset", "50"]);
+  expect(bandSample.code).toBe(0);
+  const bands = JSON.parse(bandSample.stdout) as Array<{ band: number; r: number; g: number; b: number }>;
+  expect(bands.length).toBe(30);
+  for (const band of bands) {
+    expect(band, `band ${band.band}`).toMatchObject({
+      r: (band.band * 53) % 256,
+      g: (band.band * 97) % 256,
+      b: (band.band * 151) % 256,
+    });
+  }
+
+  await page.close();
+});
+
 test("full-page capture on a page with an inner scroller captures its full content, not just what's visible at the top", async ({
   context,
   serviceWorker,

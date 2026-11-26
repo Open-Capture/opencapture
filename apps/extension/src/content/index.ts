@@ -133,7 +133,8 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
   // at the top — the rest of its content is never brought into view at all.
   //
   // Deliberately narrow: picks at most one container, the largest by
-  // on-screen area among elements that (a) actually overflow
+  // on-screen area (only the part inside the viewport counts) among
+  // elements that (a) actually overflow
   // (scrollHeight - clientHeight is more than a rounding error) and
   // (b) are set to scroll (overflow-y auto/scroll) and (c) cover a
   // substantial share of the viewport, so a small scrolling widget (a
@@ -151,9 +152,16 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
       if (el.scrollHeight - el.clientHeight < 50) continue;
       const style = window.getComputedStyle(el);
       if (style.overflowY !== "auto" && style.overflowY !== "scroll") continue;
+      // Measured by the part inside the viewport, not the box. A menu drawer
+      // parked off-canvas — mobile Wikipedia keeps a full-height, scrollable
+      // one at x = -275 — is as big as the content but none of it is on
+      // screen, and taking it for the page photographed the first screen of
+      // the page over and over, once per slice of the drawer.
       const rect = el.getBoundingClientRect();
-      if (rect.width < vw * 0.5 || rect.height < vh * 0.5) continue;
-      const area = rect.width * rect.height;
+      const width = Math.min(rect.right, vw) - Math.max(rect.left, 0);
+      const height = Math.min(rect.bottom, vh) - Math.max(rect.top, 0);
+      if (width < vw * 0.5 || height < vh * 0.5) continue;
+      const area = width * height;
       if (area > bestArea) {
         bestArea = area;
         best = el;
