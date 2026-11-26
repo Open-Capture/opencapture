@@ -13,8 +13,8 @@ import { classifyPinned, type PinnedKind, type StickyMode } from "./pinned";
 // docs/architecture.md.
 //
 // Message protocol (background -> content, request/response):
-//   {action:"prep", sticky}            -> {metrics, innerScrollRect, pinnedElementsHandled, lazyImagesForced, warnings}
-//   {action:"scrollTo", targetCss}     -> {actualScrollCss}
+//   {action:"prep", sticky}            -> {metrics, innerScrollRect, layoutViewport, pinnedElementsHandled, lazyImagesForced, warnings}
+//   {action:"scrollTo", targetCss}     -> {actualScrollCss, windowScrollCss}
 //   {action:"restore"}                 -> {ok:true}
 //   {action:"selectArea"}              -> {rect: {x,y,width,height} | null, dpr, target: {width,height} | null}
 //                                        (rect null = user cancelled; target = exact output size, if asked for)
@@ -1065,6 +1065,10 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     return {
       metrics,
       innerScrollRect,
+      // The window's own viewport, whatever metrics describes. On Firefox for
+      // Android this is what each slice is photographed as (see
+      // background/orchestrator.ts's layoutViewportShot).
+      layoutViewport: { widthCss: window.innerWidth, heightCss: window.innerHeight, screenWidthCss: window.screen?.width ?? 0 },
       pinnedElementsHandled: pinnedElements.length,
       lazyImagesForced,
       warnings: innerScroller ? ["Captured an inner scrolling area on this page instead of the full window."] : ([] as string[]),
@@ -1101,7 +1105,9 @@ if (!(window as unknown as { __opencaptureContentLoaded?: boolean }).__opencaptu
     // layout/paint that's still catching up.
     await sleep(2 * 16);
 
-    return { actualScrollCss };
+    // Where the window itself is scrolled to, in document coordinates. Not
+    // the same as actualScrollCss when an inner scroller is what moves.
+    return { actualScrollCss, windowScrollCss: { x: window.scrollX, y: window.scrollY } };
   }
 
   /**

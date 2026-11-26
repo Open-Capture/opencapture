@@ -47,10 +47,24 @@ export interface PrepResponse {
    * otherwise be cropped out of the capture entirely.
    */
   innerScrollRect: (SelectedRect & { headerCss: number; windowWidthCss: number }) | null;
+  /**
+   * The window's layout viewport in CSS px, and the screen's width in the
+   * same units. Optional: a content script injected by an older build and
+   * still alive in the page does not send it.
+   */
+  layoutViewport?: LayoutViewport;
+}
+
+export interface LayoutViewport {
+  widthCss: number;
+  heightCss: number;
+  screenWidthCss: number;
 }
 
 export interface ScrollToResponse {
   actualScrollCss: number;
+  /** The window's scroll position, document coordinates (optional, as above). */
+  windowScrollCss?: { x: number; y: number };
 }
 
 export interface RestoreResponse {

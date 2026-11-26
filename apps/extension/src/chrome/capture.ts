@@ -40,6 +40,51 @@ function isPermissionError(error: unknown): boolean {
   return /missing host permission|cannot access|not allowed to access/i.test(message);
 }
 
+/**
+ * A part of the page to photograph, and at what scale.
+ *
+ * Firefox-only `captureVisibleTab` options (`rect`, `scale`); Chromium's
+ * schema rejects any option it does not know, so these are never sent there.
+ * `rect` is in CSS px of the document — measured on Firefox 160 for Android,
+ * where `{y: 0}` returned the top of a page scrolled 600px down.
+ */
+export interface ShotRegion {
+  rect: { x: number; y: number; width: number; height: number };
+  scale: number;
+}
+
+/**
+ * The region that photographs the window's whole layout viewport, for
+ * Firefox for Android.
+ *
+ * Asked for nothing, Firefox for Android returns a bitmap of the screen's
+ * size at the device pixel ratio, starting at the scroll position — that is,
+ * a phone-width strip of the page. With a mobile layout that strip is the
+ * viewport. With "Desktop site" on it is not: the layout is ~980 CSS px wide,
+ * zoomed out to fit the screen, and the strip held its left 414px only and
+ * under half its height, magnified 2.6x. Every slice of a full-page capture then
+ * covered a different area from the one it was placed at, which is the
+ * clipped, banded result.
+ *
+ * Naming the viewport's rect makes the bitmap cover exactly the area the
+ * scroll arithmetic assumes. The scale is the one at which that layout fills
+ * the screen's width — what the phone itself shows — and never more than the
+ * device pixel ratio or less than 1. For a mobile layout that is the device
+ * pixel ratio, the same picture as before.
+ */
+export function layoutViewportShot(
+  viewport: { widthCss: number; heightCss: number; screenWidthCss: number },
+  scroll: { x: number; y: number },
+  dpr: number,
+): ShotRegion | null {
+  const { widthCss, heightCss, screenWidthCss } = viewport;
+  if (!(widthCss > 0) || !(heightCss > 0) || !(dpr > 0)) return null;
+  if (!Number.isFinite(scroll.x) || !Number.isFinite(scroll.y)) return null;
+  const fit = screenWidthCss > 0 ? (screenWidthCss * dpr) / widthCss : dpr;
+  const scale = Math.min(dpr, Math.max(1, fit));
+  return { rect: { x: scroll.x, y: scroll.y, width: widthCss, height: heightCss }, scale };
+}
+
 async function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -59,6 +104,8 @@ export async function captureVisibleTabPaced(
    * *here*, not before the wait.
    */
   beforeShot?: () => Promise<void>,
+  /** Firefox only — see ShotRegion. Omitted, the browser picks the area. */
+  region?: ShotRegion,
 ): Promise<Uint8Array> {
   // Paced at exactly the quota, not a little under it.
   //
@@ -75,7 +122,8 @@ export async function captureVisibleTabPaced(
 
     try {
       if (beforeShot) await beforeShot();
-      const dataUrl = await ext.tabs.captureVisibleTab(windowId, { format: "png" });
+      const options = region ? { format: "png" as const, rect: region.rect, scale: region.scale } : { format: "png" as const };
+      const dataUrl = await ext.tabs.captureVisibleTab(windowId, options as chrome.tabs.CaptureVisibleTabOptions);
       lastCallAtMs = Date.now();
       return dataUrlToBytes(dataUrl);
     } catch (error) {

@@ -26,7 +26,7 @@ vi.mock("../platform/webext", () => ({
   captureRateLimit: () => (typeof limit === "number" && limit > 0 ? limit : null),
 }));
 
-const { captureVisibleTabPaced } = await import("./capture");
+const { captureVisibleTabPaced, layoutViewportShot } = await import("./capture");
 
 describe("captureVisibleTabPaced", () => {
   beforeEach(() => {
@@ -88,5 +88,60 @@ describe("captureVisibleTabPaced", () => {
     // it, so it is not retried.
     await expect(captureVisibleTabPaced(1)).rejects.toThrow(/reloads or navigates/);
     expect(tabs.captureVisibleTab).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("layoutViewportShot", () => {
+  // Measured on Firefox 160 for Android, 1080px-wide screen: dpr 2.6087, so
+  // the screen is 414 CSS px wide.
+  const dpr = 1080 / 414;
+
+  it("photographs a desktop-width layout whole, at the scale that fits the screen", () => {
+    // "Desktop site" on: a 980 x 1845 layout viewport, zoomed out to fit.
+    const region = layoutViewportShot({ widthCss: 980, heightCss: 1845, screenWidthCss: 414 }, { x: 0, y: 1845 }, dpr);
+    expect(region!.rect).toEqual({ x: 0, y: 1845, width: 980, height: 1845 });
+    // 1080 device pixels across 980 CSS px — the bitmap is as wide as the
+    // screen, not a 2.6x strip of its left edge.
+    expect(Math.round(980 * region!.scale)).toBe(1080);
+  });
+
+  it("leaves a mobile layout at the device pixel ratio, as before", () => {
+    const region = layoutViewportShot({ widthCss: 414, heightCss: 779, screenWidthCss: 414 }, { x: 0, y: 0 }, dpr);
+    expect(region!.scale).toBeCloseTo(dpr, 6);
+    expect(region!.rect).toEqual({ x: 0, y: 0, width: 414, height: 779 });
+  });
+
+  it("never drops below one pixel per CSS pixel on a very wide layout", () => {
+    const region = layoutViewportShot({ widthCss: 2400, heightCss: 4000, screenWidthCss: 414 }, { x: 0, y: 0 }, dpr);
+    expect(region!.scale).toBe(1);
+  });
+
+  it("falls back to the device pixel ratio when the screen width is unknown", () => {
+    const region = layoutViewportShot({ widthCss: 980, heightCss: 1845, screenWidthCss: 0 }, { x: 0, y: 0 }, dpr);
+    expect(region!.scale).toBeCloseTo(dpr, 6);
+  });
+
+  it("gives up on nonsense rather than asking for an empty picture", () => {
+    expect(layoutViewportShot({ widthCss: 0, heightCss: 1845, screenWidthCss: 414 }, { x: 0, y: 0 }, dpr)).toBeNull();
+    expect(layoutViewportShot({ widthCss: 980, heightCss: 1845, screenWidthCss: 414 }, { x: 0, y: Number.NaN }, dpr)).toBeNull();
+  });
+});
+
+describe("captureVisibleTabPaced with a region", () => {
+  beforeEach(() => {
+    tabs.captureVisibleTab.mockClear();
+    limit = undefined;
+  });
+
+  it("passes the rect and scale through", async () => {
+    tabs.captureVisibleTab.mockImplementation(async () => "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==");
+    const region = { rect: { x: 0, y: 100, width: 980, height: 1845 }, scale: 1.1 };
+    await captureVisibleTabPaced(7, undefined, region);
+    expect(tabs.captureVisibleTab).toHaveBeenCalledWith(7, { format: "png", rect: region.rect, scale: 1.1 });
+  });
+
+  it("sends nothing but the format without one, which is all Chromium accepts", async () => {
+    await captureVisibleTabPaced(7);
+    expect(tabs.captureVisibleTab).toHaveBeenCalledWith(7, { format: "png" });
   });
 });

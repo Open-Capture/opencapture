@@ -1,8 +1,8 @@
 import { getCapturePrefs } from "../chrome/capture-prefs";
 import { CaptureFailureError } from "./injection-error";
-import { captureVisibleTabPaced } from "../chrome/capture";
+import { captureVisibleTabPaced, layoutViewportShot, type ShotRegion } from "../chrome/capture";
 import { LAST_CAPTURE_BLOB_KEY, extraLastCaptureBlobKey, getBlob, putBlob } from "../chrome/blob-store";
-import { ext } from "../platform/webext";
+import { detectAndroid, ext, isFirefox } from "../platform/webext";
 import type { CaptureReport, ContentRequest, PageMetrics, PrepResponse, ScrollToResponse, SelectAreaResponse } from "../types";
 import { loadShotCore } from "./wasm-loader";
 
@@ -87,9 +87,14 @@ async function injectContentScript(tabId: number): Promise<void> {
  * required." Routing every screenshot through here is what makes the three
  * capture buttons answer a restricted page identically.
  */
-async function shoot(windowId: number, tabId?: number, beforeShot?: () => Promise<void>): Promise<Uint8Array> {
+async function shoot(
+  windowId: number,
+  tabId?: number,
+  beforeShot?: () => Promise<void>,
+  region?: ShotRegion,
+): Promise<Uint8Array> {
   try {
-    return await captureVisibleTabPaced(windowId, beforeShot);
+    return await captureVisibleTabPaced(windowId, beforeShot, region);
   } catch (err) {
     if (err instanceof CaptureFailureError) throw err;
     const rawMessage = err instanceof Error ? err.message : String(err);
@@ -231,6 +236,12 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
 
   const targets = shotCore.scrollTargets(metrics.totalHeightCss, metrics.viewportHeightCss) as Float64Array;
 
+  // Firefox for Android photographs a screen-sized strip unless told what to
+  // photograph, and with "Desktop site" on that strip is not the viewport the
+  // slices are scrolled and placed by (see layoutViewportShot). Each slice
+  // there names the window's viewport instead. Elsewhere nothing changes.
+  const layout = isFirefox && prep.layoutViewport && (await detectAndroid()) ? prep.layoutViewport : null;
+
   // Built after the first slice, not before: the scale every placement is
   // computed with comes from the bitmap the browser actually returns rather
   // than from what the page reports (see measuredScale).
@@ -244,16 +255,28 @@ export async function captureFullPage(tabId: number, windowId: number): Promise<
   for (const target of targets) {
     reportProgress(sliceIndex, targets.length);
     sliceIndex += 1;
-    const { actualScrollCss } = await sendToContent<ScrollToResponse>(tabId, {
+    const { actualScrollCss, windowScrollCss } = await sendToContent<ScrollToResponse>(tabId, {
       action: "scrollTo",
       targetCss: target,
     });
+    const region = layout && windowScrollCss ? layoutViewportShot(layout, windowScrollCss, metrics.dpr) : null;
+    if (region) {
+      // The bitmap comes back at exactly this scale, so the inner-scroll crop
+      // below can use it from the first slice on.
+      scale = region.scale;
+      scaleForCrop = region.scale;
+    }
     // Re-assert the hiding after the quota wait, not before it: those are up
     // to half a second apart, and the page keeps running in between.
-    let pngBytes = await shoot(windowId, tabId, async () => {
-      await assertStillActive(tabId, windowId);
-      await sendToContent(tabId, { action: "reassert" });
-    });
+    let pngBytes = await shoot(
+      windowId,
+      tabId,
+      async () => {
+        await assertStillActive(tabId, windowId);
+        await sendToContent(tabId, { action: "reassert" });
+      },
+      region ?? undefined,
+    );
     // Dominant-inner-scroller mode (see content/index.ts's
     // detectDominantScroller): captureVisibleTabPaced still returns the
     // whole browser viewport, most of which — anything outside the inner
